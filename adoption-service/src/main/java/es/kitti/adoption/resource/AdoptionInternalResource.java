@@ -1,22 +1,18 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.adoption.dto.AdoptionDataExport;
 import es.kitti.adoption.intake.repository.IntakeRequestRepository;
 import es.kitti.adoption.repository.AdoptionFormRepository;
 import es.kitti.adoption.repository.AdoptionRequestFormRepository;
 import es.kitti.adoption.repository.AdoptionRequestRepository;
 import es.kitti.adoption.security.IdNumberEncryptionService;
 import es.kitti.adoption.security.InternalOnly;
+import es.kitti.adoption.service.AdoptionService;
 import es.kitti.adoption.service.RetentionPurgeService;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -46,6 +42,9 @@ public class AdoptionInternalResource {
     @Inject
     RetentionPurgeService retentionPurgeService;
 
+    @Inject
+    AdoptionService adoptionService;
+
     @GET
     @Path("/cats/{catId}/active")
     public Uni<Boolean> hasActiveRequestsForCat(@PathParam("catId") Long catId) {
@@ -66,6 +65,12 @@ public class AdoptionInternalResource {
                         })
         )
         .onItem().transform(v -> Response.noContent().build());
+    }
+
+    @GET
+    @Path("/users/{userId}/export")
+    public Uni<AdoptionDataExport> exportUser(@PathParam("userId") Long userId) {
+        return adoptionService.exportByAdopterId(userId);
     }
 
     @POST

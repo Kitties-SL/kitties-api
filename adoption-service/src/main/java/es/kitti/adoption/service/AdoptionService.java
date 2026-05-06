@@ -254,6 +254,31 @@ public class AdoptionService {
         .onItem().transform(adoptionMapper::toResponse);
     }
 
+    @WithSession
+    public Uni<AdoptionDataExport> exportByAdopterId(Long adopterId) {
+        return adoptionRequestRepository.findByAdopterId(adopterId)
+                .onItem().transformToUni(requests -> {
+                    if (requests.isEmpty()) {
+                        return Uni.createFrom().item(new AdoptionDataExport(List.of()));
+                    }
+                    List<Uni<AdoptionExportEntry>> entries = requests.stream()
+                            .map(r -> Uni.combine().all().unis(
+                                    adoptionRequestFormRepository.findByAdoptionRequestId(r.id),
+                                    adoptionFormRepository.findByAdoptionRequestId(r.id),
+                                    interviewRepository.findByAdoptionRequestId(r.id),
+                                    expenseRepository.findByAdoptionRequestId(r.id)
+                            ).asTuple().onItem().transform(t -> new AdoptionExportEntry(
+                                    adoptionMapper.toResponse(r),
+                                    t.getItem1() != null ? adoptionMapper.toResponse(t.getItem1()) : null,
+                                    t.getItem2() != null ? adoptionMapper.toResponse(t.getItem2()) : null,
+                                    t.getItem3().stream().map(adoptionMapper::toResponse).toList(),
+                                    t.getItem4().stream().map(adoptionMapper::toResponse).toList()
+                            ))).toList();
+                    return Uni.join().all(entries).andFailFast()
+                            .onItem().transform(AdoptionDataExport::new);
+                });
+    }
+
     @Incoming("adoption-form-analysed")
     public Uni<Void> onFormAnalysed(String message) {
         try {
