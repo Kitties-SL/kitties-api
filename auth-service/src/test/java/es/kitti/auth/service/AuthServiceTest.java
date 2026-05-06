@@ -66,7 +66,7 @@ class AuthServiceTest {
                                 .setRole("User")
                                 .build()
                 ));
-        when(jwtTokenService.generateAccessToken(1L, "test@kitti.es", "User"))
+        when(jwtTokenService.generateAccessToken(1L, "User"))
                 .thenReturn("mocked-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
@@ -77,7 +77,7 @@ class AuthServiceTest {
         assertNotNull(result);
         assertEquals("mocked-access-token", result.accessToken());
         assertNotNull(result.refreshToken());
-        verify(jwtTokenService).generateAccessToken(1L, "test@kitti.es", "User");
+        verify(jwtTokenService).generateAccessToken(1L, "User");
     }
 
     @Test
@@ -104,7 +104,7 @@ class AuthServiceTest {
 
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "test@kitti.es", "User"))
+        when(jwtTokenService.generateAccessToken(1L, "User"))
                 .thenReturn("new-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
