@@ -344,7 +344,6 @@ class AdoptionResourceTest {
         adoption.catId = 55L;
         adoption.adopterId = 1L;
         adoption.organizationId = 2L;
-        adoption.adopterEmail = "adopter@kitti.es";
         AdoptionRequest saved = persistInContext(adoption);
 
         when(catClient.findById(55L))
@@ -372,7 +371,6 @@ class AdoptionResourceTest {
         adoption.catId = 56L;
         adoption.adopterId = 1L;
         adoption.organizationId = 2L;
-        adoption.adopterEmail = "adopter@kitti.es";
         AdoptionRequest saved = persistInContext(adoption);
 
         when(catClient.findById(56L))
