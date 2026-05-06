@@ -12,12 +12,11 @@ public class AdoptionMapper {
     @Inject
     IdNumberEncryptionService encryptionService;
 
-    public AdoptionRequest toEntity(AdoptionRequestCreateRequest request, Long adopterId, String adopterEmail) {
+    public AdoptionRequest toEntity(AdoptionRequestCreateRequest request, Long adopterId) {
         AdoptionRequest entity = new AdoptionRequest();
         entity.catId = request.catId();
         entity.adopterId = adopterId;
         entity.organizationId = request.organizationId();
-        entity.adopterEmail = adopterEmail;
         return entity;
     }
 
@@ -30,7 +29,6 @@ public class AdoptionMapper {
                 entity.status,
                 entity.notes,
                 entity.rejectionReason,
-                entity.adopterEmail,
                 entity.createdAt,
                 entity.updatedAt
         );

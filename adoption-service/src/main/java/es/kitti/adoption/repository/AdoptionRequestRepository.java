@@ -37,11 +37,6 @@ public class AdoptionRequestRepository implements PanacheRepository<AdoptionRequ
                 .onItem().transform(count -> count > 0);
     }
 
-    public Uni<Integer> anonymizeAdopter(Long adopterId) {
-        return update("adopterEmail = ?1 where adopterId = ?2",
-                adopterId + "@erased.kitties", adopterId);
-    }
-
     public Uni<List<AdoptionRequest>> findRejectedBefore(LocalDateTime cutoff) {
         return list("status = ?1 and updatedAt < ?2", AdoptionStatus.Rejected, cutoff);
     }
