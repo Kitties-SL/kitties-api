@@ -204,10 +204,10 @@ Se copia el email del usuario en `adoption_requests.adopter_email` al crear la s
 `auth.refresh_tokens` acumula filas con `revoked = true` o `expires_at` pasado. Son datos personales (contienen email) sin finalidad activa.
 **Solución implementada:** `AuthTokenPurgeJob` en schedule-service dispara semanalmente (domingos 03:00) una llamada interna a auth-service que elimina los tokens expirados o revocados.
 
-### I-5 — Sin endpoint de portabilidad (Art. 20 RGPD)
+### I-5 — Sin endpoint de portabilidad (Art. 20 RGPD) ✅ resuelto
 
 No existe mecanismo para que un usuario descargue todos sus datos en formato estructurado.
-**Solución:** `GET /users/me/export` que devuelva un JSON con todos los datos del usuario: perfil, historial de solicitudes de adopción, formularios, mensajes de chat. Requiere llamadas internas entre servicios.
+**Solución implementada:** `GET /users/me/export` (@RolesAllowed("User")) en user-service. Orquesta en paralelo (`Uni.combine`) dos llamadas internas: `adoption-service /adoptions/internal/users/{id}/export` y `chat-service /chats/internal/users/{id}/export`. Devuelve perfil + historial de adopciones (solicitudes, formularios, entrevistas, gastos) + conversaciones con mensajes en un único JSON.
 
 ### I-6 — Trazas OTEL con datos personales
 
@@ -248,7 +248,7 @@ En producción las imágenes se alojan en Cloudflare R2. Las imágenes de gatos 
 | I-2 | Quitar email del JWT | auth + todos los consumidores | alto | ✅ resuelto |
 | I-3 | Quitar `adopter_email` de adoption_requests | adoption-service | medio | ✅ resuelto |
 | I-4 | Job de purga de refresh tokens | auth-service | bajo | ✅ resuelto |
-| I-5 | Endpoint de portabilidad de datos | user-service | medio | 🟠 importante |
+| I-5 | Endpoint de portabilidad de datos | user-service | medio | ✅ resuelto |
 | I-6 | Sanitización de trazas OTEL | todos | bajo | 🟠 importante |
 | M-1 | Verificar TTL del activation token | user-service | bajo | 🟡 menor |
 | M-2 | Audit log de accesos a datos sensibles | adoption-service | medio | 🟡 menor |
