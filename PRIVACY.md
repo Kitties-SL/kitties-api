@@ -209,10 +209,12 @@ Se copia el email del usuario en `adoption_requests.adopter_email` al crear la s
 No existe mecanismo para que un usuario descargue todos sus datos en formato estructurado.
 **Solución implementada:** `GET /users/me/export` (@RolesAllowed("User")) en user-service. Orquesta en paralelo (`Uni.combine`) dos llamadas internas: `adoption-service /adoptions/internal/users/{id}/export` y `chat-service /chats/internal/users/{id}/export`. Devuelve perfil + historial de adopciones (solicitudes, formularios, entrevistas, gastos) + conversaciones con mensajes en un único JSON.
 
-### I-6 — Trazas OTEL con datos personales
+### I-6 — Trazas OTEL con datos personales ✅ resuelto
 
 Los spans de OpenTelemetry pueden incluir URLs con emails o IDs, cabeceras HTTP, y payloads si el agente está configurado con nivel de detalle alto.
-**Solución:** Configurar el agente OTEL para excluir headers de autorización y sanitizar URLs con patrones de email (`/users/{email}` → `/users/{redacted}`). Añadir `quarkus.otel.traces.sampler` con filtros.
+**Solución implementada:**
+- `quarkus.otel.traces.suppress-non-application-uris=true` añadido a los 11 servicios — suprime spans de `/q/health`, `/q/metrics` y similares.
+- `OtelSanitizingSpanProcessor` en user-service (único servicio con email en URL path): CDI bean `@ApplicationScoped` que intercepta `onStart` y redacta segmentos de path que contienen `@` en los atributos `http.target`, `url.path` y `url.full` → `/{redacted}`.
 
 ---
 
@@ -249,7 +251,7 @@ En producción las imágenes se alojan en Cloudflare R2. Las imágenes de gatos 
 | I-3 | Quitar `adopter_email` de adoption_requests | adoption-service              | medio    | ✅ resuelto           |
 | I-4 | Job de purga de refresh tokens              | auth-service                  | bajo     | ✅ resuelto           |
 | I-5 | Endpoint de portabilidad de datos           | user-service                  | medio    | ✅ resuelto           |
-| I-6 | Sanitización de trazas OTEL                 | todos                         | bajo     | 🟠 importante        |
+| I-6 | Sanitización de trazas OTEL                 | todos                         | bajo     | ✅ resuelto           |
 | M-1 | Verificar TTL del activation token          | user-service                  | bajo     | 🟡 menor             |
 | M-2 | Audit log de accesos a datos sensibles      | adoption-service              | medio    | 🟡 menor             |
 | M-3 | Documentar SCC de Cloudflare                | — (documentación)             | bajo     | 🟡 menor             |
