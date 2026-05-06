@@ -51,7 +51,7 @@ public class AdoptionService {
     Emitter<AdoptionFormSubmittedEvent> adoptionFormSubmittedEmitter;
 
     public Uni<AdoptionRequestResponse> createAdoptionRequest(
-            AdoptionRequestCreateRequest request, Long adopterId, String adopterEmail) {
+            AdoptionRequestCreateRequest request, Long adopterId) {
 
         return catClient.findById(request.catId())
                 .onFailure(jakarta.ws.rs.WebApplicationException.class)
@@ -67,7 +67,7 @@ public class AdoptionService {
                                             return Uni.createFrom()
                                                     .failure(new CatNotAvailableException(request.catId()));
                                         }
-                                        AdoptionRequest entity = adoptionMapper.toEntity(request, adopterId, adopterEmail);
+                                        AdoptionRequest entity = adoptionMapper.toEntity(request, adopterId);
                                         return adoptionRequestRepository.persist(entity);
                                     })
                     );

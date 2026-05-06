@@ -60,8 +60,7 @@ public class AdoptionInternalResource {
                 adoptionRequestRepository.findByAdopterId(userId)
                         .onItem().transformToUni(requests -> {
                             List<Long> requestIds = requests.stream().map(r -> r.id).toList();
-                            return adoptionRequestRepository.anonymizeAdopter(userId)
-                                    .chain(() -> adoptionFormRepository.anonymizeForRequestIds(requestIds, encryptedPlaceholder))
+                            return adoptionFormRepository.anonymizeForRequestIds(requestIds, encryptedPlaceholder)
                                     .chain(() -> adoptionRequestFormRepository.clearAllergiesForRequestIds(requestIds))
                                     .chain(() -> intakeRequestRepository.anonymizeByUserId(userId));
                         })
