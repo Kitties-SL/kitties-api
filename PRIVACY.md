@@ -238,31 +238,31 @@ En producción las imágenes se alojan en Cloudflare R2. Las imágenes de gatos 
 
 ## Plan de acción priorizado
 
-| # | Problema | Servicio(s) afectado(s) | Esfuerzo | Prioridad |
-|---|---|---|---|---|
-| C-1 | Cifrar DNI/NIE | adoption-service | medio | 🔴 crítico |
-| C-2 | Consentimiento explícito datos de salud | adoption-service + frontend | bajo | ✅ resuelto (backend) |
-| C-3 | Derecho al olvido (borrado/anonimización) | user, adoption, auth, chat | alto | ✅ resuelto |
-| C-4 | Política de retención + jobs de purga | auth, adoption, chat | medio | ✅ resuelto |
-| I-1 | Quitar datos personales del evento Kafka | adoption, form-analysis | bajo | ✅ resuelto |
-| I-2 | Quitar email del JWT | auth + todos los consumidores | alto | ✅ resuelto |
-| I-3 | Quitar `adopter_email` de adoption_requests | adoption-service | medio | ✅ resuelto |
-| I-4 | Job de purga de refresh tokens | auth-service | bajo | ✅ resuelto |
-| I-5 | Endpoint de portabilidad de datos | user-service | medio | ✅ resuelto |
-| I-6 | Sanitización de trazas OTEL | todos | bajo | 🟠 importante |
-| M-1 | Verificar TTL del activation token | user-service | bajo | 🟡 menor |
-| M-2 | Audit log de accesos a datos sensibles | adoption-service | medio | 🟡 menor |
-| M-3 | Documentar SCC de Cloudflare | — (documentación) | bajo | 🟡 menor |
+| #   | Problema                                    | Servicio(s) afectado(s)       | Esfuerzo | Prioridad            |
+|-----|---------------------------------------------|-------------------------------|----------|----------------------|
+| C-1 | Cifrar DNI/NIE                              | adoption-service              | medio    | ✅ resuelto           |
+| C-2 | Consentimiento explícito datos de salud     | adoption-service + frontend   | bajo     | ✅ resuelto (backend) |
+| C-3 | Derecho al olvido (borrado/anonimización)   | user, adoption, auth, chat    | alto     | ✅ resuelto           |
+| C-4 | Política de retención + jobs de purga       | auth, adoption, chat          | medio    | ✅ resuelto           |
+| I-1 | Quitar datos personales del evento Kafka    | adoption, form-analysis       | bajo     | ✅ resuelto           |
+| I-2 | Quitar email del JWT                        | auth + todos los consumidores | alto     | ✅ resuelto           |
+| I-3 | Quitar `adopter_email` de adoption_requests | adoption-service              | medio    | ✅ resuelto           |
+| I-4 | Job de purga de refresh tokens              | auth-service                  | bajo     | ✅ resuelto           |
+| I-5 | Endpoint de portabilidad de datos           | user-service                  | medio    | ✅ resuelto           |
+| I-6 | Sanitización de trazas OTEL                 | todos                         | bajo     | 🟠 importante        |
+| M-1 | Verificar TTL del activation token          | user-service                  | bajo     | 🟡 menor             |
+| M-2 | Audit log de accesos a datos sensibles      | adoption-service              | medio    | 🟡 menor             |
+| M-3 | Documentar SCC de Cloudflare                | — (documentación)             | bajo     | 🟡 menor             |
 
 ---
 
 ## Marco legal de referencia
 
-| Norma | Artículos relevantes |
-|---|---|
-| RGPD | Art. 5 (principios), Art. 6 (bases legales), Art. 9 (datos de salud), Art. 13-14 (transparencia), Art. 15-22 (derechos), Art. 25 (privacy by design), Art. 30 (registro de actividades), Art. 32 (seguridad), Art. 33-34 (notificación de brechas) |
-| LOPDGDD | Art. 6 (consentimiento), Art. 9 (datos de menores), Art. 12-18 (derechos), Disposición adicional 17ª (DNI/NIF) |
-| Circular AEPD 1/2019 | Tratamiento del número de identificación personal |
+| Norma                | Artículos relevantes                                                                                                                                                                                                                               |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| RGPD                 | Art. 5 (principios), Art. 6 (bases legales), Art. 9 (datos de salud), Art. 13-14 (transparencia), Art. 15-22 (derechos), Art. 25 (privacy by design), Art. 30 (registro de actividades), Art. 32 (seguridad), Art. 33-34 (notificación de brechas) |
+| LOPDGDD              | Art. 6 (consentimiento), Art. 9 (datos de menores), Art. 12-18 (derechos), Disposición adicional 17ª (DNI/NIF)                                                                                                                                     |
+| Circular AEPD 1/2019 | Tratamiento del número de identificación personal                                                                                                                                                                                                  |
 
 La autoridad de control competente en España es la **Agencia Española de Protección de Datos (AEPD)** — [aepd.es](https://www.aepd.es).
 Las sanciones por incumplimiento grave (Art. 83.5 RGPD) pueden alcanzar los **20 millones de euros o el 4 % del volumen de negocio anual**.
