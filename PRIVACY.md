@@ -182,11 +182,11 @@ Este registro es **append-only e inmutable** — ni el usuario ni un admin puede
 
 Deben resolverse antes del lanzamiento a producción.
 
-### I-1 — Datos personales en eventos Kafka
+### I-1 — Datos personales en eventos Kafka ✅ resuelto
 
 `AdoptionFormSubmittedEvent` incluye `adopterEmail` y los campos de salud del screening.
 Los mensajes Kafka persisten en disco según la retención del topic y no están cifrados a nivel de mensaje.
-**Solución:** Sustituir `adopterEmail` por `adoptionRequestId` en el evento. form-analysis-service no necesita el email para analizar el formulario.
+**Solución implementada:** `adopterEmail` sustituido por `adoptionRequestId` y `adopterId` en el evento. Ambas copias del record (adoption-service y form-analysis-service) están actualizadas.
 
 ### I-2 — Email en el payload del JWT ✅ resuelto
 
@@ -194,10 +194,10 @@ El claim `email` viaja en cada request y puede aparecer en logs del gateway, app
 **Solución:** Eliminar el claim `email` del JWT. Usar solo `sub` (userId). Los servicios que necesitan el email deben recuperarlo del user-service por `userId`.
 > **Advertencia:** este cambio rompe `AdoptionService` (que extrae `adopterEmail` del JWT al crear la solicitud) y `UserResource.requireSelf()`. Requiere refactor coordinado.
 
-### I-3 — `adopter_email` duplicado en `adoption_requests`
+### I-3 — `adopter_email` duplicado en `adoption_requests` ✅ resuelto
 
 Se copia el email del usuario en `adoption_requests.adopter_email` al crear la solicitud. Si el usuario cambia su email (futura feature) o ejerce rectificación, el dato queda desincronizado.
-**Solución:** Usar solo `adopter_id` para identificar al adoptante. Recuperar el email en tiempo de lectura si hace falta (join lógico vía REST al user-service).
+**Solución implementada:** Columna `adopter_email` eliminada de `adoption_requests` (migración V5). Solo se persiste `adopter_id`. El resource ya no llama a user-service en tiempo de creación; el email se recupera de user-service en tiempo de lectura si el contexto lo requiere.
 
 ### I-4 — Refresh tokens expirados no se purgan
 
@@ -246,7 +246,7 @@ En producción las imágenes se alojan en Cloudflare R2. Las imágenes de gatos 
 | C-4 | Política de retención + jobs de purga | auth, adoption, chat | medio | ✅ resuelto |
 | I-1 | Quitar datos personales del evento Kafka | adoption, form-analysis | bajo | ✅ resuelto |
 | I-2 | Quitar email del JWT | auth + todos los consumidores | alto | ✅ resuelto |
-| I-3 | Quitar `adopter_email` de adoption_requests | adoption-service | medio | 🟠 importante |
+| I-3 | Quitar `adopter_email` de adoption_requests | adoption-service | medio | ✅ resuelto |
 | I-4 | Job de purga de refresh tokens | auth-service | bajo | 🟠 importante |
 | I-5 | Endpoint de portabilidad de datos | user-service | medio | 🟠 importante |
 | I-6 | Sanitización de trazas OTEL | todos | bajo | 🟠 importante |
