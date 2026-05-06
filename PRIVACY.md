@@ -199,10 +199,10 @@ El claim `email` viaja en cada request y puede aparecer en logs del gateway, app
 Se copia el email del usuario en `adoption_requests.adopter_email` al crear la solicitud. Si el usuario cambia su email (futura feature) o ejerce rectificación, el dato queda desincronizado.
 **Solución implementada:** Columna `adopter_email` eliminada de `adoption_requests` (migración V5). Solo se persiste `adopter_id`. El resource ya no llama a user-service en tiempo de creación; el email se recupera de user-service en tiempo de lectura si el contexto lo requiere.
 
-### I-4 — Refresh tokens expirados no se purgan
+### I-4 — Refresh tokens expirados no se purgan ✅ resuelto
 
 `auth.refresh_tokens` acumula filas con `revoked = true` o `expires_at` pasado. Son datos personales (contienen email) sin finalidad activa.
-**Solución:** Job de limpieza periódico (Quarkus Scheduler / `@Scheduled`) que borre tokens expirados o revocados con más de N días de antigüedad.
+**Solución implementada:** `AuthTokenPurgeJob` en schedule-service dispara semanalmente (domingos 03:00) una llamada interna a auth-service que elimina los tokens expirados o revocados.
 
 ### I-5 — Sin endpoint de portabilidad (Art. 20 RGPD)
 
@@ -247,7 +247,7 @@ En producción las imágenes se alojan en Cloudflare R2. Las imágenes de gatos 
 | I-1 | Quitar datos personales del evento Kafka | adoption, form-analysis | bajo | ✅ resuelto |
 | I-2 | Quitar email del JWT | auth + todos los consumidores | alto | ✅ resuelto |
 | I-3 | Quitar `adopter_email` de adoption_requests | adoption-service | medio | ✅ resuelto |
-| I-4 | Job de purga de refresh tokens | auth-service | bajo | 🟠 importante |
+| I-4 | Job de purga de refresh tokens | auth-service | bajo | ✅ resuelto |
 | I-5 | Endpoint de portabilidad de datos | user-service | medio | 🟠 importante |
 | I-6 | Sanitización de trazas OTEL | todos | bajo | 🟠 importante |
 | M-1 | Verificar TTL del activation token | user-service | bajo | 🟡 menor |
