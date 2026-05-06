@@ -8,10 +8,8 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
-import es.kitti.user.dto.ActivationRequest;
-import es.kitti.user.dto.UserCreateRequest;
-import es.kitti.user.dto.UserResponse;
-import es.kitti.user.dto.UserUpdateRequest;
+import es.kitti.user.dto.*;
+import jakarta.annotation.security.RolesAllowed;
 import es.kitti.user.service.UserService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -121,6 +119,14 @@ public class UserResource {
     public Uni<Response> activate(@Valid ActivationRequest request) {
         return userService.activateByToken(request.token())
                 .onItem().transform(user -> Response.ok(user).build());
+    }
+
+    @GET
+    @Path("/me/export")
+    @RolesAllowed("User")
+    public Uni<UserDataExportResponse> exportMyData() {
+        Long userId = Long.parseLong(jwt.getSubject());
+        return userService.exportMyData(userId);
     }
 
     private Uni<UserResponse> requireSelf(String email) {

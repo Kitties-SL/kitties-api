@@ -1,6 +1,9 @@
 package es.kitti.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.user.client.AdoptionInternalClient;
+import es.kitti.user.client.ChatInternalClient;
+import es.kitti.user.dto.UserDataExportResponse;
 import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
@@ -22,8 +25,10 @@ import es.kitti.user.exception.InvalidTokenException;
 import es.kitti.user.exception.UserNotFoundException;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.List;
 
@@ -39,6 +44,15 @@ public class UserService {
     Emitter<UserRegisteredEvent> userRegisteredEmitter;
     @Inject
     ObjectMapper objectMapper;
+
+    @RestClient
+    AdoptionInternalClient adoptionInternalClient;
+
+    @RestClient
+    ChatInternalClient chatInternalClient;
+
+    @ConfigProperty(name = "kitties.internal.secret")
+    String internalSecret;
 
     @WithSession
     public Uni<UserResponse> findById(Long id) {
@@ -118,6 +132,20 @@ public class UserService {
             user.status = UserStatus.Active;
             return userRepository.persist(user);
         }).onItem().transform(userMapper::toResponse);
+    }
+
+    @WithSession
+    public Uni<UserDataExportResponse> exportMyData(Long userId) {
+        return Uni.combine().all().unis(
+                userRepository.findById(userId)
+                        .onItem().ifNull().failWith(() -> new UserNotFoundException(String.valueOf(userId))),
+                adoptionInternalClient.exportUser(userId, internalSecret),
+                chatInternalClient.exportUser(userId, internalSecret)
+        ).asTuple().onItem().transform(t -> new UserDataExportResponse(
+                userMapper.toResponse(t.getItem1()),
+                t.getItem2(),
+                t.getItem3()
+        ));
     }
 
     @WithTransaction
