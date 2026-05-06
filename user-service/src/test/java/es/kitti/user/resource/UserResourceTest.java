@@ -77,8 +77,8 @@ class UserResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "alice@kitti.es", roles = "User")
-    @JwtSecurity(claims = {@Claim(key = "email", value = "alice@kitti.es")})
+    @TestSecurity(user = "9001", roles = "User")
+    @JwtSecurity(claims = {@Claim(key = "sub", value = "9001")})
     void findByEmail_shouldReturn403_whenRequestingAnotherUsersProfile() {
         given()
                 .when().get("/users/bob@kitti.es")
@@ -86,22 +86,9 @@ class UserResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "alice@kitti.es", roles = "User")
-    @JwtSecurity(claims = {@Claim(key = "email", value = "alice@kitti.es")})
+    @TestSecurity(user = "9001", roles = "User")
+    @JwtSecurity(claims = {@Claim(key = "sub", value = "9001")})
     void findByEmail_shouldReturn200_whenRequestingOwnProfile() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                    {
-                        "email": "alice@kitti.es",
-                        "password": "password123",
-                        "name": "Alice",
-                        "surname": "Test"
-                    }
-                    """)
-                .when().post("/users")
-                .then().statusCode(201);
-
         given()
                 .when().get("/users/alice@kitti.es")
                 .then().statusCode(200)
