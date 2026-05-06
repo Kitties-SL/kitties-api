@@ -6,11 +6,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.ForbiddenException;
-import es.kitti.chat.dto.BlockUserRequest;
-import es.kitti.chat.dto.ConversationResponse;
-import es.kitti.chat.dto.CreateConversationRequest;
-import es.kitti.chat.dto.MessageResponse;
-import es.kitti.chat.dto.SendMessageRequest;
+import es.kitti.chat.dto.*;
+
 import es.kitti.chat.entity.BlockedParticipant;
 import es.kitti.chat.entity.Conversation;
 import es.kitti.chat.entity.Message;
@@ -117,6 +114,25 @@ public class ChatService {
                             b.reason = request != null ? request.reason() : null;
                             return blockedRepository.persist(b).replaceWithVoid();
                         }));
+    }
+
+    @WithSession
+    public Uni<ChatDataExport> exportByUserId(Long userId) {
+        return conversationRepository.findByUserId(userId)
+                .onItem().transformToUni(convs -> {
+                    if (convs.isEmpty()) {
+                        return Uni.createFrom().item(new ChatDataExport(List.of()));
+                    }
+                    List<Uni<ConversationExportEntry>> entries = convs.stream()
+                            .map(c -> messageRepository.findByConversationId(c.id)
+                                    .onItem().transform(msgs -> new ConversationExportEntry(
+                                            mapper.toResponse(c),
+                                            msgs.stream().map(mapper::toResponse).toList()
+                                    )))
+                            .toList();
+                    return Uni.join().all(entries).andFailFast()
+                            .onItem().transform(ChatDataExport::new);
+                });
     }
 
     @WithTransaction

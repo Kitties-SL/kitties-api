@@ -1,5 +1,6 @@
 package es.kitti.chat.resource;
 
+import es.kitti.chat.dto.ChatDataExport;
 import es.kitti.chat.dto.CreateConversationRequest;
 import es.kitti.chat.security.InternalOnly;
 import es.kitti.chat.service.ChatRetentionService;
@@ -7,12 +8,7 @@ import es.kitti.chat.service.ChatService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -40,6 +36,12 @@ public class ChatInternalResource {
     public Uni<Response> anonymizeUser(@PathParam("userId") Long userId) {
         return service.anonymizeUser(userId)
                 .onItem().transform(v -> Response.noContent().build());
+    }
+
+    @GET
+    @Path("/users/{userId}/export")
+    public Uni<ChatDataExport> exportUser(@PathParam("userId") Long userId) {
+        return service.exportByUserId(userId);
     }
 
     @POST
