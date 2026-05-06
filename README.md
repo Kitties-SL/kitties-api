@@ -23,6 +23,7 @@ Microservices backend for Kitties, a cat adoption platform for shelters and vete
 - [Environment Variables](#environment-variables)
 - [Roadmap](#roadmap)
 - [Privacy & Data Protection](PRIVACY.md)
+- [Developer Onboarding Guide](ONBOARDING.md)
 
 ---
 
@@ -195,8 +196,26 @@ Conversations between an adopter and an organization, opened after an intake is 
 
 **Internal (service-to-service, `X-Internal-Token`)**:
 - `POST /chats/internal/conversations` — open a conversation `(intakeRequestId, userId, organizationId)`. Intended caller is `adoption-service` after an intake approval.
+- `POST /chats/internal/retention/run` — purge messages and conversations inactive for more than 1 year. Caller: `schedule-service`.
+- `DELETE /chats/internal/users/{userId}` — anonymise all messages from a user (GDPR Art. 17). Caller: `user-service` erasure flow.
 
 **Moderation:** organizations can block a user via `(organizationId, userId)` pair (scope is the pair, not the conversation). Blocked users keep read access but their `POST /chats/{id}/messages` returns **403**. Global user bans (`UserStatus.Banned`) are deferred until a real case appears.
+
+---
+
+### schedule-service — port 8090
+
+Centralised scheduler. No public endpoints, no database, no Kafka. Fires data-retention and erasure-purge jobs on the other services via internal HTTP calls (`X-Internal-Token`), decoupling cron logic from business services.
+
+| Cron | Target | What it triggers |
+|------|--------|-----------------|
+| daily 02:00 | `user-service` | Erasure purge — anonymise users whose 30-day grace period has elapsed |
+| daily 02:15 | `user-service` | Delete `Inactive` accounts with an expired activation token |
+| daily 02:30 | `adoption-service` | Delete rejected requests older than 1 year; anonymise PII in completed forms older than 5 years |
+| daily 04:00 | `chat-service` | Delete conversations (and their messages) inactive for more than 1 year |
+| Sunday 03:00 | `auth-service` | Delete expired or revoked refresh tokens |
+
+**Only `/q/health/live` is accessible from the network** — all other routes are absent.
 
 ---
 
@@ -215,15 +234,16 @@ Three isolated networks. Only the gateway is reachable from the internet.
                         ┌──────────────▼──────────────────────────────┐
                         │  PRIVATE NETWORK                            │
                         │                                             │
-                        │  user-service        :8081  gRPC :9090      │
-                        │  auth-service        :8082  gRPC :9091      │
-                        │  cat-service         :8084                  │
-                        │  storage-service     :8083                  │
+                        │  user-service         :8081  gRPC :9090     │
+                        │  auth-service         :8082  gRPC :9091     │
+                        │  cat-service          :8084                 │
+                        │  storage-service      :8083                 │
                         │  notification-service :8085                 │
-                        │  adoption-service    :8086                  │
+                        │  adoption-service     :8086                 │
                         │  form-analysis-service :8087                │
                         │  organization-service :8088                 │
-                        │  chat-service        :8089                  │
+                        │  chat-service         :8089                 │
+                        │  schedule-service     :8090                 │
                         └──────────────┬──────────────────────────────┘
                                        │
                         ┌──────────────▼──────────────────────────────┐
@@ -251,6 +271,7 @@ Implemented via Docker networks (dev/staging) or Kubernetes NetworkPolicy (produ
 | form-analysis-service | 8087  | —     |
 | organization-service  | 8088  | —     |
 | chat-service          | 8089  | —     |
+| schedule-service      | 8090  | —     |
 | PostgreSQL            | 5432  | —     |
 | MinIO API             | 9000  | —     |
 | MinIO Console         | 9001  | —     |
@@ -364,6 +385,27 @@ done
 
 On Windows, run the commands above in Git Bash or WSL. To install OpenSSL via winget: `winget install ShiningLight.OpenSSL`.
 
+### ID number encryption key
+
+`adoption-service` stores DNI/NIE values encrypted with AES-256-GCM (LOPDGDD art. 9 / C-1). The key must be a Base64-encoded 32-byte secret injected via `KITTIES_ID_NUMBER_KEY`. It is never stored in the database or in source code.
+
+```bash
+# Generate a 256-bit key (do this once and store securely)
+openssl rand -base64 32
+```
+
+In **development** the service falls back to a hardcoded dev-only key — no action required. In **production** the key must be supplied as a Docker Secret or environment variable:
+
+```bash
+# Docker Secret (recommended)
+echo "$(openssl rand -base64 32)" | docker secret create kitties_id_number_key -
+
+# Or via environment variable in .env
+KITTIES_ID_NUMBER_KEY=<output of openssl rand -base64 32>
+```
+
+> **Key rotation**: to rotate the key you must re-encrypt all existing `adoption_forms.id_number` rows before deploying the new key. There is no automatic migration — coordinate with a maintenance window.
+
 ### gRPC internal secret
 
 `auth-service` and `user-service` communicate over gRPC protected by a shared secret injected as the `x-internal-token` header. Set `GRPC_INTERNAL_SECRET` in your `.env` (required in production; defaults to `kitties-dev-secret` in dev).
@@ -422,14 +464,14 @@ Subsequent renewals are handled automatically by the `certbot` service (every 12
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-This starts PostgreSQL 16, MinIO, Zookeeper, Kafka, all 9 application services, Nginx (ports 80/443), and the Certbot renewal daemon.
+This starts PostgreSQL 16, MinIO, Zookeeper, Kafka, all 11 application services, Nginx (ports 80/443), and the Certbot renewal daemon.
 Traffic enters via Nginx on **port 443** (HTTPS); HTTP redirects to HTTPS automatically.
 
 ### CI/CD Pipeline
 
 The GitHub Actions workflow at `.github/workflows/ci-cd.yml` runs on every push to `main`:
 
-1. **Test matrix** — runs `mvn test` in parallel for all 9 services
+1. **Test matrix** — runs `mvn test` in parallel for all 11 services
 2. **Build & push** — builds Docker images and pushes to Docker Hub as `<DOCKERHUB_USERNAME>/kitties-<service>:latest`
 
 Pull requests trigger only the test matrix (no image push).
@@ -512,6 +554,50 @@ The two guards together close the invariant: a cat cannot be deleted while adopt
 
 Future: when a user or organisation is deactivated, `user-service` / `organization-service` will emit a Kafka event (`user-deactivated`, `organization-deactivated`) and `adoption-service` will cancel their active requests.
 
+### Internal service-to-service authentication (`@InternalOnly`)
+
+Some endpoints must only be reachable by other services inside the private network — never by users or through the gateway. The `@InternalOnly` pattern handles this without JWT.
+
+**How it works:** a JAX-RS `@NameBinding` annotation binds a `ContainerRequestFilter` exclusively to resources or methods tagged with `@InternalOnly`. The filter checks the `X-Internal-Token` header against the shared secret `kitties.internal.secret` and aborts with 401 if it does not match.
+
+```
+incoming request
+      │
+      ▼
+InternalTokenFilter.filter()        ← runs only on @InternalOnly methods/classes
+  compare X-Internal-Token with kitties.internal.secret
+  ✗ → 401 Unauthorized
+  ✓ → proceed to resource
+```
+
+**Shared secret:** same value across all services. Dev default: `kitties-dev-secret`. Production: inject via `KITTIES_INTERNAL_SECRET` env var / Docker Secret.
+
+**Caller side** (MicroProfile REST Client):
+```java
+@RegisterRestClient(configKey = "foo-service")
+@Path("/foo/internal")
+public interface FooInternalClient {
+
+    @POST
+    @Path("/some-action")
+    Uni<Response> trigger(@HeaderParam("X-Internal-Token") String token);
+}
+```
+Inject `@ConfigProperty(name = "kitties.internal.secret") String internalSecret` in the caller and pass it to the method.
+
+**Server side:**
+```java
+@Path("/foo/internal")
+@InternalOnly          // ← entire class is protected; can also be applied per method
+public class FooInternalResource { ... }
+```
+
+**Two files to copy** into `security/` when adding the pattern to a new service (`InternalOnly.java` + `InternalTokenFilter.java`). They are intentionally duplicated across services — a shared Maven module would introduce compile-time coupling that microservices are designed to avoid. See [CLAUDE.md — Autenticación interna](CLAUDE.md#autenticación-interna-servicio-a-servicio) for the copy-paste guide, the rationale, and the list of services that already have it.
+
+**Rule:** the gateway must never proxy routes matching `/*/internal/*`. These endpoints are accessible only from the container private network.
+
+---
+
 ### Value Objects
 
 Domain concepts with format constraints (`Email`, `ActivationToken`) are implemented as immutable `final` classes with a private constructor and a static `of()` factory — not records, because records cannot enforce a truly private canonical constructor. Format validation only; business rule validation stays in the service layer.
@@ -572,6 +658,7 @@ Copy `.env.example` to `.env` and fill in all values. Variables marked **require
 |-----------------------------|-------------------------------------|----------------------------------------|
 | `JWT_PRIVATE_KEY_LOCATION`  | `/run/secrets/privateKey.pem`       | RSA private key path (auth-service)    |
 | `JWT_PUBLIC_KEY_LOCATION`   | `/run/secrets/publicKey.pem`        | RSA public key path (all other services) |
+| `KITTIES_ID_NUMBER_KEY`     | —                                   | AES-256-GCM key for DNI/NIE encryption (Base64, 32 bytes). **Required in prod.** Generate with `openssl rand -base64 32`. |
 
 **Dev tools:**
 
@@ -652,6 +739,7 @@ These features make the portal self-sustaining without depending solely on shelt
 - [x] JWT keys externalized in `%prod` profile (mounted secrets, not classpath)
 - [x] MIME magic byte validation on upload — rejects files whose bytes don't match declared Content-Type (JPEG/PNG spoofing prevention)
 - [x] `X-Content-Type-Options: nosniff` injected on all gateway responses (MIME sniffing prevention)
+- [x] **DNI/NIE encrypted at rest** — `adoption_forms.id_number` stored as AES-256-GCM ciphertext; key injected via `KITTIES_ID_NUMBER_KEY` env var / Docker Secret (LOPDGDD art. 9, C-1)
 - [ ] **Fix `IpRateLimiter` cross-endpoint bucket sharing** — refresh and upload (IP key) share the same `Deque<Long>`; two uploads consume from the same window as two refreshes for the same IP.
 - [ ] Rate limiting distributed with Redis — current limit is per JVM instance; multi-replica deployments multiply the effective limit.
 - [ ] Activation token expiry (`activationTokenExpiresAt`)

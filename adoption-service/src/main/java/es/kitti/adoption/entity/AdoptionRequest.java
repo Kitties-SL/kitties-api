@@ -13,9 +13,6 @@ public class AdoptionRequest extends PanacheEntity {
     public Long catId;
 
     @Column(nullable = false)
-    public String adopterEmail;
-
-    @Column(nullable = false)
     public Long adopterId;
 
     @Column(nullable = false)

@@ -69,7 +69,6 @@ class AdoptionServiceTest {
         testAdoptionRequestResponse = new AdoptionRequestResponse(
                 1L, 10L, 100L, 200L,
                 AdoptionStatus.Pending, null, null,
-                "adopter@kitti.es",
                 LocalDateTime.now(), LocalDateTime.now()
         );
     }
@@ -85,7 +84,7 @@ class AdoptionServiceTest {
                 .thenReturn(Uni.createFrom().item(Response.status(404).build()));
 
         assertThrows(CatNotAvailableException.class, () ->
-                adoptionService.createAdoptionRequest(request, 100L, "adopter@kitti.es")
+                adoptionService.createAdoptionRequest(request, 100L)
                         .await().indefinitely()
         );
     }

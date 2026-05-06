@@ -1,18 +1,22 @@
 package es.kitti.adoption.mapper;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
+import es.kitti.adoption.security.IdNumberEncryptionService;
 
 @ApplicationScoped
 public class AdoptionMapper {
 
-    public AdoptionRequest toEntity(AdoptionRequestCreateRequest request, Long adopterId, String adopterEmail) {
+    @Inject
+    IdNumberEncryptionService encryptionService;
+
+    public AdoptionRequest toEntity(AdoptionRequestCreateRequest request, Long adopterId) {
         AdoptionRequest entity = new AdoptionRequest();
         entity.catId = request.catId();
         entity.adopterId = adopterId;
         entity.organizationId = request.organizationId();
-        entity.adopterEmail = adopterEmail;
         return entity;
     }
 
@@ -25,7 +29,6 @@ public class AdoptionMapper {
                 entity.status,
                 entity.notes,
                 entity.rejectionReason,
-                entity.adopterEmail,
                 entity.createdAt,
                 entity.updatedAt
         );
@@ -131,7 +134,7 @@ public class AdoptionMapper {
         AdoptionForm entity = new AdoptionForm();
         entity.adoptionRequestId = adoptionRequestId;
         entity.fullName = request.fullName();
-        entity.idNumber = request.idNumber();
+        entity.idNumber = encryptionService.encrypt(request.idNumber());
         entity.phone = request.phone();
         entity.address = request.address();
         entity.city = request.city();
@@ -140,6 +143,7 @@ public class AdoptionMapper {
         entity.acceptsFollowUpContact = request.acceptsFollowUpContact();
         entity.acceptsReturnIfNeeded = request.acceptsReturnIfNeeded();
         entity.acceptsTermsAndConditions = request.acceptsTermsAndConditions();
+        entity.consentHealthData = request.consentHealthData();
         entity.additionalNotes = request.additionalNotes();
         entity.signedAdoptionContract = false;
         return entity;
@@ -150,7 +154,7 @@ public class AdoptionMapper {
                 entity.id,
                 entity.adoptionRequestId,
                 entity.fullName,
-                entity.idNumber,
+                encryptionService.decrypt(entity.idNumber),
                 entity.phone,
                 entity.address,
                 entity.city,
@@ -159,6 +163,7 @@ public class AdoptionMapper {
                 entity.acceptsFollowUpContact,
                 entity.acceptsReturnIfNeeded,
                 entity.acceptsTermsAndConditions,
+                entity.consentHealthData,
                 entity.additionalNotes,
                 entity.signedAdoptionContract,
                 entity.contractSignedAt,

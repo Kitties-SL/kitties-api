@@ -1,5 +1,7 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.adoption.entity.AdoptionRequest;
+import es.kitti.adoption.repository.AdoptionRequestRepository;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.common.QuarkusTestResource;
@@ -17,8 +19,6 @@ import io.vertx.core.Vertx;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import es.kitti.adoption.client.CatClient;
-import es.kitti.adoption.entity.AdoptionRequest;
-import es.kitti.adoption.repository.AdoptionRequestRepository;
 import es.kitti.adoption.test.KafkaTestResource;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.BeforeEach;
@@ -242,7 +242,9 @@ class AdoptionResourceTest {
                 "understandsLongTermCommitment": true,
                 "hasVetBudget": true,
                 "allHouseholdMembersAgree": true,
-                "anyoneHasAllergies": false
+                "anyoneHasAllergies": false,
+                "consentHealthData": true,
+                "idNumber": "12345678A"
             }
             """)
                 .when()
@@ -321,7 +323,8 @@ class AdoptionResourceTest {
                     "understandsLongTermCommitment": true,
                     "hasVetBudget": true,
                     "allHouseholdMembersAgree": true,
-                    "anyoneHasAllergies": false
+                    "anyoneHasAllergies": false,
+                    "idNumber": "12345678A"
                 }
                 """)
                 .when()
@@ -331,7 +334,7 @@ class AdoptionResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "2", roles = "Organization")
+    @TestSecurity(user = "2", roles = {"User", "Organization"})
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "2"),
             @Claim(key = "email", value = "org@kitti.es")
@@ -341,7 +344,6 @@ class AdoptionResourceTest {
         adoption.catId = 55L;
         adoption.adopterId = 1L;
         adoption.organizationId = 2L;
-        adoption.adopterEmail = "adopter@kitti.es";
         AdoptionRequest saved = persistInContext(adoption);
 
         when(catClient.findById(55L))
@@ -359,7 +361,7 @@ class AdoptionResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "2", roles = "Organization")
+    @TestSecurity(user = "2", roles = {"User", "Organization"})
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "2"),
             @Claim(key = "email", value = "org@kitti.es")
@@ -369,7 +371,6 @@ class AdoptionResourceTest {
         adoption.catId = 56L;
         adoption.adopterId = 1L;
         adoption.organizationId = 2L;
-        adoption.adopterEmail = "adopter@kitti.es";
         AdoptionRequest saved = persistInContext(adoption);
 
         when(catClient.findById(56L))

@@ -30,8 +30,7 @@ public class AdoptionResource {
     @RolesAllowed("User")
     public Uni<Response> createAdoptionRequest(@Valid AdoptionRequestCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
-        String adopterEmail = jwt.getClaim("email");
-        return adoptionService.createAdoptionRequest(request, adopterId, adopterEmail)
+        return adoptionService.createAdoptionRequest(request, adopterId)
                 .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
     }
 
