@@ -5,8 +5,10 @@ import es.kitti.user.client.AuthInternalClient;
 import es.kitti.user.client.ChatInternalClient;
 import es.kitti.user.entity.ErasureRequest;
 import es.kitti.user.entity.UserStatus;
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.NotFoundError;
 import es.kitti.user.exception.LegalHoldException;
-import es.kitti.user.exception.UserNotFoundException;
 import es.kitti.user.repository.ErasureRequestRepository;
 import es.kitti.user.repository.UserRepository;
 import io.quarkus.hibernate.reactive.panache.Panache;
@@ -49,7 +51,6 @@ public class ErasureService {
     public Uni<Void> requestErasure(Long userId, String requestIp) {
         return Panache.withTransaction(() ->
                 userRepository.findById(userId)
-                        .onItem().ifNull().failWith(() -> new UserNotFoundException(String.valueOf(userId)))
                         .onItem().transformToUni(user -> {
                             if (user.legalHoldUntil != null && user.legalHoldUntil.isAfter(LocalDateTime.now())) {
                                 return Uni.createFrom().failure(new LegalHoldException());
@@ -80,14 +81,15 @@ public class ErasureService {
     }
 
     @WithTransaction
-    public Uni<Void> setLegalHold(Long userId, LocalDateTime holdUntil) {
+    public Uni<Either<DomainError, Void>> setLegalHold(Long userId, LocalDateTime holdUntil) {
         return userRepository.findById(userId)
-                .onItem().ifNull().failWith(() -> new UserNotFoundException(String.valueOf(userId)))
                 .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     user.legalHoldUntil = holdUntil;
-                    return userRepository.persist(user);
-                })
-                .replaceWithVoid();
+                    return userRepository.persist(user)
+                            .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                });
     }
 
     @WithTransaction

@@ -1,6 +1,11 @@
 package es.kitti.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.NotFoundError;
+import es.kitti.mon.error.UnauthorizedError;
 import es.kitti.user.client.AdoptionInternalClient;
 import es.kitti.user.client.ChatInternalClient;
 import es.kitti.user.dto.UserDataExportResponse;
@@ -8,7 +13,6 @@ import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
-import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,8 +25,6 @@ import es.kitti.user.dto.UserUpdateRequest;
 import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.user.event.UserRegisteredEvent;
-import es.kitti.user.exception.InvalidTokenException;
-import es.kitti.user.exception.UserNotFoundException;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -35,135 +37,131 @@ import java.util.List;
 @ApplicationScoped
 public class UserService {
 
-    @Inject
-    UserRepository userRepository;
-    @Inject
-    UserMapper userMapper;
-    @Inject
-    @Channel("user-registered")
-    Emitter<UserRegisteredEvent> userRegisteredEmitter;
-    @Inject
-    ObjectMapper objectMapper;
+    @Inject UserRepository userRepository;
+    @Inject UserMapper userMapper;
+    @Inject @Channel("user-registered") Emitter<UserRegisteredEvent> userRegisteredEmitter;
+    @Inject ObjectMapper objectMapper;
 
-    @RestClient
-    AdoptionInternalClient adoptionInternalClient;
-
-    @RestClient
-    ChatInternalClient chatInternalClient;
+    @RestClient AdoptionInternalClient adoptionInternalClient;
+    @RestClient ChatInternalClient chatInternalClient;
 
     @ConfigProperty(name = "kitties.internal.secret")
     String internalSecret;
 
     @WithSession
-    public Uni<UserResponse> findById(Long id) {
+    public Uni<Either<DomainError, UserResponse>> findById(Long id) {
         return userRepository.findById(id)
-                .onItem().ifNull()
-                .failWith(() -> new UserNotFoundException(String.valueOf(id)))
-                .onItem().transform(userMapper::toResponse);
+                .onItem().transform(user ->
+                        user == null
+                                ? Either.left(new NotFoundError("USER_NOT_FOUND"))
+                                : Either.<DomainError, UserResponse>right(userMapper.toResponse(user))
+                );
     }
 
     @WithSession
-    public Uni<UserResponse> findByEmail(String email) {
+    public Uni<Either<DomainError, UserResponse>> findByEmail(String email) {
         return userRepository.findByEmail(Email.of(email).value())
-                .onItem().ifNull()
-                .failWith(() -> new UserNotFoundException(email))
-                .onItem().transform(userMapper::toResponse);
+                .onItem().transform(user ->
+                        user == null
+                                ? Either.left(new NotFoundError("USER_NOT_FOUND"))
+                                : Either.<DomainError, UserResponse>right(userMapper.toResponse(user))
+                );
     }
 
-    public Multi<UserResponse> findAllActiveUsers() {
-        return Panache.withSession(
-                () -> userRepository.findAllActiveUsers().collect().asList()
-        ).onItem().transformToMulti(list -> Multi.createFrom().iterable(list))
-                .onItem().transform(userMapper::toResponse);
+    public Uni<List<UserResponse>> findAllActiveUsers() {
+        return userRepository.findAllActiveUsers()
+                .onItem().transform(users -> users.stream().map(userMapper::toResponse).toList());
     }
-
 
     @WithTransaction
-    public Uni<UserResponse> createUser(UserCreateRequest request) {
+    public Uni<Either<DomainError, UserResponse>> createUser(UserCreateRequest request) {
         Email email = Email.of(request.email());
         return userRepository.existsByEmail(email.value())
                 .onItem().transformToUni(exists -> {
-                    if (exists) {
-                        return Uni.createFrom()
-                                .failure(new IllegalArgumentException(email.value()));
-                    }
+                    if (exists)
+                        return Uni.createFrom().item(Either.left(new ConflictError("EMAIL_ALREADY_EXISTS")));
                     var hashedPassword = BcryptUtil.bcryptHash(request.password());
                     var user = userMapper.toEntity(request, hashedPassword);
-                    return userRepository.persist(user);
-                })
-                .onItem().transform(user -> {
-                    userRegisteredEmitter.send(new UserRegisteredEvent(
-                            user.id, user.email, user.name, user.activationToken
-                    ));
-                    return userMapper.toResponse(user);
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> {
+                                userRegisteredEmitter.send(new UserRegisteredEvent(
+                                        saved.id, saved.email, saved.name, saved.activationToken));
+                                return Either.<DomainError, UserResponse>right(userMapper.toResponse(saved));
+                            });
                 });
     }
 
     @WithTransaction
-    public Uni<UserResponse> updateUser(String email, UserUpdateRequest request) {
+    public Uni<Either<DomainError, UserResponse>> updateUser(String email, UserUpdateRequest request) {
         return userRepository.findByEmail(email)
-                .onItem().ifNull().failWith(() -> new UserNotFoundException(email)).onItem().transformToUni(user -> {
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     userMapper.updateEntity(user, request);
-                    return userRepository.persist(user);
-                }).onItem().transform(user -> {
-                    userRegisteredEmitter.send(new UserRegisteredEvent(
-                            user.id,
-                            user.email,
-                            user.name,
-                            user.activationToken
-                    ));
-                    return userMapper.toResponse(user);
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> {
+                                userRegisteredEmitter.send(new UserRegisteredEvent(
+                                        saved.id, saved.email, saved.name, saved.activationToken));
+                                return Either.<DomainError, UserResponse>right(userMapper.toResponse(saved));
+                            });
                 });
-
     }
 
     @WithTransaction
-    public Uni<UserResponse> deactivateUser(String email) {
+    public Uni<Either<DomainError, UserResponse>> deactivateUser(String email) {
         return userRepository.findByEmail(email)
-                .onItem().ifNull().failWith(() -> new UserNotFoundException(email)).onItem().transformToUni(user -> {
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     user.status = UserStatus.Inactive;
-                    return userRepository.persist(user);
-                }).onItem().transform(userMapper::toResponse);
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                });
     }
 
     @WithTransaction
-    public Uni<UserResponse> activateUser(String email) {
-        return userRepository.findByEmail(email).onItem().ifNull().failWith(() -> new UserNotFoundException(email)).onItem().transformToUni(user -> {
-            user.status = UserStatus.Active;
-            return userRepository.persist(user);
-        }).onItem().transform(userMapper::toResponse);
+    public Uni<Either<DomainError, UserResponse>> activateUser(String email) {
+        return userRepository.findByEmail(email)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
+                    user.status = UserStatus.Active;
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                });
     }
 
     @WithSession
-    public Uni<UserDataExportResponse> exportMyData(Long userId) {
-        return Uni.combine().all().unis(
-                userRepository.findById(userId)
-                        .onItem().ifNull().failWith(() -> new UserNotFoundException(String.valueOf(userId))),
-                adoptionInternalClient.exportUser(userId, internalSecret),
-                chatInternalClient.exportUser(userId, internalSecret)
-        ).asTuple().onItem().transform(t -> new UserDataExportResponse(
-                userMapper.toResponse(t.getItem1()),
-                t.getItem2(),
-                t.getItem3()
-        ));
+    public Uni<Either<DomainError, UserDataExportResponse>> exportMyData(Long userId) {
+        return userRepository.findById(userId)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
+                    return Uni.combine().all().unis(
+                            adoptionInternalClient.exportUser(userId, internalSecret),
+                            chatInternalClient.exportUser(userId, internalSecret)
+                    ).asTuple().onItem().transform(t ->
+                            Either.<DomainError, UserDataExportResponse>right(new UserDataExportResponse(
+                                    userMapper.toResponse(user), t.getItem1(), t.getItem2()))
+                    );
+                });
     }
 
     @WithTransaction
-    public Uni<UserResponse> activateByToken(String token) {
+    public Uni<Either<DomainError, UserResponse>> activateByToken(String token) {
         ActivationToken activationToken = ActivationToken.of(token);
         return userRepository.findByActivationToken(activationToken.value())
-                .onItem().ifNull()
-                .failWith(() -> new InvalidTokenException("Invalid or expired activation token"))
                 .onItem().transformToUni(user -> {
-                    if (user.activationTokenExpiresAt != null &&
-                            user.activationTokenExpiresAt.isBefore(java.time.LocalDateTime.now())) {
-                        return Uni.createFrom().failure(new InvalidTokenException("Invalid or expired activation token"));
-                    }
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new UnauthorizedError("INVALID_ACTIVATION_TOKEN")));
+                    if (user.activationTokenExpiresAt != null
+                            && user.activationTokenExpiresAt.isBefore(java.time.LocalDateTime.now()))
+                        return Uni.createFrom().item(Either.left(new UnauthorizedError("INVALID_ACTIVATION_TOKEN")));
                     user.status = UserStatus.Active;
                     user.activationToken = null;
                     user.activationTokenExpiresAt = null;
-                    return userRepository.persist(user);
-                })
-                .onItem().transform(userMapper::toResponse);
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                });
     }
 }

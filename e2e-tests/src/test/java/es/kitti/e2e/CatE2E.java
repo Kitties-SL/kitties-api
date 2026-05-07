@@ -190,7 +190,7 @@ class CatE2E {
             .get("/api/cats")
         .then()
             .statusCode(200)
-            .body("id", hasItem(catId.intValue()));
+            .body("content.id", hasItem(catId.intValue()));
     }
 
     // --- PUT /cats/{id} — only the owning org ---
@@ -324,7 +324,7 @@ class CatE2E {
             .get("/api/cats")
         .then()
             .statusCode(200)
-            .body("id", not(hasItem(catId.intValue())));
+            .body("content.id", not(hasItem(catId.intValue())));
     }
 
     @Test @Order(21)

@@ -69,18 +69,6 @@ class UserE2E {
             .statusCode(401);
     }
 
-    // --- GET /users/active ---
-
-    @Test @Order(4)
-    void listActiveUsers_authenticated_returns200() {
-        given()
-            .header("Authorization", "Bearer " + token)
-        .when()
-            .get("/api/users/active")
-        .then()
-            .statusCode(200);
-    }
-
     // --- PUT /users/{email} (update profile) ---
 
     @Test @Order(5)

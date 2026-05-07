@@ -1,15 +1,14 @@
 package es.kitti.storage.service;
 
+import es.kitti.mon.error.BadRequestError;
+import es.kitti.mon.error.DomainError;
 import io.smallrye.mutiny.Uni;
-import es.kitti.storage.exception.InvalidFileException;
 import es.kitti.storage.provider.StorageProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -21,106 +20,96 @@ class StorageServiceTest {
     private static final byte[] JPEG_DATA = jpegData(100);
     private static final byte[] PNG_DATA  = pngData(100);
 
-    @Mock
-    StorageProvider storageProvider;
-
-    @InjectMocks
-    StorageService storageService;
+    @Mock StorageProvider storageProvider;
+    @InjectMocks StorageService storageService;
 
     @Test
-    void upload_validJpeg_returnsKey() {
+    void upload_validJpeg_returnsRight() {
         when(storageProvider.upload(anyString(), eq(JPEG_DATA), eq("image/jpeg")))
                 .thenReturn(Uni.createFrom().item("some-key.jpg"));
 
         var result = storageService.upload(JPEG_DATA, "image/jpeg", "photo.jpg")
                 .await().indefinitely();
 
-        assertNotNull(result);
-        assertTrue(result.endsWith(".jpg"));
+        assertTrue(result.isRight());
+        assertTrue(result.getOrElse(null).endsWith(".jpg"));
         verify(storageProvider).upload(anyString(), eq(JPEG_DATA), eq("image/jpeg"));
     }
 
     @Test
-    void upload_validPng_returnsKey() {
+    void upload_validPng_returnsRight() {
         when(storageProvider.upload(anyString(), eq(PNG_DATA), eq("image/png")))
                 .thenReturn(Uni.createFrom().item("some-key.png"));
 
         var result = storageService.upload(PNG_DATA, "image/png", "photo.png")
                 .await().indefinitely();
 
-        assertNotNull(result);
-        assertTrue(result.endsWith(".png"));
+        assertTrue(result.isRight());
+        assertTrue(result.getOrElse(null).endsWith(".png"));
     }
 
     @Test
-    void upload_invalidContentType_throwsInvalidFileException() {
-        byte[] data = new byte[100];
+    void upload_invalidContentType_returnsLeft400() {
+        var result = storageService.upload(new byte[100], "application/pdf", "document.pdf")
+                .await().indefinitely();
 
-        assertThrows(InvalidFileException.class, () ->
-                storageService.upload(data, "application/pdf", "document.pdf")
-                        .await().indefinitely()
-        );
-
+        assertTrue(result.isLeft());
+        assertInstanceOf(BadRequestError.class, result.fold(e -> e, __ -> null));
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageProvider, never()).upload(any(), any(), any());
     }
 
     @Test
-    void upload_fileTooLarge_throwsInvalidFileException() {
-        byte[] data = new byte[6 * 1024 * 1024]; // 6MB — falla antes de llegar a magic bytes
+    void upload_fileTooLarge_returnsLeft400() {
+        var result = storageService.upload(new byte[6 * 1024 * 1024], "image/jpeg", "photo.jpg")
+                .await().indefinitely();
 
-        assertThrows(InvalidFileException.class, () ->
-                storageService.upload(data, "image/jpeg", "photo.jpg")
-                        .await().indefinitely()
-        );
-
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageProvider, never()).upload(any(), any(), any());
     }
 
     @Test
-    void upload_exactMaxSize_succeeds() {
+    void upload_exactMaxSize_returnsRight() {
         byte[] data = jpegData(5 * 1024 * 1024);
-
         when(storageProvider.upload(anyString(), eq(data), eq("image/jpeg")))
                 .thenReturn(Uni.createFrom().item("some-key.jpg"));
 
-        assertDoesNotThrow(() ->
-                storageService.upload(data, "image/jpeg", "photo.jpg")
-                        .await().indefinitely()
-        );
+        var result = storageService.upload(data, "image/jpeg", "photo.jpg")
+                .await().indefinitely();
+
+        assertTrue(result.isRight());
     }
 
     @Test
-    void upload_wrongMagicBytesForDeclaredType_throwsInvalidFileException() {
-        // PNG content declared as image/jpeg
-        assertThrows(InvalidFileException.class, () ->
-                storageService.upload(PNG_DATA, "image/jpeg", "photo.jpg")
-                        .await().indefinitely()
-        );
+    void upload_wrongMagicBytesForDeclaredType_returnsLeft400() {
+        var result = storageService.upload(PNG_DATA, "image/jpeg", "photo.jpg")
+                .await().indefinitely();
 
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageProvider, never()).upload(any(), any(), any());
     }
 
     @Test
-    void upload_allZeroesWithValidContentType_throwsInvalidFileException() {
-        byte[] malicious = new byte[100]; // sin magic bytes — simula fichero malicioso disfrazado
+    void upload_allZeroes_returnsLeft400() {
+        var result = storageService.upload(new byte[100], "image/jpeg", "malware.jpg")
+                .await().indefinitely();
 
-        assertThrows(InvalidFileException.class, () ->
-                storageService.upload(malicious, "image/jpeg", "malware.jpg")
-                        .await().indefinitely()
-        );
-
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageProvider, never()).upload(any(), any(), any());
     }
 
     @Test
-    void upload_tooShortForMagicBytes_throwsInvalidFileException() {
-        byte[] tooShort = {(byte) 0xFF, (byte) 0xD8}; // solo 2 bytes, JPEG necesita 3
+    void upload_tooShortForMagicBytes_returnsLeft400() {
+        byte[] tooShort = {(byte) 0xFF, (byte) 0xD8};
 
-        assertThrows(InvalidFileException.class, () ->
-                storageService.upload(tooShort, "image/jpeg", "photo.jpg")
-                        .await().indefinitely()
-        );
+        var result = storageService.upload(tooShort, "image/jpeg", "photo.jpg")
+                .await().indefinitely();
 
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageProvider, never()).upload(any(), any(), any());
     }
 
@@ -129,10 +118,7 @@ class StorageServiceTest {
         when(storageProvider.delete("some-key.jpg"))
                 .thenReturn(Uni.createFrom().voidItem());
 
-        assertDoesNotThrow(() ->
-                storageService.delete("some-key.jpg")
-                        .await().indefinitely()
-        );
+        storageService.delete("some-key.jpg").await().indefinitely();
 
         verify(storageProvider).delete("some-key.jpg");
     }

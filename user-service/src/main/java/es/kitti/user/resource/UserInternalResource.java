@@ -1,6 +1,6 @@
 package es.kitti.user.resource;
 
-import es.kitti.user.dto.UserResponse;
+import es.kitti.mon.error.ErrorResponse;
 import es.kitti.user.security.InternalOnly;
 import es.kitti.user.service.ErasureService;
 import es.kitti.user.service.UserService;
@@ -15,6 +15,8 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.List;
+
 @Path("/users/internal")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -28,9 +30,19 @@ public class UserInternalResource {
     UserService userService;
 
     @GET
+    @Path("/active")
+    public Uni<List<es.kitti.user.dto.UserResponse>> findAllActiveUsers() {
+        return userService.findAllActiveUsers();
+    }
+
+    @GET
     @Path("/{id}")
-    public Uni<UserResponse> findById(@PathParam("id") Long id) {
-        return userService.findById(id);
+    public Uni<Response> findById(@PathParam("id") Long id) {
+        return userService.findById(id)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        user -> Response.ok(user).build()
+                ));
     }
 
     @POST

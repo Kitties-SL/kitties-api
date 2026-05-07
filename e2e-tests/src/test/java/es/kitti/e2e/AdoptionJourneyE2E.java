@@ -165,7 +165,7 @@ class AdoptionJourneyE2E {
             .get("/api/cats")
         .then()
             .statusCode(200)
-            .body("$", not(empty()));
+            .body("content", not(empty()));
     }
 
     @Test @Order(9)

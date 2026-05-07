@@ -1,7 +1,7 @@
 package es.kitti.cat.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import io.quarkus.security.Authenticated;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
@@ -12,9 +12,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import es.kitti.cat.dto.CatCreateRequest;
 import es.kitti.cat.dto.CatInventoryStatsResponse;
-import es.kitti.cat.dto.CatResponse;
 import es.kitti.cat.dto.CatSummaryResponse;
 import es.kitti.cat.dto.CatUpdateRequest;
+import es.kitti.cat.dto.PageResponse;
 
 import java.util.List;
 import es.kitti.cat.service.CatService;
@@ -35,10 +35,13 @@ public class CatResource {
 
     @GET
     @PermitAll
-    public Multi<CatSummaryResponse> search(
+    public Uni<Response> search(
             @QueryParam("city") String city,
-            @QueryParam("name") String name) {
-        return catService.search(city, name);
+            @QueryParam("name") String name,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        return catService.search(city, name, page, size)
+                .onItem().transform(result -> Response.ok(result).build());
     }
 
     @GET
@@ -46,7 +49,10 @@ public class CatResource {
     @PermitAll
     public Uni<Response> findById(@PathParam("id") Long id) {
         return catService.findById(id)
-                .onItem().transform(cat -> Response.ok(cat).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        cat -> Response.ok(cat).build()
+                ));
     }
 
     @POST
@@ -55,8 +61,7 @@ public class CatResource {
     public Uni<Response> createCat(@Valid CatCreateRequest request) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.createCat(request, callerId)
-                .onItem().transform(cat -> Response.status(Response.Status.CREATED)
-                        .entity(cat).build());
+                .onItem().transform(cat -> Response.status(Response.Status.CREATED).entity(cat).build());
     }
 
     @PUT
@@ -68,7 +73,10 @@ public class CatResource {
             @Valid CatUpdateRequest request) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.updateCat(id, request, callerId)
-                .onItem().transform(cat -> Response.ok(cat).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        cat -> Response.ok(cat).build()
+                ));
     }
 
     @GET
@@ -93,7 +101,10 @@ public class CatResource {
     public Uni<Response> deleteCat(@PathParam("id") Long id) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.deleteCat(id, callerId)
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.noContent().build()
+                ));
     }
 
     @POST
@@ -105,7 +116,10 @@ public class CatResource {
             @RestForm("file") FileUpload file) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.uploadImage(id, file, callerId)
-                .onItem().transform(cat -> Response.ok(cat).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        cat -> Response.ok(cat).build()
+                ));
     }
 
     @DELETE
@@ -116,6 +130,9 @@ public class CatResource {
             @PathParam("imageId") Long imageId) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.deleteImage(catId, imageId, callerId)
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.noContent().build()
+                ));
     }
 }

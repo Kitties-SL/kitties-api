@@ -1,5 +1,6 @@
 package es.kitti.user.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import es.kitti.user.service.ErasureService;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
@@ -63,7 +64,10 @@ public class UserErasureResource {
             @QueryParam("holdUntil") String holdUntilIso) {
         LocalDateTime holdUntil = holdUntilIso != null ? LocalDateTime.parse(holdUntilIso) : null;
         return erasureService.setLegalHold(userId, holdUntil)
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.noContent().build()
+                ));
     }
 
     private String extractIp(HttpHeaders headers) {

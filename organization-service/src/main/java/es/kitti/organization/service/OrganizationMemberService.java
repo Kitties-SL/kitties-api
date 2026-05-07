@@ -1,5 +1,9 @@
 package es.kitti.organization.service;
 
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.NotFoundError;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
@@ -12,8 +16,6 @@ import es.kitti.organization.dto.MemberResponse;
 import es.kitti.organization.entity.MemberRole;
 import es.kitti.organization.entity.MemberStatus;
 import es.kitti.organization.entity.OrganizationMember;
-import es.kitti.organization.exception.MemberLimitExceededException;
-import es.kitti.organization.exception.OrganizationNotFoundException;
 import es.kitti.organization.mapper.OrganizationMapper;
 import es.kitti.organization.repository.OrganizationMemberRepository;
 import es.kitti.organization.repository.OrganizationRepository;
@@ -24,14 +26,9 @@ import java.util.Optional;
 @ApplicationScoped
 public class OrganizationMemberService {
 
-    @Inject
-    OrganizationMemberRepository memberRepository;
-
-    @Inject
-    OrganizationRepository organizationRepository;
-
-    @Inject
-    OrganizationMapper mapper;
+    @Inject OrganizationMemberRepository memberRepository;
+    @Inject OrganizationRepository organizationRepository;
+    @Inject OrganizationMapper mapper;
 
     public Uni<OrganizationMember> addCreatorAsAdmin(Long organizationId, Long userId) {
         OrganizationMember member = new OrganizationMember();
@@ -50,23 +47,24 @@ public class OrganizationMemberService {
     }
 
     @WithTransaction
-    public Uni<MemberResponse> inviteMember(Long organizationId, Long callerId, InviteMemberRequest request) {
+    public Uni<Either<DomainError, MemberResponse>> inviteMember(Long organizationId, Long callerId, InviteMemberRequest request) {
         return requireAdmin(organizationId, callerId)
                 .onItem().transformToUni(ignored -> organizationRepository.findById(organizationId))
-                .onItem().ifNull().failWith(() -> new OrganizationNotFoundException(organizationId))
+                .onItem().ifNull().failWith(() -> new ForbiddenException())
                 .onItem().transformToUni(org ->
                         memberRepository.countActiveByOrganizationId(organizationId)
                                 .onItem().transformToUni(count -> {
-                                    if (org.maxMembers != -1 && count >= org.maxMembers) {
-                                        throw new MemberLimitExceededException(org.maxMembers);
-                                    }
+                                    if (org.maxMembers != -1 && count >= org.maxMembers)
+                                        return Uni.createFrom().item(Either.left(
+                                                new ConflictError("MEMBER_LIMIT_EXCEEDED")));
                                     OrganizationMember member = new OrganizationMember();
                                     member.organizationId = organizationId;
                                     member.userId = request.userId();
                                     member.role = request.role();
-                                    return memberRepository.persist(member);
-                                }))
-                .onItem().transform(mapper::toResponse);
+                                    return memberRepository.persist(member)
+                                            .onItem().transform(saved ->
+                                                    Either.<DomainError, MemberResponse>right(mapper.toResponse(saved)));
+                                }));
     }
 
     @WithTransaction
