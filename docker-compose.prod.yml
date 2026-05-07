@@ -112,8 +112,12 @@ services:
       - ./docker/alloy/config.alloy:/etc/alloy/config.alloy:ro
     command: run /etc/alloy/config.alloy
     environment:
-      GRAFANA_OTLP_ENDPOINT: ${GRAFANA_OTLP_ENDPOINT}
-      GRAFANA_INSTANCE_ID: ${GRAFANA_INSTANCE_ID}
+      GRAFANA_LOKI_URL: ${GRAFANA_LOKI_URL}
+      GRAFANA_LOKI_USER: ${GRAFANA_LOKI_USER}
+      GRAFANA_PROMETHEUS_URL: ${GRAFANA_PROMETHEUS_URL}
+      GRAFANA_PROMETHEUS_USER: ${GRAFANA_PROMETHEUS_USER}
+      GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL}
+      GRAFANA_TEMPO_USER: ${GRAFANA_TEMPO_USER}
       GRAFANA_API_KEY: ${GRAFANA_API_KEY}
     networks:
       - kitties-net
