@@ -224,7 +224,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (job) (jvm_thread_count_threads{job=~\"$service\"})",
+          "expr": "sum by (job) (jvm_threads_live_threads{job=~\"$service\"})",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
