@@ -33,12 +33,6 @@ public class UserResource {
                 ));
     }
 
-    @GET
-    @Path("/active")
-    public Uni<java.util.List<UserResponse>> findAllActiveUsers() {
-        return userService.findAllActiveUsers();
-    }
-
     @POST
     @PermitAll
     public Uni<Response> createUser(@Valid UserCreateRequest request, @Context UriInfo uriInfo) {
