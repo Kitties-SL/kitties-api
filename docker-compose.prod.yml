@@ -136,8 +136,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       KAFKA_HOST: kafka
       KAFKA_PORT: 29092
-      GRPC_INTERNAL_SECRET: ${GRPC_INTERNAL_SECRET}
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      AUTH_SERVICE_URL: http://auth-service:8082
+      ADOPTION_SERVICE_URL: http://adoption-service:8086
+      CHAT_SERVICE_URL: http://chat-service:8089
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -155,6 +158,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -172,7 +176,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      GRPC_INTERNAL_SECRET: ${GRPC_INTERNAL_SECRET}
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       USER_SERVICE_HOST: user-service
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
@@ -191,6 +195,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -220,6 +225,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -237,7 +243,9 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       STORAGE_SERVICE_URL: http://storage-service:8083
+      ADOPTION_SERVICE_URL: http://adoption-service:8086
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -255,6 +263,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -269,7 +278,9 @@ services:
       QUARKUS_PROFILE: prod
       KAFKA_HOST: kafka
       KAFKA_PORT: 29092
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      USER_SERVICE_URL: http://user-service:8081
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT}
       MAIL_FROM: ${MAIL_FROM}
@@ -280,6 +291,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      user-service:
+        condition: service_started
       alloy:
         condition: service_started
     healthcheck:
@@ -288,6 +301,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -307,6 +321,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       KAFKA_HOST: kafka
       KAFKA_PORT: 29092
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
+      KITTIES_ID_NUMBER_KEY: ${KITTIES_ID_NUMBER_KEY}
+      CAT_SERVICE_URL: http://cat-service:8084
+      ORGANIZATION_SERVICE_URL: http://organization-service:8088
+      USER_SERVICE_URL: http://user-service:8081
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -324,6 +343,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -357,6 +377,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -374,6 +395,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -389,6 +411,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -406,6 +429,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -421,6 +445,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -466,6 +491,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    restart: unless-stopped
     networks:
       - kitties-net
     deploy:
@@ -473,6 +499,40 @@ services:
         limits:
           memory: 128M
           cpus: '0.5'
+
+  schedule-service:
+    image: ciscoadiz/schedule-service:latest
+    environment:
+      QUARKUS_PROFILE: prod
+      KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
+      USER_SERVICE_URL: http://user-service:8081
+      AUTH_SERVICE_URL: http://auth-service:8082
+      ADOPTION_SERVICE_URL: http://adoption-service:8086
+      CHAT_SERVICE_URL: http://chat-service:8089
+      OTEL_ENDPOINT: http://alloy:4317
+    depends_on:
+      user-service:
+        condition: service_started
+      adoption-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
+      alloy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/q/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - kitties-net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
 
   nginx:
     image: nginx:1.27-alpine
