@@ -1,5 +1,6 @@
 package es.kitti.chat.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import es.kitti.chat.dto.ChatDataExport;
 import es.kitti.chat.dto.CreateConversationRequest;
 import es.kitti.chat.security.InternalOnly;
@@ -18,17 +19,17 @@ import jakarta.ws.rs.core.Response;
 @InternalOnly
 public class ChatInternalResource {
 
-    @Inject
-    ChatService service;
-
-    @Inject
-    ChatRetentionService retentionService;
+    @Inject ChatService service;
+    @Inject ChatRetentionService retentionService;
 
     @POST
     @Path("/conversations")
     public Uni<Response> createConversation(@Valid CreateConversationRequest request) {
         return service.createConversation(request)
-                .onItem().transform(c -> Response.status(Response.Status.CREATED).entity(c).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        c -> Response.status(Response.Status.CREATED).entity(c).build()
+                ));
     }
 
     @DELETE

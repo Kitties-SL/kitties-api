@@ -1,9 +1,11 @@
 package es.kitti.storage.service;
 
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.BadRequestError;
+import es.kitti.mon.error.DomainError;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.storage.exception.InvalidFileException;
 import es.kitti.storage.provider.StorageProvider;
 
 import java.util.Set;
@@ -21,29 +23,21 @@ public class StorageService {
     @Inject
     StorageProvider storageProvider;
 
-    public Uni<String> upload(byte[] data, String contentType, String originalFilename) {
-        if (!ALLOWED_TYPES.contains(contentType)) {
-            return Uni.createFrom().failure(
-                    new InvalidFileException("File type not allowed. Only JPG and PNG are accepted")
-            );
-        }
+    public Uni<Either<DomainError, String>> upload(byte[] data, String contentType, String originalFilename) {
+        if (!ALLOWED_TYPES.contains(contentType))
+            return Uni.createFrom().item(Either.left(new BadRequestError("FILE_TYPE_NOT_ALLOWED")));
 
-        if (data.length > MAX_SIZE) {
-            return Uni.createFrom().failure(
-                    new InvalidFileException("File size exceeds the 5MB limit")
-            );
-        }
+        if (data.length > MAX_SIZE)
+            return Uni.createFrom().item(Either.left(new BadRequestError("FILE_TOO_LARGE")));
 
-        if (!hasValidMagicBytes(data, contentType)) {
-            return Uni.createFrom().failure(
-                    new InvalidFileException("File content does not match the declared type")
-            );
-        }
+        if (!hasValidMagicBytes(data, contentType))
+            return Uni.createFrom().item(Either.left(new BadRequestError("FILE_CONTENT_MISMATCH")));
 
         String extension = contentType.equals("image/jpeg") ? ".jpg" : ".png";
         String key = UUID.randomUUID() + extension;
 
-        return storageProvider.upload(key, data, contentType);
+        return storageProvider.upload(key, data, contentType)
+                .onItem().transform(Either::<DomainError, String>right);
     }
 
     private boolean hasValidMagicBytes(byte[] data, String contentType) {

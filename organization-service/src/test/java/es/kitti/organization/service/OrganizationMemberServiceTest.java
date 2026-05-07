@@ -1,10 +1,11 @@
 package es.kitti.organization.service;
 
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.ForbiddenException;
 import es.kitti.organization.dto.*;
 import es.kitti.organization.entity.*;
-import es.kitti.organization.exception.MemberLimitExceededException;
 import es.kitti.organization.mapper.OrganizationMapper;
 import es.kitti.organization.repository.OrganizationMemberRepository;
 import es.kitti.organization.repository.OrganizationRepository;
@@ -77,18 +78,21 @@ class OrganizationMemberServiceTest {
     }
 
     @Test
-    void testInviteMemberExceedsPlanLimit() {
+    void testInviteMemberExceedsPlanLimit_returnsLeft409() {
         when(memberRepository.isAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(true));
         when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
         when(memberRepository.countActiveByOrganizationId(1L)).thenReturn(Uni.createFrom().item(1L));
 
-        assertThrows(MemberLimitExceededException.class,
-                () -> service.inviteMember(1L, 10L, new InviteMemberRequest(20L, MemberRole.Staff))
-                        .await().indefinitely());
+        var result = service.inviteMember(1L, 10L, new InviteMemberRequest(20L, MemberRole.Staff))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, result.fold(e -> e, __ -> null));
+        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
     @Test
-    void testInviteMemberProPlanUnlimited() {
+    void testInviteMemberProPlanUnlimited_returnsRight() {
         org.plan = OrganizationPlan.Pro;
         org.maxMembers = -1;
         when(memberRepository.isAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(true));
@@ -96,10 +100,11 @@ class OrganizationMemberServiceTest {
         when(memberRepository.countActiveByOrganizationId(1L)).thenReturn(Uni.createFrom().item(999L));
         when(memberRepository.persist(any(OrganizationMember.class))).thenReturn(Uni.createFrom().item(staffMember));
 
-        MemberResponse response = service.inviteMember(1L, 10L, new InviteMemberRequest(20L, MemberRole.Staff))
+        var result = service.inviteMember(1L, 10L, new InviteMemberRequest(20L, MemberRole.Staff))
                 .await().indefinitely();
 
-        assertNotNull(response);
+        assertTrue(result.isRight());
+        assertNotNull(result.getOrElse(null));
         verify(memberRepository).persist(any(OrganizationMember.class));
     }
 

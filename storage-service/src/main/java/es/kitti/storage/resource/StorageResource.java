@@ -1,5 +1,6 @@
 package es.kitti.storage.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -23,17 +24,18 @@ public class StorageResource {
     @POST
     @Path("/upload")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
-    public Uni<Response> upload(
-            @RestForm("file") FileUpload file) throws IOException {
-
+    public Uni<Response> upload(@RestForm("file") FileUpload file) throws IOException {
         byte[] data = Files.readAllBytes(file.uploadedFile());
         String contentType = file.contentType();
 
         return storageService.upload(data, contentType, file.fileName())
-                .onItem().transform(url -> {
-                    String key = url.substring(url.lastIndexOf("/") + 1);
-                    return Response.ok(new UploadResponse(key, url)).build();
-                });
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        url -> {
+                            String key = url.substring(url.lastIndexOf("/") + 1);
+                            return Response.ok(new UploadResponse(key, url)).build();
+                        }
+                ));
     }
 
     @DELETE

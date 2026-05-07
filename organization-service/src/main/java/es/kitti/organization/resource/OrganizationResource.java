@@ -1,5 +1,6 @@
 package es.kitti.organization.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -21,14 +22,9 @@ import java.util.List;
 @Authenticated
 public class OrganizationResource {
 
-    @Inject
-    OrganizationService organizationService;
-
-    @Inject
-    OrganizationMemberService memberService;
-
-    @Inject
-    JsonWebToken jwt;
+    @Inject OrganizationService organizationService;
+    @Inject OrganizationMemberService memberService;
+    @Inject JsonWebToken jwt;
 
     @POST
     @RolesAllowed({"Organization", "Admin"})
@@ -40,24 +36,35 @@ public class OrganizationResource {
 
     @GET
     @Path("/mine")
-    public Uni<OrganizationResponse> mine() {
+    public Uni<Response> mine() {
         Long userId = Long.parseLong(jwt.getSubject());
-        return organizationService.findByCurrentUser(userId);
+        return organizationService.findByCurrentUser(userId)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        org -> Response.ok(org).build()
+                ));
     }
 
     @GET
     @Path("/{id}")
-    public Uni<OrganizationResponse> findById(@PathParam("id") Long id) {
+    public Uni<Response> findById(@PathParam("id") Long id) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return organizationService.findById(id, userId);
+        return organizationService.findById(id, userId)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        org -> Response.ok(org).build()
+                ));
     }
 
     @PUT
     @Path("/{id}")
-    public Uni<OrganizationResponse> update(@PathParam("id") Long id,
-                                            @Valid UpdateOrganizationRequest request) {
+    public Uni<Response> update(@PathParam("id") Long id, @Valid UpdateOrganizationRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return organizationService.update(id, userId, request);
+        return organizationService.update(id, userId, request)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        org -> Response.ok(org).build()
+                ));
     }
 
     @GET
@@ -69,11 +76,13 @@ public class OrganizationResource {
 
     @POST
     @Path("/{id}/members")
-    public Uni<Response> inviteMember(@PathParam("id") Long id,
-                                      @Valid InviteMemberRequest request) {
+    public Uni<Response> inviteMember(@PathParam("id") Long id, @Valid InviteMemberRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
         return memberService.inviteMember(id, userId, request)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        r -> Response.status(Response.Status.CREATED).entity(r).build()
+                ));
     }
 
     @PATCH
@@ -87,8 +96,7 @@ public class OrganizationResource {
 
     @DELETE
     @Path("/{id}/members/{targetUserId}")
-    public Uni<Response> removeMember(@PathParam("id") Long id,
-                                      @PathParam("targetUserId") Long targetUserId) {
+    public Uni<Response> removeMember(@PathParam("id") Long id, @PathParam("targetUserId") Long targetUserId) {
         Long userId = Long.parseLong(jwt.getSubject());
         return memberService.removeMember(id, targetUserId, userId)
                 .onItem().transform(v -> Response.noContent().build());

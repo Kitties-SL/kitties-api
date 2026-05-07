@@ -1,58 +1,39 @@
 package es.kitti.user.exception;
 
+import es.kitti.mon.error.ConstraintViolationMapper;
+import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ForbiddenError;
+import io.quarkus.logging.Log;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import org.jboss.logging.Logger;
+
+import java.time.LocalDateTime;
 
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
-    private static final Logger LOG = Logger.getLogger(GlobalExceptionMapper.class);
-
     @Override
     public Response toResponse(Throwable exception) {
-        LOG.errorf(exception, "Exception caught: %s", exception.getMessage());
-
         return switch (exception) {
-            case InvalidTokenException invalidTokenException -> Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ErrorResponse(
-                            Response.Status.BAD_REQUEST.getStatusCode(),
-                            exception.getMessage()
-                    ))
-                    .build();
-            case UserNotFoundException userNotFoundException -> Response.status(Response.Status.NOT_FOUND)
-                    .entity(new ErrorResponse(
-                            Response.Status.NOT_FOUND.getStatusCode(),
-                            exception.getMessage()
-                    ))
-                    .build();
-            case ForbiddenException forbiddenException -> Response.status(Response.Status.FORBIDDEN)
-                    .entity(new ErrorResponse(
-                            Response.Status.FORBIDDEN.getStatusCode(),
-                            exception.getMessage()
-                    ))
-                    .build();
-            case LegalHoldException legalHoldException -> Response.status(Response.Status.CONFLICT)
-                    .entity(new ErrorResponse(
-                            Response.Status.CONFLICT.getStatusCode(),
-                            exception.getMessage()
-                    ))
-                    .build();
-            case IllegalArgumentException illegalArgumentException -> Response.status(Response.Status.CONFLICT)
-                    .entity(new ErrorResponse(
-                            Response.Status.CONFLICT.getStatusCode(),
-                            exception.getMessage()
-                    ))
-                    .build();
-            default -> Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new ErrorResponse(
-                            Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
-                            "An unexpected error occurred"
-                    ))
-                    .build();
+            case ConstraintViolationException cve -> {
+                var error = ConstraintViolationMapper.toValidationError(cve.getConstraintViolations());
+                yield Response.status(422).entity(ErrorResponse.of(error)).build();
+            }
+            case ForbiddenException __ ->
+                Response.status(403).entity(ErrorResponse.of(new ForbiddenError("FORBIDDEN"))).build();
+            case LegalHoldException __ ->
+                Response.status(409)
+                        .entity(new ErrorResponse(409, "LEGAL_HOLD_ACTIVE", null, LocalDateTime.now()))
+                        .build();
+            default -> {
+                Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
+                yield Response.status(500)
+                        .entity(new ErrorResponse(500, "INTERNAL_SERVER_ERROR", null, LocalDateTime.now()))
+                        .build();
+            }
         };
-
     }
 }

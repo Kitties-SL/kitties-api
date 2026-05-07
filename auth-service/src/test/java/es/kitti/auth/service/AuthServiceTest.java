@@ -1,12 +1,12 @@
 package es.kitti.auth.service;
 
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.UnauthorizedError;
 import io.smallrye.mutiny.Uni;
 import es.kitti.auth.dto.AuthRequest;
 import es.kitti.auth.dto.AuthResponse;
 import es.kitti.auth.dto.RefreshRequest;
 import es.kitti.auth.entity.RefreshToken;
-import es.kitti.auth.exception.InvalidCredentialsException;
-import es.kitti.auth.exception.InvalidTokenException;
 import es.kitti.auth.grpc.UserServiceClient;
 import es.kitti.auth.repository.RefreshTokenRepository;
 import es.kitti.user.grpc.ValidateCredentialsResponse;
@@ -27,14 +27,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
-    @Mock
-    UserServiceClient userServiceClient;
-
-    @Mock
-    RefreshTokenRepository refreshTokenRepository;
-
-    @Mock
-    JwtTokenService jwtTokenService;
+    @Mock UserServiceClient userServiceClient;
+    @Mock RefreshTokenRepository refreshTokenRepository;
+    @Mock JwtTokenService jwtTokenService;
 
     @InjectMocks
     AuthService authService;
@@ -53,109 +48,102 @@ class AuthServiceTest {
         validRefreshToken.revoked = false;
     }
 
+    // --- authenticate ---
+
     @Test
-    void authenticate_validCredentials_returnsTokens() {
+    void authenticate_validCredentials_returnsRight() {
         var request = new AuthRequest("test@kitti.es", "password123");
 
         when(userServiceClient.validateCredentials("test@kitti.es", "password123"))
                 .thenReturn(Uni.createFrom().item(
                         ValidateCredentialsResponse.newBuilder()
-                                .setValid(true)
-                                .setUserId(1L)
-                                .setEmail("test@kitti.es")
-                                .setRole("User")
-                                .build()
-                ));
-        when(jwtTokenService.generateAccessToken(1L, "User"))
-                .thenReturn("mocked-access-token");
+                                .setValid(true).setUserId(1L)
+                                .setEmail("test@kitti.es").setRole("User")
+                                .build()));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("mocked-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
-        var result = authService.authenticate(request)
-                .await().indefinitely();
+        var result = authService.authenticate(request).await().indefinitely();
 
-        assertNotNull(result);
-        assertEquals("mocked-access-token", result.accessToken());
-        assertNotNull(result.refreshToken());
+        assertTrue(result.isRight());
+        assertEquals("mocked-access-token", result.getOrElse(null).accessToken());
+        assertNotNull(result.getOrElse(null).refreshToken());
         verify(jwtTokenService).generateAccessToken(1L, "User");
     }
 
     @Test
-    void authenticate_invalidCredentials_throwsInvalidCredentialsException() {
+    void authenticate_invalidCredentials_returnsLeft401() {
         var request = new AuthRequest("wrong@kitti.es", "wrongpass");
 
         when(userServiceClient.validateCredentials("wrong@kitti.es", "wrongpass"))
                 .thenReturn(Uni.createFrom().item(
-                        ValidateCredentialsResponse.newBuilder()
-                                .setValid(false)
-                                .build()
-                ));
+                        ValidateCredentialsResponse.newBuilder().setValid(false).build()));
 
-        assertThrows(InvalidCredentialsException.class, () ->
-                authService.authenticate(request)
-                        .await().indefinitely()
-        );
+        var result = authService.authenticate(request).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(UnauthorizedError.class, result.fold(e -> e, __ -> null));
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
         verify(refreshTokenRepository, never()).persist(any(RefreshToken.class));
     }
 
+    // --- refresh ---
+
     @Test
-    void refresh_validToken_returnsNewTokens() {
+    void refresh_validToken_returnsRight() {
         var request = new RefreshRequest(validRefreshToken.token);
 
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "User"))
-                .thenReturn("new-access-token");
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
-        var result = authService.refresh(request)
-                .await().indefinitely();
+        var result = authService.refresh(request).await().indefinitely();
 
-        assertNotNull(result);
-        assertEquals("new-access-token", result.accessToken());
+        assertTrue(result.isRight());
+        assertEquals("new-access-token", result.getOrElse(null).accessToken());
     }
 
     @Test
-    void refresh_tokenNotFound_throwsInvalidTokenException() {
-        var request = new RefreshRequest("nonexistent-token");
-
+    void refresh_tokenNotFound_returnsLeft401() {
         when(refreshTokenRepository.findByToken("nonexistent-token"))
                 .thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(InvalidTokenException.class, () ->
-                authService.refresh(request)
-                        .await().indefinitely()
-        );
+        var result = authService.refresh(new RefreshRequest("nonexistent-token")).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
     @Test
-    void refresh_expiredToken_throwsInvalidTokenException() {
+    void refresh_expiredToken_returnsLeft401() {
         validRefreshToken.expiresAt = LocalDateTime.now().minusDays(1);
-        var request = new RefreshRequest(validRefreshToken.token);
 
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
-        assertThrows(InvalidTokenException.class, () ->
-                authService.refresh(request)
-                        .await().indefinitely()
-        );
+        var result = authService.refresh(new RefreshRequest(validRefreshToken.token)).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
     @Test
-    void refresh_revokedToken_throwsInvalidTokenException() {
+    void refresh_revokedToken_returnsLeft401() {
         validRefreshToken.revoked = true;
-        var request = new RefreshRequest(validRefreshToken.token);
 
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
-        assertThrows(InvalidTokenException.class, () ->
-                authService.refresh(request)
-                        .await().indefinitely()
-        );
+        var result = authService.refresh(new RefreshRequest(validRefreshToken.token)).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
     }
+
+    // --- logout ---
 
     @Test
     void logout_validToken_revokesToken() {
@@ -164,21 +152,21 @@ class AuthServiceTest {
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
-        authService.logout(validRefreshToken.token)
-                .await().indefinitely();
+        var result = authService.logout(validRefreshToken.token).await().indefinitely();
 
+        assertTrue(result.isRight());
         assertTrue(validRefreshToken.revoked);
         verify(refreshTokenRepository).persist(validRefreshToken);
     }
 
     @Test
-    void logout_tokenNotFound_throwsInvalidTokenException() {
+    void logout_tokenNotFound_returnsLeft401() {
         when(refreshTokenRepository.findByToken("nonexistent-token"))
                 .thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(InvalidTokenException.class, () ->
-                authService.logout("nonexistent-token")
-                        .await().indefinitely()
-        );
+        var result = authService.logout("nonexistent-token").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
     }
 }

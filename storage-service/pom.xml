@@ -25,6 +25,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>es.kitti</groupId>
+            <artifactId>either-mon</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>io.quarkiverse.amazonservices</groupId>
             <artifactId>quarkus-amazon-s3</artifactId>
         </dependency>

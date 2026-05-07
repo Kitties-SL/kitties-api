@@ -1,6 +1,6 @@
 package es.kitti.auth.resource;
 
-import io.quarkus.logging.Log;
+import es.kitti.mon.error.ErrorResponse;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -24,21 +24,29 @@ public class AuthResource {
     @Path("/login")
     public Uni<Response> login(@Valid AuthRequest request) {
         return authService.authenticate(request)
-                .onItem().transform(response -> Response.ok(response).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        auth -> Response.ok(auth).build()
+                ));
     }
 
     @POST
     @Path("/refresh")
     public Uni<Response> refresh(@Valid RefreshRequest request) {
-        Log.infof("AuthResource refresh called with: %s", request);
         return authService.refresh(request)
-                .onItem().transform(response -> Response.ok(response).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        auth -> Response.ok(auth).build()
+                ));
     }
 
     @POST
     @Path("/logout")
     public Uni<Response> logout(@Valid LogoutRequest request) {
         return authService.logout(request.refreshToken())
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.noContent().build()
+                ));
     }
 }

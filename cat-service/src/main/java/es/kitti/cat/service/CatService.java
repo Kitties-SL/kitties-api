@@ -1,20 +1,21 @@
 package es.kitti.cat.service;
 
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.ForbiddenException;
 import es.kitti.cat.client.AdoptionClient;
 import es.kitti.cat.dto.*;
 import es.kitti.cat.entity.Cat;
 import es.kitti.cat.entity.CatImage;
 import es.kitti.cat.entity.CatStatus;
-import es.kitti.cat.exception.CatHasActiveAdoptionsException;
-import es.kitti.cat.exception.CatNotFoundException;
 import es.kitti.cat.mapper.CatMapper;
 import es.kitti.cat.repository.CatImageRepository;
 import es.kitti.cat.repository.CatRepository;
@@ -55,52 +56,69 @@ public class CatService {
     }
 
     @WithTransaction
-    public Uni<CatResponse> updateCat(Long id, CatUpdateRequest request, Long organizationId) {
+    public Uni<Either<DomainError, CatResponse>> updateCat(Long id, CatUpdateRequest request, Long organizationId) {
         return catRepository.findById(id)
-                .onItem().ifNull()
-                .failWith(() -> new CatNotFoundException(id))
                 .onItem().transformToUni(cat -> {
-                    requireOwner(cat, organizationId);
+                    if (cat == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                    if (!cat.organizationId.equals(organizationId))
+                        return Uni.createFrom().item(Either.left(new ForbiddenError("CAT_ACCESS_DENIED")));
                     catMapper.updateEntity(cat, request);
-                    return catRepository.persist(cat);
-                })
-                .onItem().transformToUni(cat ->
-                        catImageRepository.findByCatId(cat.id)
-                                .collect().asList()
-                                .onItem().transform(images -> catMapper.toResponse(cat, images))
-                );
-    }
-
-    @WithSession
-    public Uni<CatResponse> findById(Long id) {
-        return catRepository.findById(id)
-                .onItem().ifNull()
-                .failWith(() -> new CatNotFoundException(id))
-                .onItem().transformToUni(cat -> {
-                    if (cat.status == CatStatus.Deleted) {
-                        return Uni.createFrom().failure(new CatNotFoundException(id));
-                    }
-                    return catImageRepository.findByCatId(cat.id)
-                            .collect().asList()
-                            .onItem().transform(images -> catMapper.toResponse(cat, images));
+                    return catRepository.persist(cat)
+                            .onItem().transformToUni(saved ->
+                                    catImageRepository.findByCatId(saved.id)
+                                            .collect().asList()
+                                            .onItem().transform(images ->
+                                                    Either.<DomainError, CatResponse>right(catMapper.toResponse(saved, images))
+                                            )
+                            );
                 });
     }
 
-    public Multi<CatSummaryResponse> search(String city, String name) {
-        Uni<List<Cat>> catsUni;
-        if (city != null && name != null) {
-            catsUni = catRepository.findByCityAndName(city, name);
-        } else if (city != null) {
-            catsUni = catRepository.findByCity(city);
-        } else if (name != null) {
-            catsUni = catRepository.findByName(name);
-        } else {
-            catsUni = catRepository.findAvailable();
-        }
+    @WithSession
+    public Uni<Either<DomainError, CatResponse>> findById(Long id) {
+        return catRepository.findById(id)
+                .onItem().transformToUni(cat -> {
+                    if (cat == null || cat.status == CatStatus.Deleted)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                    return catImageRepository.findByCatId(cat.id)
+                            .collect().asList()
+                            .onItem().transform(images ->
+                                    Either.<DomainError, CatResponse>right(catMapper.toResponse(cat, images))
+                            );
+                });
+    }
 
-        return catsUni
-                .onItem().transformToMulti(list -> Multi.createFrom().iterable(list))
-                .onItem().transform(catMapper::toSummaryResponse);
+    public Uni<PageResponse<CatSummaryResponse>> search(String city, String name, int page, int size) {
+        if (size > 100) size = 100;
+        final int effectiveSize = size;
+
+        if (city != null && name != null) {
+            return catRepository.findByCityAndName(city, name, page, effectiveSize)
+                    .onItem().transformToUni(cats ->
+                            catRepository.countByCityAndName(city, name)
+                                    .onItem().transform(count -> pageOf(cats, page, effectiveSize, count)));
+        } else if (city != null) {
+            return catRepository.findByCity(city, page, effectiveSize)
+                    .onItem().transformToUni(cats ->
+                            catRepository.countByCity(city)
+                                    .onItem().transform(count -> pageOf(cats, page, effectiveSize, count)));
+        } else if (name != null) {
+            return catRepository.findByName(name, page, effectiveSize)
+                    .onItem().transformToUni(cats ->
+                            catRepository.countByName(name)
+                                    .onItem().transform(count -> pageOf(cats, page, effectiveSize, count)));
+        } else {
+            return catRepository.findAvailable(page, effectiveSize)
+                    .onItem().transformToUni(cats ->
+                            catRepository.countAvailable()
+                                    .onItem().transform(count -> pageOf(cats, page, effectiveSize, count)));
+        }
+    }
+
+    private PageResponse<CatSummaryResponse> pageOf(List<Cat> cats, int page, int size, long count) {
+        List<CatSummaryResponse> content = cats.stream().map(catMapper::toSummaryResponse).toList();
+        return PageResponse.of(content, page, size, count);
     }
 
     @WithSession
@@ -115,20 +133,21 @@ public class CatService {
     public Uni<CatInventoryStatsResponse> getInventoryStats(Long organizationId) {
         return catRepository.findAllByOrganizationId(organizationId)
                 .onItem().transform(cats -> {
-                    long available = cats.stream().filter(c -> c.status == CatStatus.Available).count();
+                    long available   = cats.stream().filter(c -> c.status == CatStatus.Available).count();
                     long unavailable = cats.stream().filter(c -> c.status == CatStatus.Unavailable).count();
-                    long deleted = cats.stream().filter(c -> c.status == CatStatus.Deleted).count();
+                    long deleted     = cats.stream().filter(c -> c.status == CatStatus.Deleted).count();
                     return new CatInventoryStatsResponse(available, unavailable, deleted, available + unavailable + deleted);
                 });
     }
 
     @WithTransaction
-    public Uni<CatResponse> uploadImage(Long catId, FileUpload file, Long organizationId) {
+    public Uni<Either<DomainError, CatResponse>> uploadImage(Long catId, FileUpload file, Long organizationId) {
         return catRepository.findById(catId)
-                .onItem().ifNull()
-                .failWith(() -> new CatNotFoundException(catId))
                 .onItem().transformToUni(cat -> {
-                    requireOwner(cat, organizationId);
+                    if (cat == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                    if (!cat.organizationId.equals(organizationId))
+                        return Uni.createFrom().item(Either.left(new ForbiddenError("CAT_ACCESS_DENIED")));
                     return storageClient.upload(file)
                             .onItem().transformToUni(storage -> {
                                 CatImage image = new CatImage();
@@ -136,15 +155,11 @@ public class CatService {
                                 image.key = storage.key();
                                 image.url = storage.url();
                                 image.imageOrder = 0;
-
                                 if (cat.profileImageUrl == null) {
                                     cat.profileImageUrl = storage.url();
                                 }
-
                                 return catRepository.persist(cat)
-                                        .onItem().transformToUni(savedCat ->
-                                                catImageRepository.persist(image)
-                                        );
+                                        .onItem().transformToUni(savedCat -> catImageRepository.persist(image));
                             })
                             .onItem().transformToUni(savedImage ->
                                     catRepository.findById(catId)
@@ -152,7 +167,7 @@ public class CatService {
                                                     catImageRepository.findByCatId(catId)
                                                             .collect().asList()
                                                             .onItem().transform(images ->
-                                                                    catMapper.toResponse(savedCat, images)
+                                                                    Either.<DomainError, CatResponse>right(catMapper.toResponse(savedCat, images))
                                                             )
                                             )
                             );
@@ -160,52 +175,49 @@ public class CatService {
     }
 
     @WithTransaction
-    public Uni<Void> deleteImage(Long catId, Long imageId, Long organizationId) {
+    public Uni<Either<DomainError, Void>> deleteImage(Long catId, Long imageId, Long organizationId) {
         return catRepository.findById(catId)
-                .onItem().ifNull()
-                .failWith(() -> new CatNotFoundException(catId))
                 .onItem().transformToUni(cat -> {
-                    requireOwner(cat, organizationId);
+                    if (cat == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                    if (!cat.organizationId.equals(organizationId))
+                        return Uni.createFrom().item(Either.left(new ForbiddenError("CAT_ACCESS_DENIED")));
                     return catImageRepository.findById(imageId)
-                            .onItem().ifNull()
-                            .failWith(() -> new CatNotFoundException(imageId))
-                            .onItem().transformToUni(image ->
-                                    storageClient.delete(image.key)
-                                            .onItem().transformToUni(v -> catImageRepository.delete(image))
-                            );
+                            .onItem().transformToUni(image -> {
+                                if (image == null)
+                                    return Uni.createFrom().item(Either.left(new NotFoundError("CAT_IMAGE_NOT_FOUND")));
+                                return storageClient.delete(image.key)
+                                        .onItem().transformToUni(v -> catImageRepository.delete(image))
+                                        .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                            });
                 });
     }
 
-    public Uni<Void> deleteCat(Long id, Long organizationId) {
-        // Step 1: verify existence and ownership (session, no transaction)
+    public Uni<Either<DomainError, Void>> deleteCat(Long id, Long organizationId) {
         return Panache.withSession(() ->
                 catRepository.findById(id)
-                        .onItem().ifNull().failWith(() -> new CatNotFoundException(id))
-                        .onItem().invoke(cat -> requireOwner(cat, organizationId))
-                        .replaceWithVoid()
+                        .onItem().transform(cat -> {
+                            if (cat == null)
+                                return Either.<DomainError, Void>left(new NotFoundError("CAT_NOT_FOUND"));
+                            if (!cat.organizationId.equals(organizationId))
+                                return Either.<DomainError, Void>left(new ForbiddenError("CAT_ACCESS_DENIED"));
+                            return Either.<DomainError, Void>right(null);
+                        })
         )
-        // Step 2: check adoption-service (outside any DB session)
-        .onItem().transformToUni(__ ->
-                adoptionClient.hasActiveRequestsForCat(id, internalSecret)
-        )
-        // Step 3: logical delete in its own transaction
-        .onItem().transformToUni(hasActive -> {
-            if (hasActive) {
-                return Uni.createFrom().failure(new CatHasActiveAdoptionsException(id));
-            }
-            return Panache.withTransaction(() ->
-                    catRepository.findById(id)
-                            .onItem().transformToUni(cat -> {
-                                cat.status = CatStatus.Deleted;
-                                return catRepository.persist(cat).replaceWithVoid();
-                            })
-            );
-        });
-    }
-
-    private void requireOwner(Cat cat, Long organizationId) {
-        if (!cat.organizationId.equals(organizationId)) {
-            throw new ForbiddenException("Access denied");
-        }
+        .onItem().transformToUni(either -> either.fold(
+                error -> Uni.createFrom().item(Either.left(error)),
+                __ -> adoptionClient.hasActiveRequestsForCat(id, internalSecret)
+                        .onItem().transformToUni(hasActive -> {
+                            if (hasActive)
+                                return Uni.createFrom().item(Either.<DomainError, Void>left(new ConflictError("CAT_HAS_ACTIVE_ADOPTIONS")));
+                            return Panache.withTransaction(() ->
+                                    catRepository.findById(id)
+                                            .onItem().transformToUni(cat -> {
+                                                cat.status = CatStatus.Deleted;
+                                                return catRepository.persist(cat).replaceWithVoid();
+                                            })
+                            ).onItem().transform(v -> Either.<DomainError, Void>right(null));
+                        })
+        ));
     }
 }

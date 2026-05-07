@@ -1,5 +1,6 @@
 package es.kitti.chat.resource;
 
+import es.kitti.mon.error.ErrorResponse;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -10,7 +11,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import es.kitti.chat.dto.BlockUserRequest;
 import es.kitti.chat.dto.ConversationResponse;
-import es.kitti.chat.dto.MessageResponse;
 import es.kitti.chat.dto.SendMessageRequest;
 import es.kitti.chat.entity.SenderType;
 import es.kitti.chat.service.ChatService;
@@ -24,49 +24,52 @@ import java.util.List;
 @Authenticated
 public class ChatResource {
 
-    @Inject
-    ChatService service;
-
-    @Inject
-    JsonWebToken jwt;
+    @Inject ChatService service;
+    @Inject JsonWebToken jwt;
 
     @GET
     @Path("/mine")
     @RolesAllowed("User")
     public Uni<List<ConversationResponse>> findMineAsUser() {
-        Long userId = Long.parseLong(jwt.getSubject());
-        return service.findMineAsUser(userId);
+        return service.findMineAsUser(callerId());
     }
 
     @GET
     @Path("/organization")
     @RolesAllowed("Organization")
     public Uni<List<ConversationResponse>> findMineAsOrganization() {
-        Long orgId = Long.parseLong(jwt.getSubject());
-        return service.findMineAsOrganization(orgId);
+        return service.findMineAsOrganization(callerId());
     }
 
     @GET
     @Path("/{id}/messages")
-    public Uni<List<MessageResponse>> listMessages(@PathParam("id") Long id) {
-        return service.listMessages(id, callerId(), callerType());
+    public Uni<Response> listMessages(@PathParam("id") Long id) {
+        return service.listMessages(id, callerId(), callerType())
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        msgs -> Response.ok(msgs).build()
+                ));
     }
 
     @POST
     @Path("/{id}/messages")
-    public Uni<Response> sendMessage(@PathParam("id") Long id,
-                                     @Valid SendMessageRequest request) {
+    public Uni<Response> sendMessage(@PathParam("id") Long id, @Valid SendMessageRequest request) {
         return service.sendMessage(id, request, callerId(), callerType())
-                .onItem().transform(m -> Response.status(Response.Status.CREATED).entity(m).build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        m -> Response.status(Response.Status.CREATED).entity(m).build()
+                ));
     }
 
     @POST
     @Path("/{id}/block")
     @RolesAllowed("Organization")
-    public Uni<Response> blockUser(@PathParam("id") Long id,
-                                   @Valid BlockUserRequest request) {
+    public Uni<Response> blockUser(@PathParam("id") Long id, @Valid BlockUserRequest request) {
         return service.blockUser(id, callerId(), request)
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v -> Response.noContent().build()
+                ));
     }
 
     @DELETE
@@ -74,7 +77,10 @@ public class ChatResource {
     @RolesAllowed("Organization")
     public Uni<Response> unblockUser(@PathParam("id") Long id) {
         return service.unblockUser(id, callerId())
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v -> Response.noContent().build()
+                ));
     }
 
     private Long callerId() {

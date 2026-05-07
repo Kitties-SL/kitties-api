@@ -1,5 +1,10 @@
 package es.kitti.user.service;
 
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.NotFoundError;
+import es.kitti.mon.error.UnauthorizedError;
 import io.smallrye.mutiny.Uni;
 import es.kitti.user.dto.UserCreateRequest;
 import es.kitti.user.dto.UserResponse;
@@ -7,8 +12,6 @@ import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.user.event.UserRegisteredEvent;
-import es.kitti.user.exception.InvalidTokenException;
-import es.kitti.user.exception.UserNotFoundException;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -29,14 +32,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
-    @Mock
-    UserRepository userRepository;
-
-    @Mock
-    UserMapper userMapper;
-
-    @Mock
-    Emitter<UserRegisteredEvent> userRegisteredEmitter;
+    @Mock UserRepository userRepository;
+    @Mock UserMapper userMapper;
+    @Mock Emitter<UserRegisteredEvent> userRegisteredEmitter;
 
     @InjectMocks
     UserService userService;
@@ -56,141 +54,131 @@ class UserServiceTest {
 
         testUserResponse = new UserResponse(
                 1L, "test@kitti.es", "Test", "User",
-                UserStatus.Pending, UserRole.User,null,
+                UserStatus.Pending, UserRole.User, null,
                 LocalDateTime.now(), LocalDateTime.now()
         );
     }
 
+    // --- createUser ---
+
     @Test
     void createUser_success() {
         var request = new UserCreateRequest(
-                "test@kitti.es",
-                "password123",
-                "Test",
-                "User",
-                null,
-                null,
-                UserRole.User
-        );
+                "test@kitti.es", "password123", "Test", "User", null, null, UserRole.User);
 
-        when(userRepository.existsByEmail(request.email()))
-                .thenReturn(Uni.createFrom().item(false));
-        when(userRepository.persist(any(User.class)))
-                .thenReturn(Uni.createFrom().item(testUser));
-        when(userMapper.toEntity(any(), anyString()))
-                .thenReturn(testUser);
-        when(userMapper.toResponse(testUser))
-                .thenReturn(testUserResponse);
+        when(userRepository.existsByEmail(request.email())).thenReturn(Uni.createFrom().item(false));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toEntity(any(), anyString())).thenReturn(testUser);
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
 
-        var result = userService.createUser(request)
-                .await().indefinitely();
+        var result = userService.createUser(request).await().indefinitely();
 
-        assertNotNull(result);
-        assertEquals("test@kitti.es", result.email());
-        assertEquals(UserStatus.Pending, result.status());
+        assertTrue(result.isRight());
+        assertEquals("test@kitti.es", result.getOrElse(null).email());
         verify(userRegisteredEmitter).send(any(UserRegisteredEvent.class));
     }
 
     @Test
-    void createUser_duplicateEmail_throwsIllegalArgumentException() {
+    void createUser_duplicateEmail_returnsLeft409() {
         var request = new UserCreateRequest(
-                "duplicate@kitti.es", "password123", "Test", "User", null, null, UserRole.User
-        );
+                "duplicate@kitti.es", "password123", "Test", "User", null, null, UserRole.User);
 
-        when(userRepository.existsByEmail(request.email()))
-                .thenReturn(Uni.createFrom().item(true));
+        when(userRepository.existsByEmail(request.email())).thenReturn(Uni.createFrom().item(true));
 
-        assertThrows(IllegalArgumentException.class, () ->
-                userService.createUser(request)
-                        .await().indefinitely()
-        );
+        var result = userService.createUser(request).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
         verify(userRegisteredEmitter, never()).send(any(UserRegisteredEvent.class));
     }
 
+    // --- findByEmail ---
+
     @Test
-    void findByEmail_userExists_returnsResponse() {
-        when(userRepository.findByEmail("test@kitti.es"))
-                .thenReturn(Uni.createFrom().item(testUser));
-        when(userMapper.toResponse(testUser))
-                .thenReturn(testUserResponse);
+    void findByEmail_userExists_returnsRight() {
+        when(userRepository.findByEmail("test@kitti.es")).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
 
-        var result = userService.findByEmail("test@kitti.es")
-                .await().indefinitely();
+        var result = userService.findByEmail("test@kitti.es").await().indefinitely();
 
-        assertNotNull(result);
-        assertEquals("test@kitti.es", result.email());
+        assertTrue(result.isRight());
+        assertEquals("test@kitti.es", result.getOrElse(null).email());
     }
 
     @Test
-    void findByEmail_userNotFound_throwsUserNotFoundException() {
+    void findByEmail_userNotFound_returnsLeft404() {
         when(userRepository.findByEmail("nonexistent@kitti.es"))
                 .thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(UserNotFoundException.class, () ->
-                userService.findByEmail("nonexistent@kitti.es")
-                        .await().indefinitely()
-        );
+        var result = userService.findByEmail("nonexistent@kitti.es").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
     }
+
+    // --- activateByToken ---
 
     @Test
     void activateByToken_validToken_activatesUser() {
+        var activeResponse = new UserResponse(
+                1L, "test@kitti.es", "Test", "User",
+                UserStatus.Active, UserRole.User, null,
+                LocalDateTime.now(), LocalDateTime.now());
+
         when(userRepository.findByActivationToken("valid-token-123"))
                 .thenReturn(Uni.createFrom().item(testUser));
-        when(userRepository.persist(any(User.class)))
-                .thenReturn(Uni.createFrom().item(testUser));
-        when(userMapper.toResponse(testUser))
-                .thenReturn(new UserResponse(
-                        1L, "test@kitti.es", "Test", "User",
-                        UserStatus.Active, UserRole.User,null,
-                        LocalDateTime.now(),LocalDateTime.now()
-                ));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(activeResponse);
 
-        var result = userService.activateByToken("valid-token-123")
-                .await().indefinitely();
+        var result = userService.activateByToken("valid-token-123").await().indefinitely();
 
-        assertEquals(UserStatus.Active, result.status());
+        assertTrue(result.isRight());
+        assertEquals(UserStatus.Active, result.getOrElse(null).status());
         assertNull(testUser.activationToken);
     }
 
     @Test
-    void activateByToken_invalidToken_throwsInvalidTokenException() {
+    void activateByToken_invalidToken_returnsLeft401() {
         when(userRepository.findByActivationToken("invalid-token"))
                 .thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(InvalidTokenException.class, () ->
-                userService.activateByToken("invalid-token")
-                        .await().indefinitely()
-        );
+        var result = userService.activateByToken("invalid-token").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(UnauthorizedError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
     }
+
+    // --- deactivateUser ---
 
     @Test
     void deactivateUser_userExists_setsInactiveStatus() {
-        when(userRepository.findByEmail("test@kitti.es"))
-                .thenReturn(Uni.createFrom().item(testUser));
-        when(userRepository.persist(any(User.class)))
-                .thenReturn(Uni.createFrom().item(testUser));
-        when(userMapper.toResponse(testUser))
-                .thenReturn(new UserResponse(
-                        1L, "test@kitti.es", "Test", "User",
-                        UserStatus.Inactive, UserRole.User,null,
-                        LocalDateTime.now(), LocalDateTime.now()
-                ));
+        var inactiveResponse = new UserResponse(
+                1L, "test@kitti.es", "Test", "User",
+                UserStatus.Inactive, UserRole.User, null,
+                LocalDateTime.now(), LocalDateTime.now());
 
-        var result = userService.deactivateUser("test@kitti.es")
-                .await().indefinitely();
+        when(userRepository.findByEmail("test@kitti.es")).thenReturn(Uni.createFrom().item(testUser));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(inactiveResponse);
 
-        assertEquals(UserStatus.Inactive, result.status());
+        var result = userService.deactivateUser("test@kitti.es").await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(UserStatus.Inactive, result.getOrElse(null).status());
         assertEquals(UserStatus.Inactive, testUser.status);
     }
 
     @Test
-    void deactivateUser_userNotFound_throwsUserNotFoundException() {
+    void deactivateUser_userNotFound_returnsLeft404() {
         when(userRepository.findByEmail("nonexistent@kitti.es"))
                 .thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(UserNotFoundException.class, () ->
-                userService.deactivateUser("nonexistent@kitti.es")
-                        .await().indefinitely()
-        );
+        var result = userService.deactivateUser("nonexistent@kitti.es").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
     }
 }
