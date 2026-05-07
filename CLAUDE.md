@@ -28,7 +28,8 @@ Los 11 servicios son todos activos e intencionales. No eliminar ninguno de esta 
 | schedule-service     | 8090 | —           | — (sin endpoints públicos; solo `/q/health`)    |
 
 ## Arquitectura — reglas duras
-- Sin dependencias Maven entre módulos. Comunicación solo vía gRPC o Kafka.
+- Sin dependencias Maven entre módulos de servicio. Comunicación solo vía gRPC o Kafka.
+- Excepción explícita: todos los servicios dependen de **`either-mon`** (módulo de utilidades puras, sin lógica de negocio). Ver sección _"Manejo de errores — either-mon"_.
 - Sin relaciones JPA cross-service. Cada servicio tiene su propio esquema PostgreSQL.
 - DTOs siempre (Records Java). Nunca exponer entidades Panache directamente.
 - Patrón Repository, no Active Record.
@@ -103,6 +104,151 @@ Valores en PascalCase, nunca SCREAMING_SNAKE_CASE:
 ```java
 public enum AdoptionStatus { Pending, Reviewing, Accepted, Rejected, Completed }
 ```
+
+## Manejo de errores — either-mon
+
+Módulo Maven `either-mon` (`es.kitti.mon`). Contiene tipos funcionales puros sin lógica de negocio. **No añadir nada fuera de ese perímetro** (clientes HTTP, eventos Kafka, utilidades de Quarkus → van en el servicio correspondiente).
+
+### Either<L, R>
+
+Sealed interface con `Left` y `Right`. Métodos: `map`, `flatMap`, `fold`, `getOrElse`, `isLeft`, `isRight`.
+
+```java
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.*;
+```
+
+### Cuándo usar Uni<Either<DomainError, T>>
+
+Cualquier método de service que pueda devolver un error de dominio esperado (not found, forbidden, conflict). Los errores inesperados (infraestructura, bugs) siguen propagándose como fallo del Uni y los captura `GlobalExceptionMapper`.
+
+```java
+// Service
+@WithSession
+public Uni<Either<DomainError, CatResponse>> findById(Long id) {
+    return catRepository.findById(id)
+            .onItem().transformToUni(cat -> {
+                if (cat == null)
+                    return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                return ...
+                        .onItem().transform(images ->
+                                Either.<DomainError, CatResponse>right(catMapper.toResponse(cat, images)));
+            });
+}
+
+// Resource
+public Uni<Response> findById(@PathParam("id") Long id) {
+    return catService.findById(id)
+            .onItem().transform(either -> either.fold(
+                    err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                    cat -> Response.ok(cat).build()
+            ));
+}
+```
+
+### Tipos base de DomainError
+
+| Record | HTTP | Cuándo usarlo |
+|--------|------|---------------|
+| `NotFoundError(String code)` | 404 | Entidad no encontrada |
+| `ForbiddenError(String code)` | 403 | Acceso denegado por permisos de dominio |
+| `ConflictError(String code)` | 409 | Conflicto de estado (duplicado, límite, adopciones activas…) |
+| `UnauthorizedError(String code)` | 401 | Credenciales o token inválidos |
+| `BadRequestError(String code)` | 400 | Validación de contenido (p.ej. tipo MIME inválido) |
+| `ValidationError(List<FieldViolation>)` | 422 | Resultado de `ConstraintViolationMapper` |
+
+El campo `code` es un identificador machine-readable para que el cliente pueda mostrar el mensaje en el idioma del usuario. Convención: `ENTIDAD_MOTIVO` en mayúsculas, p.ej. `CAT_NOT_FOUND`, `EMAIL_ALREADY_EXISTS`, `CAT_HAS_ACTIVE_ADOPTIONS`.
+
+### Validación de formularios — ConstraintViolationMapper
+
+El `GlobalExceptionMapper` de cada servicio convierte `ConstraintViolationException` en `ValidationError` con lista de `FieldViolation(field, code, params)`:
+
+```json
+{ "status": 422, "code": "VALIDATION_FAILED",
+  "violations": [
+    { "field": "email", "code": "INVALID_EMAIL" },
+    { "field": "password", "code": "INVALID_SIZE", "params": { "min": 8 } }
+  ]
+}
+```
+
+Códigos normalizados: `REQUIRED` (NotNull/NotBlank), `INVALID_SIZE` (Size), `INVALID_EMAIL` (Email), `INVALID_FORMAT` (Pattern), `TOO_SMALL`/`TOO_LARGE` (Min/Max).
+
+> **Nota:** el `GlobalExceptionMapper` implementa `ExceptionMapper<Throwable>`, que es menos específico que el mapper built-in de Quarkus para `ConstraintViolationException`. El mapper built-in tiene precedencia para validaciones `@Valid` en endpoints JAX-RS y devuelve 400. El `ConstraintViolationMapper` solo actúa para violaciones lanzadas manualmente desde código de servicio.
+
+### Tests con Either
+
+```java
+// Happy path
+var result = service.findById(1L).await().indefinitely();
+assertTrue(result.isRight());
+assertEquals(1L, result.getOrElse(null).id());
+
+// Error path
+var result = service.findById(999L).await().indefinitely();
+assertTrue(result.isLeft());
+assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+```
+
+---
+
+## Paginación — PageResponse<T>
+
+Todos los endpoints de colección públicos deben paginar. El record `PageResponse<T>` vive en el servicio que lo usa (actualmente en `cat-service/dto/PageResponse.java`).
+
+```json
+{ "content": [...], "page": 0, "size": 20, "total": 142, "totalPages": 8 }
+```
+
+### Patrón de repositorio paginado
+
+Dos métodos por variante: uno para los datos paginados y otro para el total. **Siempre secuenciales** (ver gotcha de `Uni.combine()` más abajo):
+
+```java
+@WithSession
+public Uni<List<Cat>> findByCity(String city, int page, int size) {
+    return find("status = ?1 and lower(city) like lower(?2)",
+            CatStatus.Available, "%" + city + "%").page(page, size).list();
+}
+
+@WithSession
+public Uni<Long> countByCity(String city) {
+    return count("status = ?1 and lower(city) like lower(?2)",
+            CatStatus.Available, "%" + city + "%");
+}
+```
+
+### Patrón de service — cadena secuencial
+
+```java
+public Uni<PageResponse<CatSummaryResponse>> search(String city, int page, int size) {
+    if (size > 100) size = 100;
+    final int effectiveSize = size;
+    return catRepository.findByCity(city, page, effectiveSize)
+            .onItem().transformToUni(cats ->
+                    catRepository.countByCity(city)
+                            .onItem().transform(count -> {
+                                var content = cats.stream().map(catMapper::toSummaryResponse).toList();
+                                return PageResponse.of(content, page, effectiveSize, count);
+                            }));
+}
+```
+
+### Patrón de resource
+
+```java
+@GET @PermitAll
+public Uni<Response> search(
+        @QueryParam("city") String city,
+        @QueryParam("page") @DefaultValue("0") int page,
+        @QueryParam("size") @DefaultValue("20") int size) {
+    return catService.search(city, page, size)
+            .onItem().transform(result -> Response.ok(result).build());
+}
+```
+
+---
 
 ## Reactividad (Mutiny)
 - `@WithSession` para lecturas en Service; `@WithTransaction` para escrituras.
@@ -234,6 +380,8 @@ El gateway (`gateway-service`, puerto 8080) no debe hacer proxy de rutas `/*/int
 - **Quarkus dev cwd = directorio del módulo**, no la raíz del proyecto. El `.env` raíz NO se carga cuando se arranca con `mvn -pl <módulo>`. Solución: symlink `<módulo>/.env → ../.env` (ya existe en `storage-service`). Si los defaults en `application.properties` no coinciden con el `.env` raíz, el servicio usará credenciales incorrectas.
 - Kafka EXTERNAL listener debe vincularse a `0.0.0.0` dentro del contenedor, no a `127.0.0.1` (Docker no redirige al loopback del contenedor).
 - `MailHogClient.extractActivationToken` espera el body decodificado de Quoted-Printable. Los emails HTML llegan con soft line breaks (`=\n`) y `=3D` en lugar de `=`.
+- **`Uni.combine()` con dos métodos `@WithSession` en paralelo → 500 en producción.** Hibernate Reactive no permite abrir dos sesiones simultáneamente en el mismo contexto Vert.x. En unit tests no se aprecia porque Mockito bypassa la gestión de sesiones. Solución: siempre encadenar con `transformToUni` (secuencial), nunca combinar en paralelo queries que requieran sesión.
+- **Excepciones de dominio eliminadas.** No crear clases `XxxNotFoundException`, `XxxAlreadyExistsException`, etc. Usar los tipos de `either-mon` (`NotFoundError`, `ConflictError`…) y devolver `Either.left(...)`. Las excepciones que aún existen (`LegalHoldException`) son residuales y deben seguir el mismo patrón al próximo refactor.
 
 ## Comandos habituales
 
@@ -276,7 +424,7 @@ src/main/java/org/ciscoadiz/<servicio>/
   resource/    JAX-RS endpoints (@Path, @RolesAllowed)
   dto/         Java Records (request / response)
   mapper/      Manual entity ↔ DTO conversion
-  exception/   Domain exceptions + ExceptionMappers
+  exception/   GlobalExceptionMapper únicamente (las excepciones de dominio están en either-mon)
   client/      HTTP/gRPC clients to other services (if needed)
   config/      @ConfigProperty beans
 ```
