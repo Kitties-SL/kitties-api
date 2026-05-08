@@ -1,8 +1,10 @@
 package es.kitti.notification.event;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record UserRegisteredEvent(
-        Long userId,
-        String email,
-        String name,
-        String activationToken
+        @JsonProperty("userId") Long userId,
+        @JsonProperty("email") String email,
+        @JsonProperty("name") String name,
+        @JsonProperty("activationToken") String activationToken
 ) {}
