@@ -1,11 +1,13 @@
 package es.kitti.adoption.event;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record AdoptionFormAnalysedEvent(
-        Long adoptionRequestId,
-        String decision,
-        String rejectionReason,
-        Long adopterId,
-        int criticalFlags,
-        int warningFlags,
-        int noticeFlags
+        @JsonProperty("adoptionRequestId") Long adoptionRequestId,
+        @JsonProperty("decision") String decision,
+        @JsonProperty("rejectionReason") String rejectionReason,
+        @JsonProperty("adopterId") Long adopterId,
+        @JsonProperty("criticalFlags") int criticalFlags,
+        @JsonProperty("warningFlags") int warningFlags,
+        @JsonProperty("noticeFlags") int noticeFlags
 ) {}

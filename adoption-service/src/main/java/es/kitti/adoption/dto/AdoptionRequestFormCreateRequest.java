@@ -1,5 +1,6 @@
 package es.kitti.adoption.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -8,38 +9,38 @@ import es.kitti.adoption.entity.ActivityLevel;
 import es.kitti.adoption.entity.HousingType;
 
 public record AdoptionRequestFormCreateRequest(
-        @NotNull Boolean hasPreviousCatExperience,
-        String previousPetsHistory,
-        @NotNull @Min(1) Integer adultsInHousehold,
-        @NotNull Boolean hasChildren,
-        String childrenAges,
-        @NotNull Boolean hasOtherPets,
-        String otherPetsDescription,
-        @NotNull @Min(0) @Max(24) Integer hoursAlonePerDay,
-        @NotNull Boolean stableHousing,
-        String housingInstabilityReason,
+        @JsonProperty("hasPreviousCatExperience") @NotNull Boolean hasPreviousCatExperience,
+        @JsonProperty("previousPetsHistory") String previousPetsHistory,
+        @JsonProperty("adultsInHousehold") @NotNull @Min(1) Integer adultsInHousehold,
+        @JsonProperty("hasChildren") @NotNull Boolean hasChildren,
+        @JsonProperty("childrenAges") String childrenAges,
+        @JsonProperty("hasOtherPets") @NotNull Boolean hasOtherPets,
+        @JsonProperty("otherPetsDescription") String otherPetsDescription,
+        @JsonProperty("hoursAlonePerDay") @NotNull @Min(0) @Max(24) Integer hoursAlonePerDay,
+        @JsonProperty("stableHousing") @NotNull Boolean stableHousing,
+        @JsonProperty("housingInstabilityReason") String housingInstabilityReason,
 
-        @NotNull HousingType housingType,
-        @NotNull @Min(1) Integer housingSize,
-        @NotNull Boolean hasOutdoorAccess,
-        @NotNull Boolean isRental,
-        Boolean rentalPetsAllowed,
-        @NotNull Boolean hasWindowsWithView,
-        @NotNull Boolean hasVerticalSpace,
-        @NotNull Boolean hasHidingSpots,
-        @NotNull ActivityLevel householdActivityLevel,
+        @JsonProperty("housingType") @NotNull HousingType housingType,
+        @JsonProperty("housingSize") @NotNull @Min(1) Integer housingSize,
+        @JsonProperty("hasOutdoorAccess") @NotNull Boolean hasOutdoorAccess,
+        @JsonProperty("isRental") @NotNull Boolean isRental,
+        @JsonProperty("rentalPetsAllowed") Boolean rentalPetsAllowed,
+        @JsonProperty("hasWindowsWithView") @NotNull Boolean hasWindowsWithView,
+        @JsonProperty("hasVerticalSpace") @NotNull Boolean hasVerticalSpace,
+        @JsonProperty("hasHidingSpots") @NotNull Boolean hasHidingSpots,
+        @JsonProperty("householdActivityLevel") @NotNull ActivityLevel householdActivityLevel,
 
-        @NotBlank String whyCatsNeedToPlay,
-        @NotNull @Min(0) Integer dailyPlayMinutes,
-        @NotBlank String plannedEnrichment,
-        @NotBlank String reactionToUnwantedBehavior,
-        @NotNull Boolean hasScratchingPost,
-        @NotNull Boolean willingToEnrichEnvironment,
+        @JsonProperty("whyCatsNeedToPlay") @NotBlank String whyCatsNeedToPlay,
+        @JsonProperty("dailyPlayMinutes") @NotNull @Min(0) Integer dailyPlayMinutes,
+        @JsonProperty("plannedEnrichment") @NotBlank String plannedEnrichment,
+        @JsonProperty("reactionToUnwantedBehavior") @NotBlank String reactionToUnwantedBehavior,
+        @JsonProperty("hasScratchingPost") @NotNull Boolean hasScratchingPost,
+        @JsonProperty("willingToEnrichEnvironment") @NotNull Boolean willingToEnrichEnvironment,
 
-        @NotBlank String motivationToAdopt,
-        @NotNull Boolean understandsLongTermCommitment,
-        @NotNull Boolean hasVetBudget,
-        @NotNull Boolean allHouseholdMembersAgree,
-        @NotNull Boolean anyoneHasAllergies,
-        String allergiesDetail
+        @JsonProperty("motivationToAdopt") @NotBlank String motivationToAdopt,
+        @JsonProperty("understandsLongTermCommitment") @NotNull Boolean understandsLongTermCommitment,
+        @JsonProperty("hasVetBudget") @NotNull Boolean hasVetBudget,
+        @JsonProperty("allHouseholdMembersAgree") @NotNull Boolean allHouseholdMembersAgree,
+        @JsonProperty("anyoneHasAllergies") @NotNull Boolean anyoneHasAllergies,
+        @JsonProperty("allergiesDetail") String allergiesDetail
 ) {}

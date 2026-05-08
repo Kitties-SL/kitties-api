@@ -1,10 +1,11 @@
 package es.kitti.adoption.intake.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import es.kitti.adoption.intake.client.OrganizationPublicMinimal;
 
 import java.util.List;
 
 public record IntakeRejectionResponse(
-        IntakeRequestResponse intake,
-        List<OrganizationPublicMinimal> alternatives
+        @JsonProperty("intake") IntakeRequestResponse intake,
+        @JsonProperty("alternatives") List<OrganizationPublicMinimal> alternatives
 ) {}
