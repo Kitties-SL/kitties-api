@@ -1,8 +1,10 @@
 package es.kitti.chat.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 
 public record ConversationExportEntry(
-        ConversationResponse conversation,
-        List<MessageResponse> messages
+        @JsonProperty("conversation") ConversationResponse conversation,
+        @JsonProperty("messages") List<MessageResponse> messages
 ) {}

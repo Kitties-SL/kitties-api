@@ -1,9 +1,10 @@
 package es.kitti.chat.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 
 public record CreateConversationRequest(
-        @NotNull Long intakeRequestId,
-        @NotNull Long userId,
-        @NotNull Long organizationId
+        @JsonProperty("intakeRequestId") @NotNull Long intakeRequestId,
+        @JsonProperty("userId") @NotNull Long userId,
+        @JsonProperty("organizationId") @NotNull Long organizationId
 ) {}
