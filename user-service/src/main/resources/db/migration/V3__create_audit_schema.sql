@@ -1,12 +1,12 @@
 CREATE SCHEMA IF NOT EXISTS audit;
 
-CREATE SEQUENCE audit."erasure_requests_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE audit.erasure_requests_seq START WITH 1 INCREMENT BY 50;
 
 -- Registro inmutable de solicitudes de borrado (Art. 5.2 RGPD — accountability).
 -- Ni el usuario ni un admin pueden eliminarlo; sirve como evidencia forense.
 CREATE TABLE audit.erasure_requests
 (
-    id                  BIGINT    PRIMARY KEY DEFAULT nextval('audit."erasure_requests_SEQ"'),
+    id                  BIGINT    PRIMARY KEY DEFAULT nextval('audit.erasure_requests_seq'),
     user_id             BIGINT    NOT NULL,
     requested_at        TIMESTAMP NOT NULL,
     requested_ip        VARCHAR(45),

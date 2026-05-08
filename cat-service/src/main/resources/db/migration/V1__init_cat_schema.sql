@@ -1,10 +1,10 @@
 CREATE SCHEMA IF NOT EXISTS cats;
 
-CREATE SEQUENCE cats."cats_SEQ"       START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE cats."cat_images_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE cats.cats_seq       START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE cats.cat_images_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE cats.cats (
-    id                BIGINT           PRIMARY KEY DEFAULT nextval('cats."cats_SEQ"'),
+    id                BIGINT           PRIMARY KEY DEFAULT nextval('cats.cats_seq'),
     name              VARCHAR(255)     NOT NULL,
     age               INTEGER,
     sex               VARCHAR(50)      NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE cats.cats (
 );
 
 CREATE TABLE cats.cat_images (
-    id          BIGINT       PRIMARY KEY DEFAULT nextval('cats."cat_images_SEQ"'),
+    id          BIGINT       PRIMARY KEY DEFAULT nextval('cats.cat_images_seq'),
     cat_id      BIGINT       NOT NULL,
     key         VARCHAR(255) NOT NULL,
     url         VARCHAR(255) NOT NULL,

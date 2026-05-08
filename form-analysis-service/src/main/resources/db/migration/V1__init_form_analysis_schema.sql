@@ -1,10 +1,10 @@
 CREATE SCHEMA IF NOT EXISTS form_analysis;
 
-CREATE SEQUENCE form_analysis."form_analyses_SEQ" START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE form_analysis."form_flags_SEQ"    START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE form_analysis.form_analyses_seq START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE form_analysis.form_flags_seq    START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE form_analysis.form_analyses (
-    id                  BIGINT       PRIMARY KEY DEFAULT nextval('form_analysis."form_analyses_SEQ"'),
+    id                  BIGINT       PRIMARY KEY DEFAULT nextval('form_analysis.form_analyses_seq'),
     adoption_request_id BIGINT       NOT NULL,
     decision            VARCHAR(50)  NOT NULL,
     rejection_reason    VARCHAR(255),
@@ -15,7 +15,7 @@ CREATE TABLE form_analysis.form_analyses (
 );
 
 CREATE TABLE form_analysis.form_flags (
-    id               BIGINT       PRIMARY KEY DEFAULT nextval('form_analysis."form_flags_SEQ"'),
+    id               BIGINT       PRIMARY KEY DEFAULT nextval('form_analysis.form_flags_seq'),
     form_analysis_id BIGINT       NOT NULL,
     severity         VARCHAR(50)  NOT NULL,
     code             VARCHAR(255) NOT NULL,

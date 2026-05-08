@@ -1,10 +1,10 @@
 CREATE SCHEMA IF NOT EXISTS users;
 
-CREATE SEQUENCE users."users_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE users.users_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE users.users
 (
-    id                          BIGINT       PRIMARY KEY DEFAULT nextval('users."users_SEQ"'),
+    id                          BIGINT       PRIMARY KEY DEFAULT nextval('users.users_seq'),
     email                       VARCHAR(255) NOT NULL,
     password_hash               VARCHAR(255) NOT NULL,
     name                        VARCHAR(255) NOT NULL,

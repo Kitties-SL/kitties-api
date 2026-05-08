@@ -1,7 +1,7 @@
-CREATE SEQUENCE adoption."adoption_request_forms_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE adoption.adoption_request_forms_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE adoption.adoption_request_forms (
-    id                               BIGINT   PRIMARY KEY DEFAULT nextval('adoption."adoption_request_forms_SEQ"'),
+    id                               BIGINT   PRIMARY KEY DEFAULT nextval('adoption.adoption_request_forms_seq'),
     adoption_request_id              BIGINT   NOT NULL,
     has_previous_cat_experience      BOOLEAN  NOT NULL,
     previous_pets_history            TEXT,
