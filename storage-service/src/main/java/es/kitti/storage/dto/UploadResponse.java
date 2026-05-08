@@ -1,6 +1,8 @@
 package es.kitti.storage.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record UploadResponse(
-        String key,
-        String url
+        @JsonProperty("key") String key,
+        @JsonProperty("url") String url
 ) {}
