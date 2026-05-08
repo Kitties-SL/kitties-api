@@ -5,6 +5,7 @@ import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
+import io.quarkus.runtime.annotations.StaticInitSafe;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Provider
@@ -13,6 +14,7 @@ public class InternalTokenFilter implements ContainerRequestFilter {
 
     public static final String HEADER = "X-Internal-Token";
 
+    @StaticInitSafe
     @ConfigProperty(name = "kitties.internal.secret")
     String secret;
 
