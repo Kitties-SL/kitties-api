@@ -1,7 +1,9 @@
 package es.kitti.cat.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record CatImageResponse(
-        Long id,
-        String url,
-        Integer order
+        @JsonProperty("id") Long id,
+        @JsonProperty("url") String url,
+        @JsonProperty("order") Integer order
 ) {}
