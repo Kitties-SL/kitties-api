@@ -1,8 +1,9 @@
 package es.kitti.adoption.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 
 public record AdoptionRequestCreateRequest(
-        @NotNull Long catId,
-        @NotNull Long organizationId
+        @JsonProperty("catId") @NotNull Long catId,
+        @JsonProperty("organizationId") @NotNull Long organizationId
 ) {}

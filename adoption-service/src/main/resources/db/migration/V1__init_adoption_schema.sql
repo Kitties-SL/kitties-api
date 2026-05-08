@@ -1,12 +1,12 @@
 CREATE SCHEMA IF NOT EXISTS adoption;
 
-CREATE SEQUENCE adoption."adoption_requests_SEQ" START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE adoption."adoption_forms_SEQ"    START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE adoption."expenses_SEQ"          START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE adoption."interviews_SEQ"        START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE adoption.adoption_requests_seq START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE adoption.adoption_forms_seq    START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE adoption.expenses_seq          START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE adoption.interviews_seq        START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE adoption.adoption_requests (
-    id               BIGINT       PRIMARY KEY DEFAULT nextval('adoption."adoption_requests_SEQ"'),
+    id               BIGINT       PRIMARY KEY DEFAULT nextval('adoption.adoption_requests_seq'),
     cat_id           BIGINT       NOT NULL,
     adopter_email    VARCHAR(255) NOT NULL,
     adopter_id       BIGINT       NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE adoption.adoption_requests (
 );
 
 CREATE TABLE adoption.adoption_forms (
-    id                           BIGINT       PRIMARY KEY DEFAULT nextval('adoption."adoption_forms_SEQ"'),
+    id                           BIGINT       PRIMARY KEY DEFAULT nextval('adoption.adoption_forms_seq'),
     adoption_request_id          BIGINT       NOT NULL,
     full_name                    VARCHAR(255) NOT NULL,
     id_number                    VARCHAR(255) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE adoption.adoption_forms (
 );
 
 CREATE TABLE adoption.expenses (
-    id                  BIGINT         PRIMARY KEY DEFAULT nextval('adoption."expenses_SEQ"'),
+    id                  BIGINT         PRIMARY KEY DEFAULT nextval('adoption.expenses_seq'),
     adoption_request_id BIGINT         NOT NULL,
     concept             VARCHAR(255)   NOT NULL,
     amount              NUMERIC(10, 2) NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE adoption.expenses (
 );
 
 CREATE TABLE adoption.interviews (
-    id                  BIGINT       PRIMARY KEY DEFAULT nextval('adoption."interviews_SEQ"'),
+    id                  BIGINT       PRIMARY KEY DEFAULT nextval('adoption.interviews_seq'),
     adoption_request_id BIGINT       NOT NULL,
     scheduled_at        TIMESTAMP    NOT NULL,
     notes               VARCHAR(255),

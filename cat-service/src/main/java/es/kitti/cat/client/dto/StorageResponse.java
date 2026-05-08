@@ -1,6 +1,8 @@
 package es.kitti.cat.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record StorageResponse(
-        String key,
-        String url
+        @JsonProperty("key") String key,
+        @JsonProperty("url") String url
 ) {}

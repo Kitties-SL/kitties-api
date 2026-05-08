@@ -1,7 +1,9 @@
 package es.kitti.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record AuthResponse(
-        String accessToken,
-        String refreshToken,
-        long expiresIn
+        @JsonProperty("accessToken")  String accessToken,
+        @JsonProperty("refreshToken") String refreshToken,
+        @JsonProperty("expiresIn")    long expiresIn
 ) { }

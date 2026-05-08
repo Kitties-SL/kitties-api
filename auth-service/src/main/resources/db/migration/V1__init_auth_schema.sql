@@ -1,10 +1,10 @@
 CREATE SCHEMA IF NOT EXISTS auth;
 
-CREATE SEQUENCE auth."refresh_tokens_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE auth.refresh_tokens_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE auth.refresh_tokens
 (
-    id         BIGINT       PRIMARY KEY DEFAULT nextval('auth."refresh_tokens_SEQ"'),
+    id         BIGINT       PRIMARY KEY DEFAULT nextval('auth.refresh_tokens_seq'),
     token      VARCHAR(255) NOT NULL UNIQUE,
     user_id    BIGINT       NOT NULL,
     email      VARCHAR(255) NOT NULL,

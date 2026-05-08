@@ -1,16 +1,17 @@
 package es.kitti.mon.error;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ErrorResponse(
-        int status,
-        String code,
-        List<FieldViolation> violations,
-        LocalDateTime timestamp
+        @JsonProperty("status")     int status,
+        @JsonProperty("code")       String code,
+        @JsonProperty("violations") List<FieldViolation> violations,
+        @JsonProperty("timestamp")  LocalDateTime timestamp
 ) {
     public static ErrorResponse of(DomainError error) {
         if (error instanceof ValidationError ve) {

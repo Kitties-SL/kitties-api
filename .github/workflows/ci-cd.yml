@@ -22,33 +22,47 @@ jobs:
           filters: |
             user-service:
               - 'user-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             auth-service:
               - 'auth-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             cat-service:
               - 'cat-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             storage-service:
               - 'storage-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             notification-service:
               - 'notification-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             adoption-service:
               - 'adoption-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             form-analysis-service:
               - 'form-analysis-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             organization-service:
               - 'organization-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             gateway-service:
               - 'gateway-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
             chat-service:
               - 'chat-service/**'
+              - 'either-mon/**'
+              - 'pom.xml'
+            schedule-service:
+              - 'schedule-service/**'
+              - 'either-mon/**'
               - 'pom.xml'
 
   test:
@@ -94,6 +108,9 @@ jobs:
           distribution: 'graalvm-community'
           native-image-job-reports: 'true'
           cache: 'maven'
+
+      - name: Install either-mon
+        run: mvn install -pl either-mon -DskipTests -B --no-transfer-progress
 
       - name: Build and push native image
         run: |

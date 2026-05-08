@@ -23,3 +23,5 @@ Thumbs.db
 # RSA keys — generate locally, never commit
 *.pem
 *.log
+
+nginx/certs/

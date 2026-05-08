@@ -1,7 +1,7 @@
-CREATE SEQUENCE chat."blocked_participants_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE chat.blocked_participants_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE chat.blocked_participants (
-    id                BIGINT       PRIMARY KEY DEFAULT nextval('chat."blocked_participants_SEQ"'),
+    id                BIGINT       PRIMARY KEY DEFAULT nextval('chat.blocked_participants_seq'),
     organization_id   BIGINT       NOT NULL,
     user_id           BIGINT       NOT NULL,
     reason            TEXT,

@@ -1,10 +1,10 @@
 CREATE SCHEMA IF NOT EXISTS organization;
 
-CREATE SEQUENCE organization."organizations_SEQ"        START WITH 1 INCREMENT BY 50;
-CREATE SEQUENCE organization."organization_members_SEQ" START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE organization.organizations_seq        START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE organization.organization_members_seq START WITH 1 INCREMENT BY 50;
 
 CREATE TABLE organization.organizations (
-    id          BIGINT       PRIMARY KEY DEFAULT nextval('organization."organizations_SEQ"'),
+    id          BIGINT       PRIMARY KEY DEFAULT nextval('organization.organizations_seq'),
     name        VARCHAR(255) NOT NULL,
     description TEXT,
     address     VARCHAR(255),
@@ -22,7 +22,7 @@ CREATE TABLE organization.organizations (
 );
 
 CREATE TABLE organization.organization_members (
-    id              BIGINT      PRIMARY KEY DEFAULT nextval('organization."organization_members_SEQ"'),
+    id              BIGINT      PRIMARY KEY DEFAULT nextval('organization.organization_members_seq'),
     organization_id BIGINT      NOT NULL,
     user_id         BIGINT      NOT NULL,
     role            VARCHAR(50) NOT NULL,

@@ -37,9 +37,9 @@
         "type": "query",
         "label": "Service",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "definition": "label_values(http_server_request_duration_seconds_count, job)",
+        "definition": "label_values(jvm_memory_used_bytes, job)",
         "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
+          "query": "label_values(jvm_memory_used_bytes, job)",
           "refId": "StandardVariableQuery"
         },
         "includeAll": true,
@@ -224,7 +224,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (job) (jvm_thread_count_threads{job=~\"$service\"})",
+          "expr": "sum by (job) (jvm_threads_live_threads{job=~\"$service\"})",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
