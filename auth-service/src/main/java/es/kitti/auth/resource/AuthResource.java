@@ -3,7 +3,6 @@ package es.kitti.auth.resource;
 import es.kitti.mon.error.ErrorResponse;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -22,31 +21,40 @@ public class AuthResource {
 
     @POST
     @Path("/login")
-    public Uni<Response> login(@Valid AuthRequest request) {
-        return authService.authenticate(request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        auth -> Response.ok(auth).build()
-                ));
+    public Uni<Response> login(AuthRequest request) {
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> authService.authenticate(valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                auth -> Response.ok(auth).build()
+                        ))
+        );
     }
 
     @POST
     @Path("/refresh")
-    public Uni<Response> refresh(@Valid RefreshRequest request) {
-        return authService.refresh(request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        auth -> Response.ok(auth).build()
-                ));
+    public Uni<Response> refresh(RefreshRequest request) {
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> authService.refresh(valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                auth -> Response.ok(auth).build()
+                        ))
+        );
     }
 
     @POST
     @Path("/logout")
-    public Uni<Response> logout(@Valid LogoutRequest request) {
-        return authService.logout(request.refreshToken())
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        v   -> Response.noContent().build()
-                ));
+    public Uni<Response> logout(LogoutRequest request) {
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> authService.logout(valid.refreshToken())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                v   -> Response.noContent().build()
+                        ))
+        );
     }
 }
