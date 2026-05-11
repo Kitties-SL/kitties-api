@@ -7,7 +7,6 @@ import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -28,10 +27,13 @@ public class OrganizationResource {
 
     @POST
     @RolesAllowed({"Organization", "Admin"})
-    public Uni<Response> create(@Valid CreateOrganizationRequest request) {
+    public Uni<Response> create(CreateOrganizationRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return organizationService.create(request, userId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> organizationService.create(valid, userId)
+                        .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build())
+        );
     }
 
     @GET
@@ -58,13 +60,16 @@ public class OrganizationResource {
 
     @PUT
     @Path("/{id}")
-    public Uni<Response> update(@PathParam("id") Long id, @Valid UpdateOrganizationRequest request) {
+    public Uni<Response> update(@PathParam("id") Long id, UpdateOrganizationRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return organizationService.update(id, userId, request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        org -> Response.ok(org).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> organizationService.update(id, userId, valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                org -> Response.ok(org).build()
+                        ))
+        );
     }
 
     @GET
@@ -80,26 +85,32 @@ public class OrganizationResource {
 
     @POST
     @Path("/{id}/members")
-    public Uni<Response> inviteMember(@PathParam("id") Long id, @Valid InviteMemberRequest request) {
+    public Uni<Response> inviteMember(@PathParam("id") Long id, InviteMemberRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return memberService.inviteMember(id, userId, request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        r -> Response.status(Response.Status.CREATED).entity(r).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> memberService.inviteMember(id, userId, valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                r -> Response.status(Response.Status.CREATED).entity(r).build()
+                        ))
+        );
     }
 
     @PATCH
     @Path("/{id}/members/{targetUserId}/role")
     public Uni<Response> changeMemberRole(@PathParam("id") Long id,
                                           @PathParam("targetUserId") Long targetUserId,
-                                          @Valid ChangeMemberRoleRequest request) {
+                                          ChangeMemberRoleRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return memberService.changeMemberRole(id, targetUserId, userId, request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        r -> Response.ok(r).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> memberService.changeMemberRole(id, targetUserId, userId, valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                r -> Response.ok(r).build()
+                        ))
+        );
     }
 
     @DELETE
