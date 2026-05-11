@@ -9,13 +9,17 @@ class EmailTest {
 
     @Test
     void of_null_returnsRequired() {
+        String expected = "REQUIRED";
+        String field = "email";
+        int length = 1;
+
         var violations = Email.of(null).match(
                 ValidationError::violations,
                 __ -> fail("Expected invalid"));
 
-        assertEquals(1,         violations.size());
-        assertEquals("email",   violations.getFirst().field());
-        assertEquals("REQUIRED", violations.getFirst().code());
+        assertEquals(length, violations.size());
+        assertEquals(field,   violations.getFirst().field());
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
