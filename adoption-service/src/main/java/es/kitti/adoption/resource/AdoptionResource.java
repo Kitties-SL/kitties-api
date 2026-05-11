@@ -1,6 +1,5 @@
 package es.kitti.adoption.resource;
 
-import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -103,11 +102,13 @@ public class AdoptionResource {
     public Uni<Response> submitRequestForm(@PathParam("id") Long id,
                                            AdoptionRequestFormCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
-        return adoptionService.submitRequestForm(id, request, adopterId)
-                .onItem().transform(either -> either.fold(
-                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        data -> Response.status(Response.Status.CREATED).entity(data).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                req -> adoptionService.submitRequestForm(id, req, adopterId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        )));
     }
 
     @POST
@@ -146,7 +147,4 @@ public class AdoptionResource {
         );
     }
 
-    private Response domainError(DomainError err) {
-        return Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build();
-    }
 }

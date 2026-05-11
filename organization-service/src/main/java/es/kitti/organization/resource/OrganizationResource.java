@@ -1,6 +1,5 @@
 package es.kitti.organization.resource;
 
-import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -130,7 +129,4 @@ public class OrganizationResource {
         );
     }
 
-    private Response domainError(DomainError err) {
-        return Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build();
-    }
 }
