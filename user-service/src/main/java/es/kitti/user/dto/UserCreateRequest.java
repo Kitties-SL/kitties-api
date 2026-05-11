@@ -2,7 +2,6 @@ package es.kitti.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import es.kitti.mon.either.Validation;
-import es.kitti.user.domain.Birthdate;
 import es.kitti.user.domain.Email;
 import es.kitti.user.domain.Name;
 import es.kitti.user.domain.Password;
@@ -25,7 +24,6 @@ public record UserCreateRequest(
                         new UserCreateRequest(e.value(), p.value(), name, surname, birthdate, status, role)
                 )
                 .and(Name.of("name", name))
-                .and(Name.of("surname", surname))
-                .and(birthdate != null ? Birthdate.of(birthdate) : Validation.valid(birthdate));
+                .and(Name.of("surname", surname));
     }
 }
