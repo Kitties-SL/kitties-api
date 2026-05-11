@@ -1,5 +1,6 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -31,15 +32,22 @@ public class AdoptionResource {
         return request.validate().match(
                 this::validationFailed,
                 valid -> adoptionService.createAdoptionRequest(valid, adopterId)
-                        .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build())
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
         );
     }
 
     @GET
     @Path("/{id}")
-    public Uni<AdoptionRequestResponse> findById(@PathParam("id") Long id) {
+    public Uni<Response> findById(@PathParam("id") Long id) {
         Long callerId = Long.parseLong(jwt.getSubject());
-        return adoptionService.findById(id, callerId);
+        return adoptionService.findById(id, callerId)
+                .onItem().transform(either -> either.fold(
+                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        data -> Response.ok(data).build()
+                ));
     }
 
     @GET
@@ -82,7 +90,10 @@ public class AdoptionResource {
         return request.validate().match(
                 this::validationFailed,
                 valid -> adoptionService.updateStatus(id, valid, userId)
-                        .onItem().transform(r -> Response.ok(r).build())
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.ok(data).build()
+                        ))
         );
     }
 
@@ -93,7 +104,10 @@ public class AdoptionResource {
                                            AdoptionRequestFormCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
         return adoptionService.submitRequestForm(id, request, adopterId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+                .onItem().transform(either -> either.fold(
+                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        data -> Response.status(Response.Status.CREATED).entity(data).build()
+                ));
     }
 
     @POST
@@ -104,7 +118,10 @@ public class AdoptionResource {
         return request.validate().match(
                 this::validationFailed,
                 valid -> adoptionService.scheduleInterview(id, valid, organizationId)
-                        .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build())
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
         );
     }
 
@@ -116,7 +133,10 @@ public class AdoptionResource {
         return request.validate().match(
                 this::validationFailed,
                 valid -> adoptionService.submitAdoptionForm(id, valid, adopterId)
-                        .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build())
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
         );
     }
 
@@ -124,5 +144,9 @@ public class AdoptionResource {
         return Uni.createFrom().item(
                 Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
         );
+    }
+
+    private Response domainError(DomainError err) {
+        return Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build();
     }
 }

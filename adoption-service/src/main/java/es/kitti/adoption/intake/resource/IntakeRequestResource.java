@@ -11,7 +11,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
 import es.kitti.adoption.intake.dto.IntakePipelineStatsResponse;
-import es.kitti.adoption.intake.dto.IntakeRejectionResponse;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestResponse;
 import es.kitti.adoption.intake.service.IntakeRequestService;
@@ -66,9 +65,13 @@ public class IntakeRequestResource {
     @PATCH
     @Path("/{id}/approve")
     @RolesAllowed("Organization")
-    public Uni<IntakeRequestResponse> approve(@PathParam("id") Long id) {
+    public Uni<Response> approve(@PathParam("id") Long id) {
         Long callerOrgId = Long.parseLong(jwt.getSubject());
-        return service.approve(id, callerOrgId);
+        return service.approve(id, callerOrgId)
+                .onItem().transform(either -> either.fold(
+                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        data -> Response.ok(data).build()
+                ));
     }
 
     @PATCH
@@ -79,7 +82,10 @@ public class IntakeRequestResource {
         return decision.validate().match(
                 this::validationFailed,
                 valid -> service.reject(id, valid, callerOrgId)
-                        .onItem().transform(r -> Response.ok(r).build())
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.ok(data).build()
+                        ))
         );
     }
 
