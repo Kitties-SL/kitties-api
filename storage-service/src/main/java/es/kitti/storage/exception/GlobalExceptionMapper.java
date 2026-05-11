@@ -13,9 +13,13 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
     @Override
     public Response toResponse(Throwable exception) {
-        Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
-        return Response.status(500)
-                .entity(new ErrorResponse(500, "INTERNAL_SERVER_ERROR", null, LocalDateTime.now()))
-                .build();
+        return switch (exception) {
+            default -> {
+                Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
+                yield Response.status(500)
+                        .entity(new ErrorResponse(500, "INTERNAL_SERVER_ERROR", null, LocalDateTime.now()))
+                        .build();
+            }
+        };
     }
 }
