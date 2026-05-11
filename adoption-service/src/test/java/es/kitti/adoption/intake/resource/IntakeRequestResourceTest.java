@@ -81,7 +81,7 @@ class IntakeRequestResourceTest {
             @Claim(key = "sub", value = "100"),
             @Claim(key = "email", value = "user@kitti.es")
     })
-    void createInvalidBody_returns400() {
+    void createInvalidBody_returns422() {
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -97,7 +97,8 @@ class IntakeRequestResourceTest {
                 .when()
                 .post("/intake-requests")
                 .then()
-                .statusCode(400);
+                .statusCode(422)
+                .body("code", equalTo("VALIDATION_FAILED"));
     }
 
     @Test
