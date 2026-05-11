@@ -24,7 +24,7 @@ import es.kitti.adoption.intake.dto.IntakePipelineStatsResponse;
 import es.kitti.adoption.intake.dto.IntakeRejectionResponse;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestResponse;
-import es.kitti.adoption.exception.ErrorResponse;
+import es.kitti.mon.error.ErrorResponse;
 import es.kitti.adoption.intake.entity.IntakeStatus;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
