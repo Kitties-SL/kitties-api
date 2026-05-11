@@ -1,8 +1,14 @@
 package es.kitti.auth.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotBlank;
+import es.kitti.mon.either.Validation;
 
 public record LogoutRequest(
-        @NotBlank @JsonProperty("refreshToken") String refreshToken
-) {}
+        @JsonProperty("refreshToken") String refreshToken
+) {
+    public Validation<LogoutRequest> validate() {
+        return refreshToken == null || refreshToken.isBlank()
+                ? Validation.invalidOne("refreshToken", "REQUIRED")
+                : Validation.valid(this);
+    }
+}
