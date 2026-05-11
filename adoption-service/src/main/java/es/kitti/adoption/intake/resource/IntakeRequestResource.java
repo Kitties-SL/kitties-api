@@ -1,10 +1,11 @@
 package es.kitti.adoption.intake.resource;
 
+import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -24,18 +25,18 @@ import java.util.List;
 @Authenticated
 public class IntakeRequestResource {
 
-    @Inject
-    IntakeRequestService service;
-
-    @Inject
-    JsonWebToken jwt;
+    @Inject IntakeRequestService service;
+    @Inject JsonWebToken jwt;
 
     @POST
     @RolesAllowed("User")
-    public Uni<Response> create(@Valid IntakeRequestCreateRequest request) {
+    public Uni<Response> create(IntakeRequestCreateRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return service.create(request, userId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> service.create(valid, userId)
+                        .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build())
+        );
     }
 
     @GET
@@ -73,9 +74,18 @@ public class IntakeRequestResource {
     @PATCH
     @Path("/{id}/reject")
     @RolesAllowed("Organization")
-    public Uni<IntakeRejectionResponse> reject(@PathParam("id") Long id,
-                                               @Valid IntakeDecisionRequest decision) {
+    public Uni<Response> reject(@PathParam("id") Long id, IntakeDecisionRequest decision) {
         Long callerOrgId = Long.parseLong(jwt.getSubject());
-        return service.reject(id, decision, callerOrgId);
+        return decision.validate().match(
+                this::validationFailed,
+                valid -> service.reject(id, valid, callerOrgId)
+                        .onItem().transform(r -> Response.ok(r).build())
+        );
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
     }
 }
