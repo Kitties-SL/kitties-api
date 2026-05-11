@@ -10,11 +10,12 @@ public record AuthRequest(
 ) {
     public Validation<AuthRequest> validate() {
         return Email.of(email)
-                .zip(
-                    password == null || password.isBlank()
-                        ? Validation.invalidOne("password", "REQUIRED")
-                        : Validation.valid(password),
-                    (e, p) -> new AuthRequest(e.value(), p)
-                );
+                .zip(validatePassword(password), (e, p) -> new AuthRequest(e.value(), p));
+    }
+
+    private static Validation<String> validatePassword(String raw) {
+        return raw == null || raw.isBlank()
+                ? Validation.invalidOne("password", "REQUIRED")
+                : Validation.valid(raw);
     }
 }

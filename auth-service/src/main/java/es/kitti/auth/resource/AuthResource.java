@@ -1,6 +1,7 @@
 package es.kitti.auth.resource;
 
 import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -23,7 +24,7 @@ public class AuthResource {
     @Path("/login")
     public Uni<Response> login(AuthRequest request) {
         return request.validate().match(
-                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                this::validationFailed,
                 valid -> authService.authenticate(valid)
                         .onItem().transform(either -> either.fold(
                                 err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
@@ -36,7 +37,7 @@ public class AuthResource {
     @Path("/refresh")
     public Uni<Response> refresh(RefreshRequest request) {
         return request.validate().match(
-                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                this::validationFailed,
                 valid -> authService.refresh(valid)
                         .onItem().transform(either -> either.fold(
                                 err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
@@ -49,12 +50,18 @@ public class AuthResource {
     @Path("/logout")
     public Uni<Response> logout(LogoutRequest request) {
         return request.validate().match(
-                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                this::validationFailed,
                 valid -> authService.logout(valid.refreshToken())
                         .onItem().transform(either -> either.fold(
                                 err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                                 v   -> Response.noContent().build()
                         ))
+        );
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
         );
     }
 }
