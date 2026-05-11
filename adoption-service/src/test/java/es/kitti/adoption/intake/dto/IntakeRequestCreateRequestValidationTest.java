@@ -51,7 +51,7 @@ class IntakeRequestCreateRequestValidationTest {
 
     @Test
     void validate_multipleErrors_allAccumulated() {
-        int expected = 5;
+        int expected = 6;
 
         var violations = new IntakeRequestCreateRequest(null, "", -1, "", "", null, null)
                 .validate().match(ValidationError::violations, __ -> fail("Expected invalid"));
