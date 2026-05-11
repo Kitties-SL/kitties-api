@@ -1,6 +1,8 @@
 package es.kitti.organization.resource;
 
+import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -13,8 +15,6 @@ import es.kitti.organization.dto.*;
 import es.kitti.organization.service.OrganizationMemberService;
 import es.kitti.organization.service.OrganizationService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
-
-import java.util.List;
 
 @Path("/organizations")
 @Produces(MediaType.APPLICATION_JSON)
@@ -69,9 +69,13 @@ public class OrganizationResource {
 
     @GET
     @Path("/{id}/members")
-    public Uni<List<MemberResponse>> listMembers(@PathParam("id") Long id) {
+    public Uni<Response> listMembers(@PathParam("id") Long id) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return memberService.listMembers(id, userId);
+        return memberService.listMembers(id, userId)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        list -> Response.ok(list).build()
+                ));
     }
 
     @POST
@@ -87,11 +91,15 @@ public class OrganizationResource {
 
     @PATCH
     @Path("/{id}/members/{targetUserId}/role")
-    public Uni<MemberResponse> changeMemberRole(@PathParam("id") Long id,
-                                                @PathParam("targetUserId") Long targetUserId,
-                                                @Valid ChangeMemberRoleRequest request) {
+    public Uni<Response> changeMemberRole(@PathParam("id") Long id,
+                                          @PathParam("targetUserId") Long targetUserId,
+                                          @Valid ChangeMemberRoleRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return memberService.changeMemberRole(id, targetUserId, userId, request);
+        return memberService.changeMemberRole(id, targetUserId, userId, request)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        r -> Response.ok(r).build()
+                ));
     }
 
     @DELETE
@@ -99,6 +107,19 @@ public class OrganizationResource {
     public Uni<Response> removeMember(@PathParam("id") Long id, @PathParam("targetUserId") Long targetUserId) {
         Long userId = Long.parseLong(jwt.getSubject());
         return memberService.removeMember(id, targetUserId, userId)
-                .onItem().transform(v -> Response.noContent().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        __ -> Response.noContent().build()
+                ));
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
+    }
+
+    private Response domainError(DomainError err) {
+        return Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build();
     }
 }
