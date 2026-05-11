@@ -1,7 +1,9 @@
 package es.kitti.user.domain;
 
-import java.util.regex.Pattern;
+import es.kitti.mon.either.Validation;
+
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public final class Email {
 
@@ -14,20 +16,16 @@ public final class Email {
         this.value = value;
     }
 
-    public static Email of(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new IllegalArgumentException("Email cannot be null or blank");
-        }
+    public static Validation<Email> of(String raw) {
+        if (raw == null || raw.isBlank())
+            return Validation.invalidOne("email", "REQUIRED");
         String normalized = raw.toLowerCase().trim();
-        if (!EMAIL_PATTERN.matcher(normalized).matches()) {
-            throw new IllegalArgumentException("Invalid email format: " + raw);
-        }
-        return new Email(normalized);
+        if (!EMAIL_PATTERN.matcher(normalized).matches())
+            return Validation.invalidOne("email", "INVALID_EMAIL");
+        return Validation.valid(new Email(normalized));
     }
 
-    public String value() {
-        return value;
-    }
+    public String value() { return value; }
 
     @Override
     public boolean equals(Object o) {
@@ -37,12 +35,8 @@ public final class Email {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(value);
-    }
+    public int hashCode() { return Objects.hash(value); }
 
     @Override
-    public String toString() {
-        return value;
-    }
+    public String toString() { return value; }
 }
