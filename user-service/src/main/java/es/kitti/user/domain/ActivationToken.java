@@ -1,5 +1,7 @@
 package es.kitti.user.domain;
 
+import es.kitti.mon.either.Validation;
+
 import java.util.Objects;
 import java.util.UUID;
 
@@ -11,20 +13,17 @@ public final class ActivationToken {
         this.value = value;
     }
 
-    public static ActivationToken of(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new IllegalArgumentException("ActivationToken cannot be null or blank");
-        }
-        return new ActivationToken(raw);
+    public static Validation<ActivationToken> of(String raw) {
+        if (raw == null || raw.isBlank())
+            return Validation.invalidOne("token", "REQUIRED");
+        return Validation.valid(new ActivationToken(raw));
     }
 
     public static ActivationToken generate() {
         return new ActivationToken(UUID.randomUUID().toString());
     }
 
-    public String value() {
-        return value;
-    }
+    public String value() { return value; }
 
     @Override
     public boolean equals(Object o) {
@@ -34,12 +33,8 @@ public final class ActivationToken {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(value);
-    }
+    public int hashCode() { return Objects.hash(value); }
 
     @Override
-    public String toString() {
-        return value;
-    }
+    public String toString() { return value; }
 }
