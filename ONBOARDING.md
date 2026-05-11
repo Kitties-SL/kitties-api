@@ -2,18 +2,21 @@
 
 Esta guía cubre los conceptos y patrones que debes entender antes de tocar código de producción. No es una lista de reglas a memorizar — es una explicación del *porqué* detrás de cada decisión. Un error en esta stack puede funcionar perfectamente en local y explotar bajo carga real sin dejar rastro obvio.
 
-Tiempo estimado de lectura: 45 minutos.
+Tiempo estimado de lectura: 70 minutos.
 
 ---
 
 ## Índice
 
-1. [El model de concurrencia: Vert.x y el event loop](#1-el-modelo-de-concurrencia-vertx-y-el-event-loop)
+1. [El modelo de concurrencia: Vert.x y el event loop](#1-el-modelo-de-concurrencia-vertx-y-el-event-loop)
 2. [Mutiny: Uni y Multi](#2-mutiny-uni-y-multi)
 3. [Hibernate Reactive: sesiones y transacciones](#3-hibernate-reactive-sesiones-y-transacciones)
 4. [Autenticación interna: @InternalOnly](#4-autenticación-interna-internalonly)
-5. [Gotchas explicados](#5-gotchas-explicados)
-6. [Checklist antes de tu primer PR](#6-checklist-antes-de-tu-primer-pr)
+5. [Manejo de errores: either-mon](#5-manejo-de-errores-either-mon)
+6. [GraalVM Native Image: registro de reflexión](#6-graalvm-native-image-registro-de-reflexión)
+7. [Gestión de deploys: ramas deployment/](#7-gestión-de-deploys-ramas-deployment)
+8. [Gotchas explicados](#8-gotchas-explicados)
+9. [Checklist antes de tu primer PR](#9-checklist-antes-de-tu-primer-pr)
 
 ---
 
@@ -112,7 +115,7 @@ Multi<Cat> cats = catRepository.streamAll(); // emite un Cat cada vez
 | Situación | Tipo |
 |---|---|
 | Buscar por ID, crear, actualizar, borrar | `Uni<T>` |
-| Endpoint REST que devuelve lista | `Uni<Page<T>>` (con paginación) |
+| Endpoint REST que devuelve lista | `Uni<PageResponse<T>>` (con paginación) |
 | Export, job interno, stream real | `Multi<T>` |
 | Lista pequeña y acotada por diseño | `Uni<List<T>>` es aceptable |
 
@@ -323,7 +326,280 @@ Si añades un endpoint interno nuevo, verifica que no está en la lista de rutas
 
 ---
 
-## 5. Gotchas explicados
+## 5. Manejo de errores: either-mon
+
+### Por qué no usamos excepciones para errores de dominio
+
+Las excepciones en Java son invisibles en la firma del método. Si `catService.findById(id)` puede devolver "no encontrado", eso no aparece en ningún lugar del tipo de retorno — solo en la documentación (si existe) o en el código de quien llama (si recordó comprobarlo).
+
+```java
+// ❌ Patrón que queremos evitar: la firma miente
+public Uni<CatResponse> findById(Long id) {
+    // puede lanzar CatNotFoundException — pero el caller no lo sabe sin leer el código
+}
+```
+
+El módulo `either-mon` hace explícitos los errores de dominio en el tipo de retorno. Si el método puede fallar por una razón de negocio conocida, el tipo lo dice.
+
+```java
+// ✅ La firma es honesta: puede devolver un error o una respuesta
+public Uni<Either<DomainError, CatResponse>> findById(Long id) { ... }
+```
+
+### Either\<L, R\>
+
+`Either<L, R>` es un `sealed interface` con dos implementaciones: `Left` (el caso de error, por convención) y `Right` (el caso de éxito).
+
+```java
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.*;   // NotFoundError, ConflictError, etc.
+
+// Construir resultados
+Either.left(new NotFoundError("CAT_NOT_FOUND"))    // error
+Either.right(catResponse)                          // éxito
+
+// Inspeccionar
+either.isLeft()    // ¿es un error?
+either.isRight()   // ¿es un éxito?
+
+// Extraer el valor de éxito (o un fallback)
+either.getOrElse(null)
+
+// Transformar sin salir del Either
+either.map(response -> response.id())              // solo transforma el Right
+
+// Consumir ambos lados (fold es el operador clave en los resources)
+either.fold(
+    error   -> Response.status(error.httpStatus()).entity(ErrorResponse.of(error)).build(),
+    success -> Response.ok(success).build()
+)
+```
+
+### Cuándo usar Uni\<Either\<DomainError, T\>\>
+
+- **Usa Either** cuando el error es esperado y tiene significado de negocio: entidad no encontrada, conflicto de estado, acceso denegado, credenciales inválidas.
+- **No uses Either** para errores de infraestructura (BD caída, timeout de red, bug inesperado). Esos deben propagarse como fallo del `Uni` y los captura el `GlobalExceptionMapper`.
+
+### Tipos de DomainError disponibles
+
+| Record | HTTP | Cuándo usarlo |
+|---|---|---|
+| `NotFoundError(String code)` | 404 | Entidad no encontrada |
+| `ForbiddenError(String code)` | 403 | Acceso denegado por permisos de dominio |
+| `ConflictError(String code)` | 409 | Conflicto de estado (duplicado, límite, adopción activa…) |
+| `UnauthorizedError(String code)` | 401 | Credenciales o token inválidos |
+| `BadRequestError(String code)` | 400 | Validación de contenido (p.ej. tipo MIME no soportado) |
+| `ValidationError(List<FieldViolation>)` | 422 | Resultado de validación de formulario |
+
+El campo `code` es un identificador machine-readable para que el cliente pueda mostrar el mensaje en el idioma del usuario. Convención: `ENTIDAD_MOTIVO` en mayúsculas — `CAT_NOT_FOUND`, `EMAIL_ALREADY_EXISTS`, `CAT_HAS_ACTIVE_ADOPTIONS`.
+
+### Patrón completo: service + resource
+
+```java
+// Service — devuelve Either
+@WithSession
+public Uni<Either<DomainError, CatResponse>> findById(Long id) {
+    return catRepository.findById(id)
+            .onItem().transformToUni(cat -> {
+                if (cat == null)
+                    return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                return imageRepository.findByCatId(id)
+                        .onItem().transform(images ->
+                                Either.<DomainError, CatResponse>right(catMapper.toResponse(cat, images)));
+            });
+}
+
+// Resource — fold convierte Either en Response HTTP
+public Uni<Response> findById(@PathParam("id") Long id) {
+    return catService.findById(id)
+            .onItem().transform(either -> either.fold(
+                    err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                    cat -> Response.ok(cat).build()
+            ));
+}
+```
+
+### Tests con Either
+
+```java
+// Happy path
+var result = service.findById(1L).await().indefinitely();
+assertTrue(result.isRight());
+assertEquals(1L, result.getOrElse(null).id());
+
+// Error path
+var result = service.findById(999L).await().indefinitely();
+assertTrue(result.isLeft());
+assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+```
+
+### Lo que NO debes hacer
+
+No crees clases de excepción de dominio propias (`CatNotFoundException`, `EmailAlreadyExistsException`). Esa práctica existía antes de `either-mon` y está siendo eliminada. Si ves una excepción de dominio residual, es deuda técnica.
+
+---
+
+## 6. GraalVM Native Image: registro de reflexión
+
+### Por qué existe este problema
+
+Cuando el proyecto se compila a imagen nativa con GraalVM (lo que ocurre en los despliegues de producción), el compilador analiza estáticamente el código y elimina todo lo que considera "inalcanzable" — incluyendo clases que solo se usan vía reflexión en tiempo de ejecución.
+
+Jackson (serialización JSON), Hibernate (entidades) y el bus de eventos de Quarkus usan reflexión intensamente. Si una clase no está registrada explícitamente, la imagen nativa la elimina y el servicio falla en producción con un error como:
+
+```
+ClassNotFoundException: es.kitti.cat.dto.CatResponse
+```
+
+— un error que en desarrollo (JVM normal) nunca aparece.
+
+### Dónde está el registro
+
+Cada servicio tiene un fichero `NativeConfig.java` en su paquete `config/`:
+
+```
+cat-service/src/main/java/es/kitti/cat/config/NativeConfig.java
+adoption-service/src/main/java/es/kitti/adoption/config/NativeConfig.java
+...
+```
+
+Este fichero declara con `@RegisterForReflection` las clases que GraalVM debe preservar:
+
+```java
+@RegisterForReflection(
+    targets = {
+        // DTOs
+        CatResponse.class,
+        CatSummaryResponse.class,
+        CreateCatRequest.class,
+        PageResponse.class,
+
+        // Enums
+        CatStatus.class,
+
+        // Eventos Kafka (si el servicio los produce o consume)
+        CatCreatedEvent.class,
+        CatDeletedEvent.class,
+    }
+)
+public class NativeConfig {}
+```
+
+### La regla: siempre en paralelo
+
+**Cada vez que añadas una de estas clases, actualiza el `NativeConfig` del mismo servicio:**
+
+| Qué añades | Lo que hay que registrar |
+|---|---|
+| Nuevo DTO (record de request o response) | El record en `targets` |
+| Nuevo enum | El enum en `targets` |
+| Nuevo evento Kafka | El record de evento en `targets` |
+| Nueva entidad | Normalmente no hace falta — Hibernate las registra solo |
+
+Si no lo haces, el servicio pasará todos los tests (que corren en JVM) y fallará en producción en cuanto se reciba o envíe un objeto de ese tipo.
+
+### Cómo verificar
+
+Si quieres comprobar que el NativeConfig está completo antes de abrir un PR:
+
+```bash
+# Buscar todos los records y enums del servicio
+grep -r "public record\|public enum" cat-service/src/main/java/es/kitti/cat/dto/
+grep -r "public record\|public enum" cat-service/src/main/java/es/kitti/cat/event/
+
+# Comparar con lo que está en NativeConfig
+cat cat-service/src/main/java/es/kitti/cat/config/NativeConfig.java
+```
+
+---
+
+## 7. Gestión de deploys: ramas deployment/
+
+### La convención de ramas
+
+Las ramas de despliegue siguen el esquema `deployment/{entorno}/{tipo}`:
+
+| Rama | Entorno | Tipo de cambio |
+|---|---|---|
+| `deployment/pre-production/release` | Pre-producción | Release planificada |
+| `deployment/pre-production/hotfix` | Pre-producción | Corrección urgente |
+| `deployment/production/release` | Producción | Release planificada |
+| `deployment/production/hotfix` | Producción | Corrección urgente |
+
+Estas ramas no son ramas de desarrollo — son ramas de despliegue. El CI/CD las detecta y lanza el proceso de build y despliegue correspondiente al entorno.
+
+### Versionado semántico (semver)
+
+El proyecto usa semver en tres partes: `MAJOR.MINOR.PATCH`, con sufijo `-rcN` para candidatos a release.
+
+- **Release candidate** (`n.n.0-rcN`) — todo lo que se despliega a pre-producción sale como RC. Cada iteración sobre la misma release incrementa N: `rc1`, `rc2`, `rc3`…
+- **Release final** (`n.n.0`) — cuando un RC supera QA se promueve a producción eliminando el sufijo. El artefacto es el mismo; solo cambia el tag.
+- **Hotfix** (`n.n.patch`) — incrementa solo PATCH sobre una release final ya publicada.
+
+Ejemplos:
+- `v1.3.0-rc1` — primer candidato de la release 1.3.0, desplegado en pre-prod
+- `v1.3.0-rc2` — segunda iteración tras encontrar un problema en pre-prod
+- `v1.3.0` — promoción a producción del rc2 validado
+- `v1.3.1` — primer hotfix sobre la release 1.3.0 en producción
+
+### El flujo de una release
+
+```
+feat/nueva-funcionalidad ──┐
+fix/bug-encontrado ─────────┤  PRs normales a main
+refactor/limpieza ──────────┘
+                            │
+                            ▼
+                          main  ← integración continua
+                            │
+                            │  (cuando el ciclo de desarrollo cierra)
+                            ▼
+        deployment/pre-production/release  ← tag v1.4.0-rc1
+                            │
+                  ✗ bug encontrado en QA
+                            │
+        deployment/pre-production/hotfix   ← fix, tag v1.4.0-rc2
+                            │
+                            │  ✓ rc2 validado
+                            ▼
+           deployment/production/release  ← tag v1.4.0 (mismo artefacto que rc2)
+```
+
+El tag de producción es siempre el semver limpio. El RC que lo originó queda en el historial de pre-prod para trazabilidad.
+
+### El flujo de un hotfix
+
+Un hotfix nunca parte de `main` (que puede tener trabajo en curso). Parte de la rama de despliegue del entorno afectado.
+
+```
+deployment/production/release (v1.4.0)
+        │
+        ├── deployment/production/hotfix  ← fix puntual, tag v1.4.1
+        │
+        │   (cherry-pick a main para no perder el fix)
+        └──────────────────────────────────────► main
+```
+
+Un hotfix en pre-producción genera un nuevo RC, no un patch:
+
+```
+deployment/pre-production/release (v1.4.0-rc1)
+        │
+        └── deployment/pre-production/hotfix  ← tag v1.4.0-rc2
+```
+
+### Reglas de la rama
+
+- **Nunca se desarrolla directamente en `deployment/`**. Son ramas de promoción, no de trabajo.
+- **`main` nunca se despliega directamente a producción**. Todo pasa por la rama de pre-producción primero.
+- Todo lo que llega a pre-producción es un RC — sin excepción, aunque sea un cambio de una línea.
+- Los hotfixes sobre producción siempre se cherry-pick a `main` después de publicarse, para evitar que el fix se pierda en la siguiente release.
+- El tag de producción (`v1.4.0`) y el último RC que lo originó (`v1.4.0-rc2`) apuntan al mismo commit, lo que permite verificar que exactamente el mismo artefacto ha pasado QA.
+
+---
+
+## 8. Gotchas explicados
 
 Estos son los errores más comunes en este stack. No los memorices — entiende el porqué.
 
@@ -403,9 +679,44 @@ ln -sf ../.env <módulo>/.env
 
 Docker no redirige al loopback del contenedor. Si el listener externo de Kafka escucha en `127.0.0.1`, los servicios en otros contenedores no pueden conectar.
 
+### Uni.combine() en paralelo con @WithSession → 500 en producción
+
+Hibernate Reactive no permite abrir dos sesiones simultáneamente dentro del mismo contexto Vert.x. En tests unitarios no se aprecia porque Mockito bypassa la gestión de sesiones, pero en producción explota con 500.
+
+```java
+// ❌ MAL — abre dos sesiones en paralelo, falla en producción
+return Uni.combine().all().unis(
+        catRepository.findByCity(city, page, size),   // @WithSession
+        catRepository.countByCity(city)               // @WithSession
+).asTuple().onItem().transform(...);
+
+// ✅ BIEN — secuencial: la segunda query reutiliza la sesión de la primera
+return catRepository.findByCity(city, page, size)
+        .onItem().transformToUni(cats ->
+                catRepository.countByCity(city)
+                        .onItem().transform(count -> PageResponse.of(cats, page, size, count)));
+```
+
+Regla general: **nunca uses `Uni.combine()` con métodos que tengan `@WithSession`**. Encadénalos siempre con `transformToUni`.
+
+### Gestión de esquemas: dev, test y prod no son iguales
+
+El modo en que Hibernate gestiona el esquema de la base de datos cambia según el perfil:
+
+| Perfil | Comportamiento | Por qué |
+|---|---|---|
+| `%dev` | `update` — altera las tablas si hace falta | Para no perder datos locales entre reinicios |
+| `%test` | `drop-and-create` — recrea el esquema en cada test | Para garantizar un estado limpio y predecible |
+| `%prod` | `validate` + Flyway | Flyway aplica las migraciones; Hibernate solo verifica que el esquema coincide |
+
+Implicaciones:
+- **No uses Flyway en dev** — Hibernate gestiona el esquema solo.
+- **No uses `update` en prod** — si añades una columna `NOT NULL` sin valor por defecto, Hibernate no sabe cómo migrar las filas existentes.
+- Cuando añadas una feature que requiere cambios de esquema, crea el fichero de migración Flyway correspondiente en `src/main/resources/db/migration/` del servicio. El nombre sigue el patrón `V{version}__{descripcion}.sql`.
+
 ---
 
-## 6. Checklist antes de tu primer PR
+## 9. Checklist antes de tu primer PR
 
 Antes de abrir un pull request, verifica estos puntos:
 
@@ -414,16 +725,25 @@ Antes de abrir un pull request, verifica estos puntos:
 - [ ] No hay ningún `.await().indefinitely()` ni `Thread.sleep` en código de producción
 - [ ] Los métodos que devuelven `Multi<T>` no tienen `@WithSession` (el gotcha de sesión)
 - [ ] Los consumers `@Incoming` de Kafka delegan la persistencia a un bean separado
+- [ ] Las queries que requieren `@WithSession` están encadenadas con `transformToUni`, no con `Uni.combine()`
 
 **Base de datos**
 - [ ] Las escrituras tienen `@WithTransaction`, las lecturas tienen `@WithSession`
 - [ ] Dentro de `Panache.withTransaction(() -> ...)` no se añaden anotaciones de sesión redundantes
 - [ ] Los endpoints que devuelven colecciones tienen paginación (`page`, `size`)
+- [ ] Si el cambio requiere modificar el esquema, hay un fichero de migración Flyway en `src/main/resources/db/migration/`
 
 **Seguridad**
 - [ ] Los endpoints internos están anotados con `@InternalOnly`
 - [ ] Ningún endpoint `@InternalOnly` está registrado en las rutas del gateway
 - [ ] Los endpoints nuevos que deben ser públicos están en la lista `PUBLIC_EXACT` del `JwtAuthFilter`
+
+**Manejo de errores**
+- [ ] Los errores de dominio esperados se devuelven como `Either.left(new XxxError(...))`, no como excepciones
+- [ ] No se han creado clases de excepción de dominio nuevas
+
+**Native Image**
+- [ ] Cada DTO, enum o evento de Kafka nuevo está registrado en `NativeConfig.java` del servicio
 
 **Código**
 - [ ] Los DTOs son Records Java con `@JsonProperty` o con `ParameterNamesModule` configurado
@@ -437,9 +757,10 @@ Antes de abrir un pull request, verifica estos puntos:
 - [ ] No hay relaciones JPA entre entidades de distintos servicios
 - [ ] La comunicación entre servicios es solo vía HTTP interno (`@InternalOnly`), gRPC o Kafka
 
-**Commits**
+**Commits y ramas**
+- [ ] La rama sigue la convención `<tipo>/<descripción>` (nunca se trabaja en `main` ni en ramas `deployment/`)
 - [ ] Un commit por capa o servicio (no un commit gigante con todo)
-- [ ] El commit está en la rama correcta (no en `main` ni en la rama de otro)
+- [ ] Si el cambio lleva migrations SQL, van en un commit separado antes del dominio
 
 ---
 
