@@ -18,8 +18,6 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import es.kitti.user.domain.ActivationToken;
-import es.kitti.user.domain.Email;
-import es.kitti.user.domain.Password;
 import es.kitti.user.dto.UserCreateRequest;
 import es.kitti.user.dto.UserResponse;
 import es.kitti.user.dto.UserUpdateRequest;
@@ -76,26 +74,19 @@ public class UserService {
 
     @WithTransaction
     public Uni<Either<DomainError, UserResponse>> createUser(UserCreateRequest request) {
-        record Credentials(Email email, Password password) {}
-
-        return Email.of(request.email())
-                .zip(Password.of(request.password()), Credentials::new)
-                .match(
-                    err -> Uni.createFrom().item(Either.<DomainError, UserResponse>left(err)),
-                    creds -> userRepository.existsByEmail(creds.email().value())
-                            .onItem().transformToUni(exists -> {
-                                if (exists)
-                                    return Uni.createFrom().item(Either.left(new ConflictError("EMAIL_ALREADY_EXISTS")));
-                                var hashedPassword = BcryptUtil.bcryptHash(creds.password().value());
-                                var user = userMapper.toEntity(request, hashedPassword);
-                                return userRepository.persist(user)
-                                        .onItem().transform(saved -> {
-                                            userRegisteredEmitter.send(new UserRegisteredEvent(
-                                                    saved.id, saved.email, saved.name, saved.activationToken));
-                                            return Either.<DomainError, UserResponse>right(userMapper.toResponse(saved));
-                                        });
-                            })
-                );
+        return userRepository.existsByEmail(request.email())
+                .onItem().transformToUni(exists -> {
+                    if (exists)
+                        return Uni.createFrom().item(Either.left(new ConflictError("EMAIL_ALREADY_EXISTS")));
+                    var hashedPassword = BcryptUtil.bcryptHash(request.password());
+                    var user = userMapper.toEntity(request, hashedPassword);
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> {
+                                userRegisteredEmitter.send(new UserRegisteredEvent(
+                                        saved.id, saved.email, saved.name, saved.activationToken));
+                                return Either.<DomainError, UserResponse>right(userMapper.toResponse(saved));
+                            });
+                });
     }
 
     @WithTransaction

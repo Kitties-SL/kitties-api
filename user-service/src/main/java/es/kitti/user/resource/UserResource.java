@@ -35,15 +35,18 @@ public class UserResource {
 
     @POST
     @PermitAll
-    public Uni<Response> createUser(@Valid UserCreateRequest request, @Context UriInfo uriInfo) {
-        return userService.createUser(request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        user -> {
-                            var location = uriInfo.getAbsolutePathBuilder().path(user.email()).build();
-                            return Response.created(location).entity(user).build();
-                        }
-                ));
+    public Uni<Response> createUser(UserCreateRequest request, @Context UriInfo uriInfo) {
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> userService.createUser(valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                user -> {
+                                    var location = uriInfo.getAbsolutePathBuilder().path(user.email()).build();
+                                    return Response.created(location).entity(user).build();
+                                }
+                        ))
+        );
     }
 
     @PUT
