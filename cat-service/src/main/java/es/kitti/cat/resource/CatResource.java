@@ -1,12 +1,12 @@
 package es.kitti.cat.resource;
 
 import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -27,11 +27,8 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 @Authenticated
 public class CatResource {
 
-    @Inject
-    CatService catService;
-
-    @Inject
-    JsonWebToken jwt;
+    @Inject CatService catService;
+    @Inject JsonWebToken jwt;
 
     @GET
     @PermitAll
@@ -58,25 +55,29 @@ public class CatResource {
     @POST
     @RolesAllowed("Organization")
     @Consumes(MediaType.APPLICATION_JSON)
-    public Uni<Response> createCat(@Valid CatCreateRequest request) {
+    public Uni<Response> createCat(CatCreateRequest request) {
         Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.createCat(request, callerId)
-                .onItem().transform(cat -> Response.status(Response.Status.CREATED).entity(cat).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> catService.createCat(valid, callerId)
+                        .onItem().transform(cat -> Response.status(Response.Status.CREATED).entity(cat).build())
+        );
     }
 
     @PUT
     @Path("/{id}")
     @RolesAllowed("Organization")
     @Consumes(MediaType.APPLICATION_JSON)
-    public Uni<Response> updateCat(
-            @PathParam("id") Long id,
-            @Valid CatUpdateRequest request) {
+    public Uni<Response> updateCat(@PathParam("id") Long id, CatUpdateRequest request) {
         Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.updateCat(id, request, callerId)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        cat -> Response.ok(cat).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> catService.updateCat(id, valid, callerId)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                cat -> Response.ok(cat).build()
+                        ))
+        );
     }
 
     @GET
@@ -111,9 +112,7 @@ public class CatResource {
     @Path("/{id}/images")
     @RolesAllowed("Organization")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
-    public Uni<Response> uploadImage(
-            @PathParam("id") Long id,
-            @RestForm("file") FileUpload file) {
+    public Uni<Response> uploadImage(@PathParam("id") Long id, @RestForm("file") FileUpload file) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.uploadImage(id, file, callerId)
                 .onItem().transform(either -> either.fold(
@@ -125,14 +124,18 @@ public class CatResource {
     @DELETE
     @Path("/{catId}/images/{imageId}")
     @RolesAllowed("Organization")
-    public Uni<Response> deleteImage(
-            @PathParam("catId") Long catId,
-            @PathParam("imageId") Long imageId) {
+    public Uni<Response> deleteImage(@PathParam("catId") Long catId, @PathParam("imageId") Long imageId) {
         Long callerId = Long.parseLong(jwt.getSubject());
         return catService.deleteImage(catId, imageId, callerId)
                 .onItem().transform(either -> either.fold(
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         v   -> Response.noContent().build()
                 ));
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
     }
 }
