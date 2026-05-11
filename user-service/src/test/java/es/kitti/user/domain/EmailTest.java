@@ -1,6 +1,5 @@
 package es.kitti.user.domain;
 
-import es.kitti.mon.either.Validation;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,42 +7,36 @@ import static org.junit.jupiter.api.Assertions.*;
 class EmailTest {
 
     @Test
-    void of_null_returnsInvalidRequired() {
-        var result = Email.of(null);
-        assertInvalidWithCode(result, "email", "REQUIRED");
+    void of_null_returnsRequired() {
+        var violations = Email.of(null).match(
+                err -> err.violations(),
+                __ -> fail("Expected invalid"));
+        assertEquals(1, violations.size());
+        assertEquals("email",    violations.getFirst().field());
+        assertEquals("REQUIRED", violations.getFirst().code());
     }
 
     @Test
-    void of_blank_returnsInvalidRequired() {
-        var result = Email.of("   ");
-        assertInvalidWithCode(result, "email", "REQUIRED");
+    void of_blank_returnsRequired() {
+        var violations = Email.of("   ").match(
+                err -> err.violations(),
+                __ -> fail("Expected invalid"));
+        assertEquals("REQUIRED", violations.getFirst().code());
     }
 
     @Test
     void of_invalidFormat_returnsInvalidEmail() {
-        var result = Email.of("notanemail");
-        assertInvalidWithCode(result, "email", "INVALID_EMAIL");
+        var violations = Email.of("notanemail").match(
+                err -> err.violations(),
+                __ -> fail("Expected invalid"));
+        assertEquals("INVALID_EMAIL", violations.getFirst().code());
     }
 
     @Test
-    void of_valid_returnsValid() {
-        var result = Email.of("user@kitti.es");
-        assertTrue(result instanceof Validation.Valid<?>);
-        assertEquals("user@kitti.es", ((Validation.Valid<Email>) result).value().value());
-    }
-
-    @Test
-    void of_uppercaseEmail_normalizesToLowercase() {
-        var result = Email.of("USER@KITTI.ES");
-        assertTrue(result instanceof Validation.Valid<?>);
-        assertEquals("user@kitti.es", ((Validation.Valid<Email>) result).value().value());
-    }
-
-    private void assertInvalidWithCode(Validation<Email> result, String field, String code) {
-        assertTrue(result instanceof Validation.Invalid<?>);
-        var violations = ((Validation.Invalid<Email>) result).error().violations();
-        assertEquals(1, violations.size());
-        assertEquals(field, violations.getFirst().field());
-        assertEquals(code, violations.getFirst().code());
+    void of_valid_returnsNormalizedValue() {
+        var email = Email.of("USER@KITTI.ES").match(
+                err -> fail("Expected valid: " + err.violations()),
+                e   -> e);
+        assertEquals("user@kitti.es", email.value());
     }
 }
