@@ -17,7 +17,6 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.user.domain.ActivationToken;
 import es.kitti.user.dto.UserCreateRequest;
 import es.kitti.user.dto.UserResponse;
 import es.kitti.user.dto.UserUpdateRequest;
@@ -147,8 +146,7 @@ public class UserService {
 
     @WithTransaction
     public Uni<Either<DomainError, UserResponse>> activateByToken(String token) {
-        ActivationToken activationToken = ActivationToken.of(token);
-        return userRepository.findByActivationToken(activationToken.value())
+        return userRepository.findByActivationToken(token)
                 .onItem().transformToUni(user -> {
                     if (user == null)
                         return Uni.createFrom().item(Either.left(new UnauthorizedError("INVALID_ACTIVATION_TOKEN")));

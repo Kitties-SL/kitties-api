@@ -6,7 +6,6 @@ import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
 import es.kitti.user.dto.*;
@@ -52,15 +51,18 @@ public class UserResource {
     @PUT
     @Path("/{email}")
     public Uni<Response> updateUser(@PathParam("email") String email, UserUpdateRequest request) {
-        return requireSelf(email)
-                .onItem().transformToUni(either -> either.fold(
-                        err -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
-                        __ -> userService.updateUser(email, request)
-                                .onItem().transform(upd -> upd.fold(
-                                        e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
-                                        user -> Response.ok(user).build()
-                                ))
-                ));
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> requireSelf(email)
+                        .onItem().transformToUni(either -> either.fold(
+                                err -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                                __ -> userService.updateUser(email, valid)
+                                        .onItem().transform(upd -> upd.fold(
+                                                e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
+                                                user -> Response.ok(user).build()
+                                        ))
+                        ))
+        );
     }
 
     @PUT
@@ -94,12 +96,15 @@ public class UserResource {
     @POST
     @Path("/activate")
     @PermitAll
-    public Uni<Response> activate(@Valid ActivationRequest request) {
-        return userService.activateByToken(request.token())
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        user -> Response.ok(user).build()
-                ));
+    public Uni<Response> activate(ActivationRequest request) {
+        return request.validate().match(
+                err  -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                valid -> userService.activateByToken(valid.token())
+                        .onItem().transform(either -> either.fold(
+                                e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
+                                user -> Response.ok(user).build()
+                        ))
+        );
     }
 
     @GET
