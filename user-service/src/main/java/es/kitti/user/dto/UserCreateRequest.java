@@ -3,6 +3,7 @@ package es.kitti.user.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import es.kitti.mon.either.Validation;
 import es.kitti.user.domain.Email;
+import es.kitti.user.domain.Name;
 import es.kitti.user.domain.Password;
 import es.kitti.user.entity.UserRole;
 
@@ -22,11 +23,7 @@ public record UserCreateRequest(
                 .zip(Password.of(password), (e, p) ->
                         new UserCreateRequest(e.value(), p.value(), name, surname, birthdate, status, role)
                 )
-                .and(name == null || name.isBlank()
-                        ? Validation.invalidOne("name", "REQUIRED")
-                        : Validation.valid(name))
-                .and(surname == null || surname.isBlank()
-                        ? Validation.invalidOne("surname", "REQUIRED")
-                        : Validation.valid(surname));
+                .and(Name.of("name", name))
+                .and(Name.of("surname", surname));
     }
 }
