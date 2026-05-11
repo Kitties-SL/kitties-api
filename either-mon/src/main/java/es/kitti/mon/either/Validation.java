@@ -55,6 +55,18 @@ public sealed interface Validation<T> permits Validation.Valid, Validation.Inval
         };
     }
 
+    default Validation<T> and(Validation<?> other) {
+        return other.match(
+            otherErrors -> this.match(
+                myErrors -> Validation.invalid(new ValidationError(
+                    Stream.concat(myErrors.violations().stream(), otherErrors.violations().stream()).toList()
+                )),
+                ignored -> Validation.invalid(otherErrors)
+            ),
+            ignored -> this
+        );
+    }
+
     default Either<DomainError, T> toEither() {
         return match(Either::left, Either::right);
     }
