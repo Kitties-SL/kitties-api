@@ -1,5 +1,6 @@
 package es.kitti.user.domain;
 
+import es.kitti.mon.error.ValidationError;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -9,34 +10,47 @@ class EmailTest {
     @Test
     void of_null_returnsRequired() {
         var violations = Email.of(null).match(
-                err -> err.violations(),
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals(1, violations.size());
-        assertEquals("email",    violations.getFirst().field());
+
+        assertEquals(1,         violations.size());
+        assertEquals("email",   violations.getFirst().field());
         assertEquals("REQUIRED", violations.getFirst().code());
     }
 
     @Test
     void of_blank_returnsRequired() {
-        var violations = Email.of("   ").match(
-                err -> err.violations(),
+        String input    = "   ";
+        String expected = "REQUIRED";
+
+        var violations = Email.of(input).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("REQUIRED", violations.getFirst().code());
+
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_invalidFormat_returnsInvalidEmail() {
-        var violations = Email.of("notanemail").match(
-                err -> err.violations(),
+        String input    = "notanemail";
+        String expected = "INVALID_EMAIL";
+
+        var violations = Email.of(input).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("INVALID_EMAIL", violations.getFirst().code());
+
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_valid_returnsNormalizedValue() {
-        var email = Email.of("USER@KITTI.ES").match(
+        String input    = "USER@KITTI.ES";
+        String expected = "user@kitti.es";
+
+        var email = Email.of(input).match(
                 err -> fail("Expected valid: " + err.violations()),
                 e   -> e);
-        assertEquals("user@kitti.es", email.value());
+
+        assertEquals(expected, email.value());
     }
 }

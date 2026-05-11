@@ -1,5 +1,6 @@
 package es.kitti.user.domain;
 
+import es.kitti.mon.error.ValidationError;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,35 +9,51 @@ class NameTest {
 
     @Test
     void of_null_returnsRequired() {
-        var violations = Name.of("name", null).match(
-                err -> err.violations(),
+        String field    = "name";
+        String expected = "REQUIRED";
+
+        var violations = Name.of(field, null).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("name",     violations.getFirst().field());
-        assertEquals("REQUIRED", violations.getFirst().code());
+
+        assertEquals(field,    violations.getFirst().field());
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_blank_returnsRequired() {
-        var violations = Name.of("surname", "   ").match(
-                err -> err.violations(),
+        String field    = "surname";
+        String expected = "REQUIRED";
+
+        var violations = Name.of(field, "   ").match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("surname",  violations.getFirst().field());
-        assertEquals("REQUIRED", violations.getFirst().code());
+
+        assertEquals(field,    violations.getFirst().field());
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_tooLong_returnsInvalidSize() {
-        var violations = Name.of("name", "a".repeat(101)).match(
-                err -> err.violations(),
+        String input    = "a".repeat(101);
+        String expected = "INVALID_SIZE";
+
+        var violations = Name.of("name", input).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("INVALID_SIZE", violations.getFirst().code());
+
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
-    void of_valid_trimmsAndReturnsValue() {
-        var name = Name.of("name", "  Francisco  ").match(
+    void of_valid_trimsAndReturnsValue() {
+        String input    = "  Francisco  ";
+        String expected = "Francisco";
+
+        var name = Name.of("name", input).match(
                 err -> fail("Expected valid: " + err.violations()),
                 n   -> n);
-        assertEquals("Francisco", name.value());
+
+        assertEquals(expected, name.value());
     }
 }

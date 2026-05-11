@@ -1,5 +1,6 @@
 package es.kitti.user.domain;
 
+import es.kitti.mon.error.ValidationError;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -9,32 +10,45 @@ class PasswordTest {
     @Test
     void of_null_returnsRequired() {
         var violations = Password.of(null).match(
-                err -> err.violations(),
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
+
         assertEquals("REQUIRED", violations.getFirst().code());
     }
 
     @Test
     void of_blank_returnsRequired() {
-        var violations = Password.of("   ").match(
-                err -> err.violations(),
+        String input    = "   ";
+        String expected = "REQUIRED";
+
+        var violations = Password.of(input).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("REQUIRED", violations.getFirst().code());
+
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_tooShort_returnsInvalidSize() {
-        var violations = Password.of("short").match(
-                err -> err.violations(),
+        String input    = "short";
+        String expected = "INVALID_SIZE";
+
+        var violations = Password.of(input).match(
+                ValidationError::violations,
                 __ -> fail("Expected invalid"));
-        assertEquals("INVALID_SIZE", violations.getFirst().code());
+
+        assertEquals(expected, violations.getFirst().code());
     }
 
     @Test
     void of_exactMinLength_returnsValid() {
-        var password = Password.of("12345678").match(
+        String input    = "12345678";
+        String expected = "12345678";
+
+        var password = Password.of(input).match(
                 err -> fail("Expected valid: " + err.violations()),
                 p   -> p);
-        assertEquals("12345678", password.value());
+
+        assertEquals(expected, password.value());
     }
 }
