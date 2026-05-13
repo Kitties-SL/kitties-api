@@ -99,7 +99,7 @@ public class UserService {
                             .onItem().transform(saved -> {
                                 userRegisteredEmitter.send(new UserRegisteredEvent(
                                         saved.id, saved.email, saved.name, saved.activationToken));
-                                return Either.<DomainError, UserResponse>right(userMapper.toResponse(saved));
+                                return Either.right(userMapper.toResponse(saved));
                             });
                 });
     }
@@ -112,7 +112,7 @@ public class UserService {
                         return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     user.status = UserStatus.Inactive;
                     return userRepository.persist(user)
-                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                            .onItem().transform(saved -> Either.right(userMapper.toResponse(saved)));
                 });
     }
 
@@ -124,7 +124,7 @@ public class UserService {
                         return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     user.status = UserStatus.Active;
                     return userRepository.persist(user)
-                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                            .onItem().transform(saved -> Either.right(userMapper.toResponse(saved)));
                 });
     }
 
@@ -138,7 +138,7 @@ public class UserService {
                             adoptionInternalClient.exportUser(userId, internalSecret),
                             chatInternalClient.exportUser(userId, internalSecret)
                     ).asTuple().onItem().transform(t ->
-                            Either.<DomainError, UserDataExportResponse>right(new UserDataExportResponse(
+                            Either.right(new UserDataExportResponse(
                                     userMapper.toResponse(user), t.getItem1(), t.getItem2()))
                     );
                 });
@@ -157,7 +157,7 @@ public class UserService {
                     user.activationToken = null;
                     user.activationTokenExpiresAt = null;
                     return userRepository.persist(user)
-                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                            .onItem().transform(saved -> Either.right(userMapper.toResponse(saved)));
                 });
     }
 }

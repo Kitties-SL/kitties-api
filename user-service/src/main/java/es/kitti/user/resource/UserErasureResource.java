@@ -1,5 +1,8 @@
 package es.kitti.user.resource;
 
+import es.kitti.mon.either.Try;
+import es.kitti.mon.error.BadRequestError;
+import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.user.service.ErasureService;
 import io.quarkus.security.Authenticated;
@@ -46,7 +49,10 @@ public class UserErasureResource {
         Long userId = Long.parseLong(jwt.getSubject());
         String ip = extractIp(headers);
         return erasureService.requestErasure(userId, ip)
-                .onItem().transform(v -> Response.accepted().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.accepted().build()
+                ));
     }
 
     @PUT
@@ -62,12 +68,17 @@ public class UserErasureResource {
     public Uni<Response> setLegalHold(
             @PathParam("userId") Long userId,
             @QueryParam("holdUntil") String holdUntilIso) {
-        LocalDateTime holdUntil = holdUntilIso != null ? LocalDateTime.parse(holdUntilIso) : null;
-        return erasureService.setLegalHold(userId, holdUntil)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        v   -> Response.noContent().build()
-                ));
+        return Try.attempt(() -> holdUntilIso != null ? LocalDateTime.parse(holdUntilIso) : null)
+                .<DomainError>toEither(e -> new BadRequestError("INVALID_DATE_FORMAT"))
+                .fold(
+                        err       -> Uni.createFrom().item(
+                                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                        holdUntil -> erasureService.setLegalHold(userId, holdUntil)
+                                .onItem().transform(either -> either.fold(
+                                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                        v   -> Response.noContent().build()
+                                ))
+                );
     }
 
     private String extractIp(HttpHeaders headers) {

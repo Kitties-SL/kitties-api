@@ -1,6 +1,7 @@
 package es.kitti.storage.resource;
 
 import es.kitti.mon.error.ErrorResponse;
+import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -16,6 +17,7 @@ import java.nio.file.Files;
 
 @Path("/storage")
 @Produces(MediaType.APPLICATION_JSON)
+@Authenticated
 public class StorageResource {
 
     @Inject

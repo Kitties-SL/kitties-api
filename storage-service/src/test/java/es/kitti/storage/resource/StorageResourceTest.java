@@ -2,6 +2,7 @@ package es.kitti.storage.resource;
 
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.security.TestSecurity;
 import es.kitti.storage.test.MinioTestResource;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,7 @@ import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
 @QuarkusTestResource(MinioTestResource.class)
+@TestSecurity(authorizationEnabled = false)
 class StorageResourceTest {
 
     @Test
