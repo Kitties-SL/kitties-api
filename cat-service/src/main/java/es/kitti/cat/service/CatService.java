@@ -1,6 +1,7 @@
 package es.kitti.cat.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
@@ -175,7 +176,7 @@ public class CatService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> deleteImage(Long catId, Long imageId, Long organizationId) {
+    public Uni<Either<DomainError, Unit>> deleteImage(Long catId, Long imageId, Long organizationId) {
         return catRepository.findById(catId)
                 .onItem().transformToUni(cat -> {
                     if (cat == null)
@@ -188,20 +189,20 @@ public class CatService {
                                     return Uni.createFrom().item(Either.left(new NotFoundError("CAT_IMAGE_NOT_FOUND")));
                                 return storageClient.delete(image.key)
                                         .onItem().transformToUni(v -> catImageRepository.delete(image))
-                                        .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                                        .onItem().transform(v -> Either.unit());
                             });
                 });
     }
 
-    public Uni<Either<DomainError, Void>> deleteCat(Long id, Long organizationId) {
+    public Uni<Either<DomainError, Unit>> deleteCat(Long id, Long organizationId) {
         return Panache.withSession(() ->
                 catRepository.findById(id)
                         .onItem().transform(cat -> {
                             if (cat == null)
-                                return Either.<DomainError, Void>left(new NotFoundError("CAT_NOT_FOUND"));
+                                return Either.<DomainError, Unit>left(new NotFoundError("CAT_NOT_FOUND"));
                             if (!cat.organizationId.equals(organizationId))
-                                return Either.<DomainError, Void>left(new ForbiddenError("CAT_ACCESS_DENIED"));
-                            return Either.<DomainError, Void>right(null);
+                                return Either.<DomainError, Unit>left(new ForbiddenError("CAT_ACCESS_DENIED"));
+                            return Either.<DomainError>unit();
                         })
         )
         .onItem().transformToUni(either -> either.fold(
@@ -209,14 +210,14 @@ public class CatService {
                 __ -> adoptionClient.hasActiveRequestsForCat(id, internalSecret)
                         .onItem().transformToUni(hasActive -> {
                             if (hasActive)
-                                return Uni.createFrom().item(Either.<DomainError, Void>left(new ConflictError("CAT_HAS_ACTIVE_ADOPTIONS")));
+                                return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("CAT_HAS_ACTIVE_ADOPTIONS")));
                             return Panache.withTransaction(() ->
                                     catRepository.findById(id)
                                             .onItem().transformToUni(cat -> {
                                                 cat.status = CatStatus.Deleted;
                                                 return catRepository.persist(cat).replaceWithVoid();
                                             })
-                            ).onItem().transform(v -> Either.<DomainError, Void>right(null));
+                            ).onItem().transform(v -> Either.unit());
                         })
         ));
     }
