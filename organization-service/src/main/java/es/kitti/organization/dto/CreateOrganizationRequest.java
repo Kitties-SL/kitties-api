@@ -15,8 +15,7 @@ public record CreateOrganizationRequest(
         @JsonProperty("logoUrl")     String logoUrl
 ) {
     public Validation<CreateOrganizationRequest> validate() {
-        var r = Validation.<CreateOrganizationRequest>valid(this);
-        if (name == null || name.isBlank()) r = r.and(Validation.invalidOne("name", "REQUIRED"));
-        return r;
+        return Validation.valid(this)
+                .and(Validation.requiredString("name", name));
     }
 }

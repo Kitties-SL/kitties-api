@@ -9,9 +9,8 @@ public record InviteMemberRequest(
         @JsonProperty("role")   MemberRole role
 ) {
     public Validation<InviteMemberRequest> validate() {
-        var r = Validation.<InviteMemberRequest>valid(this);
-        if (userId == null) r = r.and(Validation.invalidOne("userId", "REQUIRED"));
-        if (role == null)   r = r.and(Validation.invalidOne("role",   "REQUIRED"));
-        return r;
+        return Validation.valid(this)
+                .and(Validation.required("userId", userId))
+                .and(Validation.required("role",   role));
     }
 }

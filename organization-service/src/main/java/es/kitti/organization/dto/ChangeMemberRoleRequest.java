@@ -8,8 +8,7 @@ public record ChangeMemberRoleRequest(
         @JsonProperty("role") MemberRole role
 ) {
     public Validation<ChangeMemberRoleRequest> validate() {
-        var r = Validation.<ChangeMemberRoleRequest>valid(this);
-        if (role == null) r = r.and(Validation.invalidOne("role", "REQUIRED"));
-        return r;
+        return Validation.valid(this)
+                .and(Validation.required("role", role));
     }
 }
