@@ -9,10 +9,9 @@ public record CreateConversationRequest(
         @JsonProperty("organizationId")  Long organizationId
 ) {
     public Validation<CreateConversationRequest> validate() {
-        var r = Validation.<CreateConversationRequest>valid(this);
-        if (intakeRequestId == null) r = r.and(Validation.invalidOne("intakeRequestId", "REQUIRED"));
-        if (userId == null)          r = r.and(Validation.invalidOne("userId",          "REQUIRED"));
-        if (organizationId == null)  r = r.and(Validation.invalidOne("organizationId",  "REQUIRED"));
-        return r;
+        return Validation.valid(this)
+                .and(Validation.required("intakeRequestId", intakeRequestId))
+                .and(Validation.required("userId",          userId))
+                .and(Validation.required("organizationId",  organizationId));
     }
 }
