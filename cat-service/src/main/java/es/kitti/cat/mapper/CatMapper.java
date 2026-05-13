@@ -13,16 +13,16 @@ public class CatMapper {
 
     public Cat toEntity(CatCreateRequest request) {
         Cat cat = new Cat();
-        cat.name = request.name();
-        cat.age = request.age();
-        cat.sex = CatSex.valueOf(request.sex());
+        cat.name        = request.name();
+        cat.age         = request.age();
+        cat.sex         = CatSex.valueOf(request.sex());
         cat.description = request.description();
-        cat.neutered = request.neutered() != null ? request.neutered() : false;
-        cat.city = request.city();
-        cat.region = request.region();
-        cat.country = request.country();
-        cat.latitude = request.latitude();
-        cat.longitude = request.longitude();
+        cat.neutered    = request.neutered() != null ? request.neutered() : false;
+        cat.city        = request.city();
+        cat.region      = request.region();
+        cat.country     = request.country();
+        cat.latitude    = request.latitude();
+        cat.longitude   = request.longitude();
         return cat;
     }
 

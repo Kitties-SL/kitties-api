@@ -19,11 +19,10 @@ public record CatUpdateRequest(
         @JsonProperty("longitude")   Double longitude
 ) {
     public Validation<CatUpdateRequest> validate() {
-        var result = Validation.<CatUpdateRequest>valid(this);
-        if (name != null)    result = result.and(Name.of("name", name));
-        if (age != null)     result = result.and(CatAge.of(age));
-        if (city != null)    result = result.and(City.of(city));
-        if (country != null) result = result.and(Country.of(country));
-        return result;
+        return Validation.valid(this)
+                .optional(name,    v -> Name.of("name", v))
+                .optional(age,     CatAge::of)
+                .optional(city,    City::of)
+                .optional(country, Country::of);
     }
 }
