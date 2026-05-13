@@ -126,6 +126,116 @@ class AdoptionServiceTest {
         assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
+    // --- updateStatus ---
+
+    @Test
+    void updateStatus_terminal_skipsVerification_returnsRight() {
+        testAdoption.status = AdoptionStatus.Reviewing;
+        var req = new AdoptionStatusUpdateRequest(AdoptionStatus.Rejected, "not a match");
+        var expectedResponse = new AdoptionRequestResponse(
+                1L, 10L, 100L, 200L, AdoptionStatus.Rejected, "not a match", null,
+                LocalDateTime.now(), LocalDateTime.now());
+
+        when(adoptionRequestRepository.findById(1L))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(expectedResponse);
+
+        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(AdoptionStatus.Rejected, result.getOrElse(null).status());
+        verifyNoInteractions(catClient);
+    }
+
+    @Test
+    void updateStatus_nonTerminal_catActive_returnsRight() {
+        var req = new AdoptionStatusUpdateRequest(AdoptionStatus.Reviewing, null);
+        var expectedResponse = new AdoptionRequestResponse(
+                1L, 10L, 100L, 200L, AdoptionStatus.Reviewing, null, null,
+                LocalDateTime.now(), LocalDateTime.now());
+
+        when(adoptionRequestRepository.findById(1L))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+        when(catClient.findById(10L))
+                .thenReturn(Uni.createFrom().item(Response.ok().build()));
+        when(adoptionRequestRepository.persist(testAdoption))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(expectedResponse);
+
+        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(AdoptionStatus.Reviewing, result.getOrElse(null).status());
+    }
+
+    @Test
+    void updateStatus_nonTerminal_catNotActive_returnsLeft409() {
+        var req = new AdoptionStatusUpdateRequest(AdoptionStatus.Reviewing, null);
+
+        when(adoptionRequestRepository.findById(1L))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+        when(catClient.findById(10L))
+                .thenReturn(Uni.createFrom().item(Response.status(404).build()));
+
+        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void updateStatus_notOwner_returnsLeft403() {
+        var req = new AdoptionStatusUpdateRequest(AdoptionStatus.Reviewing, null);
+
+        when(adoptionRequestRepository.findById(1L))
+                .thenReturn(Uni.createFrom().item(testAdoption));
+
+        var result = adoptionService.updateStatus(1L, req, 999L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    // --- exportByAdopterId ---
+
+    @Test
+    void exportByAdopterId_empty_returnsEmptyExport() {
+        when(adoptionRequestRepository.findByAdopterId(100L))
+                .thenReturn(Uni.createFrom().item(List.of()));
+
+        var result = adoptionService.exportByAdopterId(100L).await().indefinitely();
+
+        assertTrue(result.adoptionRequests().isEmpty());
+    }
+
+    @Test
+    void exportByAdopterId_withRequest_returnsExportEntry() {
+        when(adoptionRequestRepository.findByAdopterId(100L))
+                .thenReturn(Uni.createFrom().item(List.of(testAdoption)));
+        when(adoptionRequestFormRepository.findByAdoptionRequestId(1L))
+                .thenReturn(Uni.createFrom().nullItem());
+        when(adoptionFormRepository.findByAdoptionRequestId(1L))
+                .thenReturn(Uni.createFrom().nullItem());
+        when(interviewRepository.findByAdoptionRequestId(1L))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(expenseRepository.findByAdoptionRequestId(1L))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(testResponse);
+
+        var result = adoptionService.exportByAdopterId(100L).await().indefinitely();
+
+        assertEquals(1, result.adoptionRequests().size());
+        assertEquals(1L, result.adoptionRequests().get(0).request().id());
+        assertNull(result.adoptionRequests().get(0).requestForm());
+        assertNull(result.adoptionRequests().get(0).adoptionForm());
+        assertTrue(result.adoptionRequests().get(0).interviews().isEmpty());
+        assertTrue(result.adoptionRequests().get(0).expenses().isEmpty());
+    }
+
     // --- pure reads ---
 
     @Test
