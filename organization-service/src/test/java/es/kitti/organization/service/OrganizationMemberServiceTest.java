@@ -1,7 +1,9 @@
 package es.kitti.organization.service;
 
+import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.ForbiddenException;
 import es.kitti.organization.dto.*;
@@ -112,9 +114,11 @@ class OrganizationMemberServiceTest {
     void testChangeMemberRoleRequiresAdmin() {
         when(memberRepository.isAdmin(1L, 20L)).thenReturn(Uni.createFrom().item(false));
 
-        assertThrows(ForbiddenException.class,
-                () -> service.changeMemberRole(1L, 20L, 20L, new ChangeMemberRoleRequest(MemberRole.Admin))
-                        .await().indefinitely());
+        var result = service.changeMemberRole(1L, 20L, 20L, new ChangeMemberRoleRequest(MemberRole.Admin))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
     }
 
     @Test
@@ -126,18 +130,20 @@ class OrganizationMemberServiceTest {
         when(memberRepository.persist(any(OrganizationMember.class)))
                 .thenReturn(Uni.createFrom().item(staffMember));
 
-        MemberResponse response = service.changeMemberRole(1L, 20L, 10L,
+        Either<DomainError, MemberResponse> response = service.changeMemberRole(1L, 20L, 10L,
                 new ChangeMemberRoleRequest(MemberRole.Admin)).await().indefinitely();
 
-        assertEquals(MemberRole.Admin, response.role());
+        assertEquals(MemberRole.Admin, response.getOrElse(null).role());
     }
 
     @Test
     void testRemoveMemberRequiresAdmin() {
         when(memberRepository.isAdmin(1L, 20L)).thenReturn(Uni.createFrom().item(false));
 
-        assertThrows(ForbiddenException.class,
-                () -> service.removeMember(1L, 20L, 20L).await().indefinitely());
+        var result = service.removeMember(1L, 20L, 20L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
     }
 
     @Test
@@ -157,8 +163,10 @@ class OrganizationMemberServiceTest {
     void testListMembersRequiresAdmin() {
         when(memberRepository.isAdmin(1L, 20L)).thenReturn(Uni.createFrom().item(false));
 
-        assertThrows(ForbiddenException.class,
-                () -> service.listMembers(1L, 20L).await().indefinitely());
+        var result = service.listMembers(1L, 20L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
     }
 
     @Test
@@ -167,8 +175,9 @@ class OrganizationMemberServiceTest {
         when(memberRepository.findActiveByOrganizationId(1L))
                 .thenReturn(Uni.createFrom().item(List.of(adminMember, staffMember)));
 
-        List<MemberResponse> members = service.listMembers(1L, 10L).await().indefinitely();
+        Either<DomainError, List<MemberResponse>> members = service.listMembers(1L, 10L).await().indefinitely();
 
-        assertEquals(2, members.size());
+        assertEquals(2, members.getOrElse(List.of()).size());
+        assertTrue(members.isRight());
     }
 }

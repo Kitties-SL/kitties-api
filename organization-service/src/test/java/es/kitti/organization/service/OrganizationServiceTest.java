@@ -1,5 +1,7 @@
 package es.kitti.organization.service;
 
+import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Validation;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
@@ -71,7 +73,12 @@ class OrganizationServiceTest {
 
     @Test
     void testFindByIdNotFound_returnsLeft404() {
-        when(memberService.requireMember(99L, 10L)).thenReturn(Uni.createFrom().voidItem());
+        when(memberService.requireMember(99L, 10L))
+                .thenReturn(
+                            Uni.createFrom()
+                                    .item(Either.right(null)
+                        )
+                );
         when(organizationRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
 
         var result = service.findById(99L, 10L).await().indefinitely();
@@ -127,7 +134,7 @@ class OrganizationServiceTest {
 
     @Test
     void testUpdateByAdmin_returnsRight() {
-        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().voidItem());
+        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(Either.right(null)));
         org.name = "Updated";
         when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
         when(organizationRepository.persist(any(Organization.class))).thenReturn(Uni.createFrom().item(org));
