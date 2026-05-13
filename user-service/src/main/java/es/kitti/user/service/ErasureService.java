@@ -6,6 +6,7 @@ import es.kitti.user.client.ChatInternalClient;
 import es.kitti.user.entity.ErasureRequest;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
 import es.kitti.user.exception.LegalHoldException;
@@ -81,14 +82,14 @@ public class ErasureService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> setLegalHold(Long userId, LocalDateTime holdUntil) {
+    public Uni<Either<DomainError, Unit>> setLegalHold(Long userId, LocalDateTime holdUntil) {
         return userRepository.findById(userId)
                 .onItem().transformToUni(user -> {
                     if (user == null)
                         return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     user.legalHoldUntil = holdUntil;
                     return userRepository.persist(user)
-                            .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                            .onItem().transform(v -> Either.unit());
                 });
     }
 
