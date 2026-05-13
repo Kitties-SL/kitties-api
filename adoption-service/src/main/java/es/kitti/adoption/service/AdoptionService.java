@@ -106,18 +106,17 @@ public class AdoptionService {
                 .onItem().transform(list -> list.stream().map(adoptionMapper::toResponse).toList());
     }
 
+    @WithSession
     public Uni<Either<DomainError, AdoptionRequestResponse>> updateStatus(
             Long id, AdoptionStatusUpdateRequest request, Long userId) {
 
         boolean isTerminal = request.status() == AdoptionStatus.Rejected
                 || request.status() == AdoptionStatus.Completed;
 
-        return Panache.withSession(() ->
-                findAdoptionOrNotFound(id)
-                        .onItem().transform(either -> either.flatMap(adoption ->
-                                checkOrganizationOwner(adoption, userId).map(v -> adoption.catId)
-                        ))
-        )
+        return findAdoptionOrNotFound(id)
+                .onItem().transform(either -> either.flatMap(adoption ->
+                        checkOrganizationOwner(adoption, userId).map(v -> adoption.catId)
+                ))
         .onItem().transformToUni(either -> either.fold(
                 err   -> Uni.createFrom().item(Either.left(err)),
                 catId -> isTerminal
