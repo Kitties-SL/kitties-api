@@ -237,6 +237,6 @@ class AdoptionWriteServiceTest {
 
         adoptionWriteService.applyFormAnalysisResult(999L, "REJECTED", "reason").await().indefinitely();
 
-        verify(adoptionRequestRepository, never()).persist(any());
+        verify(adoptionRequestRepository, never()).persist(any(AdoptionRequest.class));
     }
 }
