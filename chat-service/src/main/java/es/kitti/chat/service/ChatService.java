@@ -1,6 +1,7 @@
 package es.kitti.chat.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
@@ -100,7 +101,7 @@ public class ChatService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> blockUser(Long conversationId, Long callerOrgId, BlockUserRequest request) {
+    public Uni<Either<DomainError, Unit>> blockUser(Long conversationId, Long callerOrgId, BlockUserRequest request) {
         return loadAndAuthorize(conversationId, callerOrgId, SenderType.Organization)
                 .onItem().transformToUni(either -> either.fold(
                         error -> Uni.createFrom().item(Either.left(error)),
@@ -110,16 +111,16 @@ public class ChatService {
                                         if (request != null && request.reason() != null) {
                                             existing.reason = request.reason();
                                             return blockedRepository.<BlockedParticipant>persist(existing)
-                                                    .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                                                    .onItem().transform(v -> Either.unit());
                                         }
-                                        return Uni.createFrom().item(Either.<DomainError, Void>right(null));
+                                        return Uni.createFrom().item(Either.unit());
                                     }
                                     BlockedParticipant b = new BlockedParticipant();
                                     b.organizationId = c.organizationId;
                                     b.userId = c.userId;
                                     b.reason = request != null ? request.reason() : null;
                                     return blockedRepository.persist(b)
-                                            .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                                            .onItem().transform(v -> Either.unit());
                                 })
                 ));
     }
@@ -149,28 +150,28 @@ public class ChatService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> unblockUser(Long conversationId, Long callerOrgId) {
+    public Uni<Either<DomainError, Unit>> unblockUser(Long conversationId, Long callerOrgId) {
         return loadAndAuthorize(conversationId, callerOrgId, SenderType.Organization)
                 .onItem().transformToUni(either -> either.fold(
                         error -> Uni.createFrom().item(Either.left(error)),
                         c -> blockedRepository.findByOrgAndUser(c.organizationId, c.userId)
                                 .onItem().transformToUni(existing -> {
                                     if (existing == null)
-                                        return Uni.createFrom().item(Either.<DomainError, Void>right(null));
+                                        return Uni.createFrom().item(Either.unit());
                                     return blockedRepository.delete(existing)
-                                            .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                                            .onItem().transform(v -> Either.unit());
                                 })
                 ));
     }
 
-    private Uni<Either<DomainError, Void>> rejectIfUserBlocked(Conversation c, Long callerId, SenderType callerType) {
+    private Uni<Either<DomainError, Unit>> rejectIfUserBlocked(Conversation c, Long callerId, SenderType callerType) {
         if (callerType != SenderType.User)
-            return Uni.createFrom().item(Either.right(null));
+            return Uni.createFrom().item(Either.unit());
         return blockedRepository.existsByOrgAndUser(c.organizationId, callerId)
                 .onItem().transform(blocked ->
                         blocked
-                                ? Either.<DomainError, Void>left(new ForbiddenError("USER_BLOCKED"))
-                                : Either.<DomainError, Void>right(null)
+                                ? Either.<DomainError, Unit>left(new ForbiddenError("USER_BLOCKED"))
+                                : Either.unit()
                 );
     }
 
