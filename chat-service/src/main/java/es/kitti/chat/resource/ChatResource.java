@@ -68,8 +68,7 @@ public class ChatResource {
     @Path("/{id}/block")
     @RolesAllowed("Organization")
     public Uni<Response> blockUser(@PathParam("id") Long id, BlockUserRequest request) {
-        BlockUserRequest req = request != null ? request : new BlockUserRequest(null);
-        return req.validate().match(
+        return request.validate().match(
                 this::validationFailed,
                 valid -> service.blockUser(id, callerId(), valid)
                         .onItem().transform(either -> either.fold(
