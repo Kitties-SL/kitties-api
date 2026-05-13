@@ -1,6 +1,7 @@
 package es.kitti.auth.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.UnauthorizedError;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
@@ -60,14 +61,14 @@ public class AuthService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> logout(String refreshToken) {
+    public Uni<Either<DomainError, Unit>> logout(String refreshToken) {
         return refreshTokenRepository.findByToken(refreshToken)
                 .onItem().transformToUni(token -> {
                     if (token == null)
                         return Uni.createFrom().item(Either.left(new UnauthorizedError("TOKEN_NOT_FOUND")));
                     token.revoked = true;
                     return refreshTokenRepository.persist(token)
-                            .onItem().transform(v -> Either.<DomainError, Void>right(null));
+                            .onItem().transform(v -> Either.unit());
                 });
     }
 
