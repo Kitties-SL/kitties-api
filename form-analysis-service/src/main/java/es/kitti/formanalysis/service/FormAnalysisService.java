@@ -1,9 +1,7 @@
 package es.kitti.formanalysis.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.logging.Log;
-import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
