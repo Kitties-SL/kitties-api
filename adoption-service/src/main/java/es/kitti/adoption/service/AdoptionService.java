@@ -2,6 +2,7 @@ package es.kitti.adoption.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.*;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
@@ -119,7 +120,7 @@ public class AdoptionService {
         .onItem().transformToUni(either -> either.fold(
                 err   -> Uni.createFrom().item(Either.left(err)),
                 catId -> isTerminal
-                        ? Uni.createFrom().item(Either.<DomainError, Void>right(null))
+                        ? Uni.createFrom().item(Either.<DomainError>unit())
                         : verifyCatActive(catId)
         ))
         .onItem().transformToUni(either -> either.fold(
@@ -322,37 +323,37 @@ public class AdoptionService {
                         : Either.<DomainError, AdoptionRequest>right(adoption));
     }
 
-    private Either<DomainError, Void> checkOrganizationOwner(AdoptionRequest adoption, Long orgId) {
+    private Either<DomainError, Unit> checkOrganizationOwner(AdoptionRequest adoption, Long orgId) {
         return adoption.organizationId.equals(orgId)
-                ? Either.right(null)
+                ? Either.unit()
                 : Either.left(new ForbiddenError("ACCESS_DENIED"));
     }
 
-    private Either<DomainError, Void> checkAdopter(AdoptionRequest adoption, Long adopterId) {
+    private Either<DomainError, Unit> checkAdopter(AdoptionRequest adoption, Long adopterId) {
         return adoption.adopterId.equals(adopterId)
-                ? Either.right(null)
+                ? Either.unit()
                 : Either.left(new ForbiddenError("ACCESS_DENIED"));
     }
 
-    private Either<DomainError, Void> checkStatus(AdoptionRequest adoption, AdoptionStatus required) {
+    private Either<DomainError, Unit> checkStatus(AdoptionRequest adoption, AdoptionStatus required) {
         return adoption.status == required
-                ? Either.right(null)
+                ? Either.unit()
                 : Either.left(new ConflictError("INVALID_ADOPTION_STATUS"));
     }
 
-    private Either<DomainError, Void> checkParticipant(AdoptionRequest adoption, Long callerId) {
+    private Either<DomainError, Unit> checkParticipant(AdoptionRequest adoption, Long callerId) {
         return adoption.adopterId.equals(callerId) || adoption.organizationId.equals(callerId)
-                ? Either.right(null)
+                ? Either.unit()
                 : Either.left(new ForbiddenError("ACCESS_DENIED"));
     }
 
-    private Uni<Either<DomainError, Void>> verifyCatActive(Long catId) {
+    private Uni<Either<DomainError, Unit>> verifyCatActive(Long catId) {
         return catClient.findById(catId)
                 .onFailure(jakarta.ws.rs.WebApplicationException.class)
                 .recoverWithItem(e -> ((jakarta.ws.rs.WebApplicationException) e).getResponse())
                 .onItem().transform(response -> response.getStatus() == 200
-                        ? Either.<DomainError, Void>right(null)
-                        : Either.<DomainError, Void>left(new ConflictError("CAT_NOT_AVAILABLE")));
+                        ? Either.<DomainError>unit()
+                        : Either.<DomainError, Unit>left(new ConflictError("CAT_NOT_AVAILABLE")));
     }
 
     private AdoptionFormSubmittedEvent buildFormSubmittedEvent(AdoptionRequest adoption, AdoptionRequestForm form) {
