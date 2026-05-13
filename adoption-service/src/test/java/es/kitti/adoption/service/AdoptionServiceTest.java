@@ -1,6 +1,7 @@
 package es.kitti.adoption.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.adoption.event.AdoptionFormAnalysedEvent;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
@@ -8,6 +9,7 @@ import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.core.Response;
+import java.io.IOException;
 import es.kitti.adoption.client.CatClient;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
@@ -302,6 +304,30 @@ class AdoptionServiceTest {
         assertNull(result.adoptionRequests().get(0).adoptionForm());
         assertTrue(result.adoptionRequests().get(0).interviews().isEmpty());
         assertTrue(result.adoptionRequests().get(0).expenses().isEmpty());
+    }
+
+    // --- onFormAnalysed ---
+
+    @Test
+    void onFormAnalysed_validMessage_delegatesToWriteService() throws Exception {
+        var event = new AdoptionFormAnalysedEvent(1L, "REJECTED", "not suitable", 100L, 0, 0, 0);
+        when(objectMapper.readValue(anyString(), eq(AdoptionFormAnalysedEvent.class))).thenReturn(event);
+        when(adoptionWriteService.applyFormAnalysisResult(1L, "REJECTED", "not suitable"))
+                .thenReturn(Uni.createFrom().voidItem());
+
+        adoptionService.onFormAnalysed("{}").await().indefinitely();
+
+        verify(adoptionWriteService).applyFormAnalysisResult(1L, "REJECTED", "not suitable");
+    }
+
+    @Test
+    void onFormAnalysed_invalidJson_returnsVoid() throws Exception {
+        doThrow(new IOException("invalid")).when(objectMapper)
+                .readValue(anyString(), eq(AdoptionFormAnalysedEvent.class));
+
+        adoptionService.onFormAnalysed("bad json").await().indefinitely();
+
+        verifyNoInteractions(adoptionWriteService);
     }
 
     // --- pure reads ---

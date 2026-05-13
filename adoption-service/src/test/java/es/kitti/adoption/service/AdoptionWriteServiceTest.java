@@ -205,4 +205,38 @@ class AdoptionWriteServiceTest {
         assertEquals("ADOPTION_FORM_ALREADY_SUBMITTED",
                 ((ConflictError) ((Either.Left<?, ?>) result).value()).code());
     }
+
+    // --- applyFormAnalysisResult ---
+
+    @Test
+    void applyFormAnalysisResult_rejected_updatesStatusAndPersists() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
+
+        adoptionWriteService.applyFormAnalysisResult(1L, "REJECTED", "not suitable").await().indefinitely();
+
+        assertEquals(AdoptionStatus.Rejected, testAdoption.status);
+        assertEquals("not suitable", testAdoption.rejectionReason);
+        verify(adoptionRequestRepository).persist(testAdoption);
+    }
+
+    @Test
+    void applyFormAnalysisResult_notRejected_persistsWithoutStatusChange() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
+
+        adoptionWriteService.applyFormAnalysisResult(1L, "ACCEPTED", null).await().indefinitely();
+
+        assertEquals(AdoptionStatus.Pending, testAdoption.status);
+        verify(adoptionRequestRepository).persist(testAdoption);
+    }
+
+    @Test
+    void applyFormAnalysisResult_notFound_returnsVoid() {
+        when(adoptionRequestRepository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
+
+        adoptionWriteService.applyFormAnalysisResult(999L, "REJECTED", "reason").await().indefinitely();
+
+        verify(adoptionRequestRepository, never()).persist(any());
+    }
 }
