@@ -7,6 +7,7 @@ import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.Vertx;
 import jakarta.ws.rs.core.Response;
 import es.kitti.adoption.client.CatClient;
 import es.kitti.adoption.dto.*;
@@ -30,6 +31,16 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AdoptionServiceTest {
+
+    // updateStatus usa Panache.withSession() como llamada estática (no anotación CDI),
+    // por lo que necesita un contexto Vert.x real aunque los repos estén mockeados.
+    static final Vertx vertx = Vertx.vertx();
+
+    private static <T> T runOnVertx(Uni<T> uni) {
+        return vertx.executeBlocking(() -> uni.await().indefinitely())
+                    .toCompletionStage().toCompletableFuture().join();
+    }
+
 
     @Mock ObjectMapper objectMapper;
     @Mock AdoptionRequestRepository adoptionRequestRepository;
@@ -142,7 +153,7 @@ class AdoptionServiceTest {
                 .thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionMapper.toResponse(testAdoption)).thenReturn(expectedResponse);
 
-        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+        var result = runOnVertx(adoptionService.updateStatus(1L, req, 200L));
 
         assertTrue(result.isRight());
         assertEquals(AdoptionStatus.Rejected, result.getOrElse(null).status());
@@ -164,7 +175,7 @@ class AdoptionServiceTest {
                 .thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionMapper.toResponse(testAdoption)).thenReturn(expectedResponse);
 
-        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+        var result = runOnVertx(adoptionService.updateStatus(1L, req, 200L));
 
         assertTrue(result.isRight());
         assertEquals(AdoptionStatus.Reviewing, result.getOrElse(null).status());
@@ -179,7 +190,7 @@ class AdoptionServiceTest {
         when(catClient.findById(10L))
                 .thenReturn(Uni.createFrom().item(Response.status(404).build()));
 
-        var result = adoptionService.updateStatus(1L, req, 200L).await().indefinitely();
+        var result = runOnVertx(adoptionService.updateStatus(1L, req, 200L));
 
         assertTrue(result.isLeft());
         assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
@@ -193,7 +204,7 @@ class AdoptionServiceTest {
         when(adoptionRequestRepository.findById(1L))
                 .thenReturn(Uni.createFrom().item(testAdoption));
 
-        var result = adoptionService.updateStatus(1L, req, 999L).await().indefinitely();
+        var result = runOnVertx(adoptionService.updateStatus(1L, req, 999L));
 
         assertTrue(result.isLeft());
         assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
