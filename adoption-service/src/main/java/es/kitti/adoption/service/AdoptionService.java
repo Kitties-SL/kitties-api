@@ -15,11 +15,8 @@ import es.kitti.adoption.dto.*;
 import java.util.stream.Collectors;
 import es.kitti.adoption.entity.*;
 import es.kitti.adoption.event.AdoptionFormAnalysedEvent;
-import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
 import es.kitti.adoption.mapper.AdoptionMapper;
 import es.kitti.adoption.repository.*;
-import org.eclipse.microprofile.reactive.messaging.Channel;
-import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
@@ -35,12 +32,9 @@ public class AdoptionService {
     @Inject InterviewRepository interviewRepository;
     @Inject ExpenseRepository expenseRepository;
     @Inject AdoptionMapper adoptionMapper;
+    @Inject AdoptionWriteService adoptionWriteService;
 
     @RestClient CatClient catClient;
-
-    @Inject
-    @Channel("adoption-form-submitted")
-    Emitter<AdoptionFormSubmittedEvent> adoptionFormSubmittedEmitter;
 
     public Uni<Either<DomainError, AdoptionRequestResponse>> createAdoptionRequest(
             AdoptionRequestCreateRequest request, Long adopterId) {
@@ -48,16 +42,7 @@ public class AdoptionService {
         return verifyCatActive(request.catId())
                 .onItem().transformToUni(catEither -> catEither.fold(
                         err -> Uni.createFrom().item(Either.left(err)),
-                        v   -> Panache.withTransaction(() ->
-                                adoptionRequestRepository.existsActiveByCatId(request.catId())
-                                        .onItem().transformToUni(exists -> {
-                                            if (exists)
-                                                return Uni.createFrom().item(Either.<DomainError, AdoptionRequestResponse>left(new ConflictError("CAT_NOT_AVAILABLE")));
-                                            AdoptionRequest entity = adoptionMapper.toEntity(request, adopterId);
-                                            return adoptionRequestRepository.persist(entity)
-                                                    .onItem().transform(saved -> Either.<DomainError, AdoptionRequestResponse>right(adoptionMapper.toResponse(saved)));
-                                        })
-                        )
+                        v   -> adoptionWriteService.createRequest(request, adopterId)
                 ));
     }
 
@@ -117,155 +102,76 @@ public class AdoptionService {
                 .onItem().transform(either -> either.flatMap(adoption ->
                         checkOrganizationOwner(adoption, userId).map(v -> adoption.catId)
                 ))
-        .onItem().transformToUni(either -> either.fold(
-                err   -> Uni.createFrom().item(Either.left(err)),
-                catId -> isTerminal
-                        ? Uni.createFrom().item(Either.<DomainError>unit())
-                        : verifyCatActive(catId)
-        ))
-        .onItem().transformToUni(either -> either.fold(
-                err -> Uni.createFrom().item(Either.left(err)),
-                v   -> Panache.withTransaction(() ->
-                        findAdoptionOrNotFound(id)
-                                .onItem().transformToUni(either2 -> either2.fold(
-                                        err -> Uni.createFrom().item(Either.left(err)),
-                                        adoption -> checkOrganizationOwner(adoption, userId).fold(
-                                                err -> Uni.createFrom().item(Either.left(err)),
-                                                v2  -> {
-                                                    adoption.status = request.status();
-                                                    adoption.rejectionReason = request.reason();
-                                                    return adoptionRequestRepository.persist(adoption)
-                                                            .onItem().transform(saved -> Either.<DomainError, AdoptionRequestResponse>right(adoptionMapper.toResponse(saved)));
-                                                }
-                                        )
-                                ))
-                )
-        ));
+                .onItem().transformToUni(either -> either.fold(
+                        err   -> Uni.createFrom().item(Either.left(err)),
+                        catId -> isTerminal
+                                ? Uni.createFrom().item(Either.<DomainError>unit())
+                                : verifyCatActive(catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err -> Uni.createFrom().item(Either.left(err)),
+                        v   -> adoptionWriteService.updateStatus(id, userId, request.status(), request.reason())
+                ));
     }
 
+    @WithSession
     public Uni<Either<DomainError, AdoptionRequestFormResponse>> submitRequestForm(
             Long adoptionRequestId, AdoptionRequestFormCreateRequest request, Long adopterId) {
 
-        return Panache.withSession(() ->
-                findAdoptionOrNotFound(adoptionRequestId)
-                        .onItem().transform(either -> either.flatMap(adoption ->
-                                checkAdopter(adoption, adopterId)
-                                        .flatMap(v -> checkStatus(adoption, AdoptionStatus.Pending))
-                                        .map(v -> adoption.catId)
-                        ))
-        )
-        .onItem().transformToUni(either -> either.fold(
-                err   -> Uni.createFrom().item(Either.left(err)),
-                catId -> verifyCatActive(catId)
-        ))
-        .onItem().transformToUni(either -> either.fold(
-                err -> Uni.createFrom().item(Either.left(err)),
-                v   -> Panache.withTransaction(() ->
-                        findAdoptionOrNotFound(adoptionRequestId)
-                                .onItem().transformToUni(either2 -> either2.fold(
-                                        err -> Uni.createFrom().item(Either.left(err)),
-                                        adoption -> checkAdopter(adoption, adopterId).fold(
-                                                err -> Uni.createFrom().item(Either.left(err)),
-                                                v2  -> checkStatus(adoption, AdoptionStatus.Pending).fold(
-                                                        err -> Uni.createFrom().item(Either.left(err)),
-                                                        v3  -> {
-                                                            AdoptionRequestForm form = adoptionMapper.toEntity(request, adoptionRequestId);
-                                                            adoption.status = AdoptionStatus.Reviewing;
-                                                            return adoptionRequestFormRepository.persist(form)
-                                                                    .onItem().transformToUni(saved ->
-                                                                            adoptionRequestRepository.persist(adoption)
-                                                                                    .onItem().transform(persisted -> {
-                                                                                        adoptionFormSubmittedEmitter.send(buildFormSubmittedEvent(adoption, saved));
-                                                                                        return Either.<DomainError, AdoptionRequestFormResponse>right(adoptionMapper.toResponse(saved));
-                                                                                    })
-                                                                    );
-                                                        }
-                                                )
-                                        )
-                                ))
-                )
-        ));
+        return findAdoptionOrNotFound(adoptionRequestId)
+                .onItem().transform(either -> either.flatMap(adoption ->
+                        checkAdopter(adoption, adopterId)
+                                .flatMap(v -> checkStatus(adoption, AdoptionStatus.Pending))
+                                .map(v -> adoption.catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err   -> Uni.createFrom().item(Either.left(err)),
+                        catId -> verifyCatActive(catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err -> Uni.createFrom().item(Either.left(err)),
+                        v   -> adoptionWriteService.submitRequestForm(adoptionRequestId, request, adopterId)
+                ));
     }
 
+    @WithSession
     public Uni<Either<DomainError, InterviewResponse>> scheduleInterview(
             Long adoptionRequestId, InterviewCreateRequest request, Long organizationId) {
 
-        return Panache.withSession(() ->
-                findAdoptionOrNotFound(adoptionRequestId)
-                        .onItem().transform(either -> either.flatMap(adoption ->
-                                checkOrganizationOwner(adoption, organizationId)
-                                        .flatMap(v -> checkStatus(adoption, AdoptionStatus.Accepted))
-                                        .map(v -> adoption.catId)
-                        ))
-        )
-        .onItem().transformToUni(either -> either.fold(
-                err   -> Uni.createFrom().item(Either.left(err)),
-                catId -> verifyCatActive(catId)
-        ))
-        .onItem().transformToUni(either -> either.fold(
-                err -> Uni.createFrom().item(Either.left(err)),
-                v   -> Panache.withTransaction(() ->
-                        findAdoptionOrNotFound(adoptionRequestId)
-                                .onItem().transformToUni(either2 -> either2.fold(
-                                        err -> Uni.createFrom().item(Either.left(err)),
-                                        adoption -> checkOrganizationOwner(adoption, organizationId).fold(
-                                                err -> Uni.createFrom().item(Either.left(err)),
-                                                v2  -> checkStatus(adoption, AdoptionStatus.Accepted).fold(
-                                                        err -> Uni.createFrom().item(Either.left(err)),
-                                                        v3  -> {
-                                                            Interview interview = adoptionMapper.toEntity(request, adoptionRequestId);
-                                                            return interviewRepository.persist(interview)
-                                                                    .onItem().transform(saved -> Either.<DomainError, InterviewResponse>right(adoptionMapper.toResponse(saved)));
-                                                        }
-                                                )
-                                        )
-                                ))
-                )
-        ));
+        return findAdoptionOrNotFound(adoptionRequestId)
+                .onItem().transform(either -> either.flatMap(adoption ->
+                        checkOrganizationOwner(adoption, organizationId)
+                                .flatMap(v -> checkStatus(adoption, AdoptionStatus.Accepted))
+                                .map(v -> adoption.catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err   -> Uni.createFrom().item(Either.left(err)),
+                        catId -> verifyCatActive(catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err -> Uni.createFrom().item(Either.left(err)),
+                        v   -> adoptionWriteService.scheduleInterview(adoptionRequestId, request, organizationId)
+                ));
     }
 
+    @WithSession
     public Uni<Either<DomainError, AdoptionFormResponse>> submitAdoptionForm(
             Long adoptionRequestId, AdoptionFormCreateRequest request, Long adopterId) {
 
-        return Panache.withSession(() ->
-                findAdoptionOrNotFound(adoptionRequestId)
-                        .onItem().transform(either -> either.flatMap(adoption ->
-                                checkAdopter(adoption, adopterId)
-                                        .flatMap(v -> checkStatus(adoption, AdoptionStatus.Accepted))
-                                        .map(v -> adoption.catId)
-                        ))
-        )
-        .onItem().transformToUni(either -> either.fold(
-                err   -> Uni.createFrom().item(Either.left(err)),
-                catId -> verifyCatActive(catId)
-        ))
-        .onItem().transformToUni(either -> either.fold(
-                err -> Uni.createFrom().item(Either.left(err)),
-                v   -> Panache.withTransaction(() ->
-                        findAdoptionOrNotFound(adoptionRequestId)
-                                .onItem().transformToUni(either2 -> either2.fold(
-                                        err -> Uni.createFrom().item(Either.left(err)),
-                                        adoption -> checkAdopter(adoption, adopterId).fold(
-                                                err -> Uni.createFrom().item(Either.left(err)),
-                                                v2  -> checkStatus(adoption, AdoptionStatus.Accepted).fold(
-                                                        err -> Uni.createFrom().item(Either.left(err)),
-                                                        v3  -> adoptionFormRepository.findByAdoptionRequestId(adoptionRequestId)
-                                                                .onItem().transformToUni(existing -> {
-                                                                    if (existing != null)
-                                                                        return Uni.createFrom().item(Either.<DomainError, AdoptionFormResponse>left(new ConflictError("ADOPTION_FORM_ALREADY_SUBMITTED")));
-                                                                    AdoptionForm form = adoptionMapper.toEntity(request, adoptionRequestId);
-                                                                    adoption.status = AdoptionStatus.FormCompleted;
-                                                                    return adoptionFormRepository.persist(form)
-                                                                            .onItem().transformToUni(saved ->
-                                                                                    adoptionRequestRepository.persist(adoption)
-                                                                                            .onItem().transform(persisted -> Either.<DomainError, AdoptionFormResponse>right(adoptionMapper.toResponse(saved)))
-                                                                            );
-                                                                })
-                                                )
-                                        )
-                                ))
-                )
-        ));
+        return findAdoptionOrNotFound(adoptionRequestId)
+                .onItem().transform(either -> either.flatMap(adoption ->
+                        checkAdopter(adoption, adopterId)
+                                .flatMap(v -> checkStatus(adoption, AdoptionStatus.Accepted))
+                                .map(v -> adoption.catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err   -> Uni.createFrom().item(Either.left(err)),
+                        catId -> verifyCatActive(catId)
+                ))
+                .onItem().transformToUni(either -> either.fold(
+                        err -> Uni.createFrom().item(Either.left(err)),
+                        v   -> adoptionWriteService.submitAdoptionForm(adoptionRequestId, request, adopterId)
+                ));
     }
 
     @WithSession
@@ -360,23 +266,5 @@ public class AdoptionService {
                 .onItem().transform(response -> response.getStatus() == 200
                         ? Either.<DomainError>unit()
                         : Either.<DomainError, Unit>left(new ConflictError("CAT_NOT_AVAILABLE")));
-    }
-
-    private AdoptionFormSubmittedEvent buildFormSubmittedEvent(AdoptionRequest adoption, AdoptionRequestForm form) {
-        return new AdoptionFormSubmittedEvent(
-                adoption.id, adoption.catId, adoption.adopterId, adoption.organizationId,
-                form.hasPreviousCatExperience, form.previousPetsHistory,
-                form.adultsInHousehold, form.hasChildren, form.childrenAges,
-                form.hasOtherPets, form.otherPetsDescription, form.hoursAlonePerDay,
-                form.stableHousing, form.housingInstabilityReason,
-                form.housingType != null ? form.housingType.name() : null,
-                form.housingSize, form.hasOutdoorAccess, form.isRental, form.rentalPetsAllowed,
-                form.hasWindowsWithView, form.hasVerticalSpace, form.hasHidingSpots,
-                form.householdActivityLevel != null ? form.householdActivityLevel.name() : null,
-                form.whyCatsNeedToPlay, form.dailyPlayMinutes, form.plannedEnrichment,
-                form.reactionToUnwantedBehavior, form.hasScratchingPost, form.willingToEnrichEnvironment,
-                form.motivationToAdopt, form.understandsLongTermCommitment, form.hasVetBudget,
-                form.allHouseholdMembersAgree, form.anyoneHasAllergies, form.allergiesDetail
-        );
     }
 }
