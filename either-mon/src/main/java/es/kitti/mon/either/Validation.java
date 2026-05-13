@@ -9,6 +9,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+
 public sealed interface Validation<T> permits Validation.Valid, Validation.Invalid {
 
     record Valid<T>(T value)                 implements Validation<T> {}
@@ -65,6 +66,18 @@ public sealed interface Validation<T> permits Validation.Valid, Validation.Inval
             ),
             ignored -> this
         );
+    }
+
+    default <U> Validation<T> optional(U value, Function<U, Validation<?>> validator) {
+        if (value == null) return this;
+        return and(validator.apply(value));
+    }
+
+    default T fromBusiness() {
+        return switch (this) {
+            case Valid<T>(T t)             -> t;
+            case Invalid<T>(var e)         -> throw new IllegalStateException("fromBusiness called on Invalid: " + e);
+        };
     }
 
     default Either<DomainError, T> toEither() {
