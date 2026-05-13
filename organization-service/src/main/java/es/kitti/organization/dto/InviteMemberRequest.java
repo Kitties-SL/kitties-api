@@ -10,7 +10,7 @@ public record InviteMemberRequest(
 ) {
     public Validation<InviteMemberRequest> validate() {
         return Validation.valid(this)
-                .required("userId", userId))
-                .required("role",   role));
+                .required("userId", userId)
+                .required("role",   role);
     }
 }

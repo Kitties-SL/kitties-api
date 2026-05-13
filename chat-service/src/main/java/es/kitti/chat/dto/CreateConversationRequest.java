@@ -10,8 +10,8 @@ public record CreateConversationRequest(
 ) {
     public Validation<CreateConversationRequest> validate() {
         return Validation.valid(this)
-                .required("intakeRequestId", intakeRequestId))
-                .required("userId",          userId))
-                .required("organizationId",  organizationId));
+                .required("intakeRequestId", intakeRequestId)
+                .required("userId",          userId)
+                .required("organizationId",  organizationId);
     }
 }

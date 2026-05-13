@@ -25,11 +25,11 @@ public record AdoptionFormCreateRequest(
 ) {
     public Validation<AdoptionFormCreateRequest> validate() {
         return Validation.valid(this)
-                .required("acceptsVetVisits",          acceptsVetVisits))
-                .required("acceptsFollowUpContact",    acceptsFollowUpContact))
-                .required("acceptsReturnIfNeeded",     acceptsReturnIfNeeded))
-                .required("acceptsTermsAndConditions", acceptsTermsAndConditions))
-                .required("consentHealthData",         consentHealthData))
+                .required("acceptsVetVisits",          acceptsVetVisits)
+                .required("acceptsFollowUpContact",    acceptsFollowUpContact)
+                .required("acceptsReturnIfNeeded",     acceptsReturnIfNeeded)
+                .required("acceptsTermsAndConditions", acceptsTermsAndConditions)
+                .required("consentHealthData",         consentHealthData)
                 .and(Name.of("fullName", fullName))
                 .and(IdNumber.of(idNumber))
                 .and(Phone.of(phone))

@@ -42,41 +42,55 @@ public record AdoptionRequestFormCreateRequest(
         @JsonProperty("allergiesDetail")               String allergiesDetail
 ) {
     public Validation<AdoptionRequestFormCreateRequest> validate() {
-        var r = Validation.<AdoptionRequestFormCreateRequest>valid(this);
+        return Validation.valid(this)
+                .required("hasPreviousCatExperience",      hasPreviousCatExperience)
+                .and(adultsInHousehold(adultsInHousehold))
+                .required("hasChildren",                   hasChildren)
+                .required("hasOtherPets",                  hasOtherPets)
+                .and(hoursAlonePerDay(hoursAlonePerDay))
+                .required("stableHousing",                 stableHousing)
+                .required("housingType",                   housingType)
+                .and(housingSize(housingSize))
+                .required("hasOutdoorAccess",              hasOutdoorAccess)
+                .required("isRental",                      isRental)
+                .required("hasWindowsWithView",            hasWindowsWithView)
+                .required("hasVerticalSpace",              hasVerticalSpace)
+                .required("hasHidingSpots",                hasHidingSpots)
+                .required("householdActivityLevel",        householdActivityLevel)
+                .requiredString("whyCatsNeedToPlay",       whyCatsNeedToPlay)
+                .and(dailyPlayMinutes(dailyPlayMinutes))
+                .requiredString("plannedEnrichment",       plannedEnrichment)
+                .requiredString("reactionToUnwantedBehavior", reactionToUnwantedBehavior)
+                .required("hasScratchingPost",             hasScratchingPost)
+                .required("willingToEnrichEnvironment",    willingToEnrichEnvironment)
+                .requiredString("motivationToAdopt",       motivationToAdopt)
+                .required("understandsLongTermCommitment", understandsLongTermCommitment)
+                .required("hasVetBudget",                  hasVetBudget)
+                .required("allHouseholdMembersAgree",      allHouseholdMembersAgree)
+                .required("anyoneHasAllergies",            anyoneHasAllergies);
+    }
 
-        if (hasPreviousCatExperience == null)      r = r.and(Validation.invalidOne("hasPreviousCatExperience", "REQUIRED"));
-        if (adultsInHousehold == null)             r = r.and(Validation.invalidOne("adultsInHousehold",        "REQUIRED"));
-        else if (adultsInHousehold < 1)            r = r.and(Validation.invalidOne("adultsInHousehold",        "TOO_SMALL"));
-        if (hasChildren == null)                   r = r.and(Validation.invalidOne("hasChildren",              "REQUIRED"));
-        if (hasOtherPets == null)                  r = r.and(Validation.invalidOne("hasOtherPets",             "REQUIRED"));
-        if (hoursAlonePerDay == null)              r = r.and(Validation.invalidOne("hoursAlonePerDay",         "REQUIRED"));
-        else if (hoursAlonePerDay < 0 || hoursAlonePerDay > 24) r = r.and(Validation.invalidOne("hoursAlonePerDay", "INVALID_FORMAT"));
-        if (stableHousing == null)                 r = r.and(Validation.invalidOne("stableHousing",            "REQUIRED"));
+    private static Validation<?> adultsInHousehold(Integer v) {
+        if (v == null) return Validation.invalidOne("adultsInHousehold", "REQUIRED");
+        if (v < 1)     return Validation.invalidOne("adultsInHousehold", "TOO_SMALL");
+        return Validation.valid(v);
+    }
 
-        if (housingType == null)                   r = r.and(Validation.invalidOne("housingType",              "REQUIRED"));
-        if (housingSize == null)                   r = r.and(Validation.invalidOne("housingSize",              "REQUIRED"));
-        else if (housingSize < 1)                  r = r.and(Validation.invalidOne("housingSize",              "TOO_SMALL"));
-        if (hasOutdoorAccess == null)              r = r.and(Validation.invalidOne("hasOutdoorAccess",         "REQUIRED"));
-        if (isRental == null)                      r = r.and(Validation.invalidOne("isRental",                 "REQUIRED"));
-        if (hasWindowsWithView == null)            r = r.and(Validation.invalidOne("hasWindowsWithView",       "REQUIRED"));
-        if (hasVerticalSpace == null)              r = r.and(Validation.invalidOne("hasVerticalSpace",         "REQUIRED"));
-        if (hasHidingSpots == null)                r = r.and(Validation.invalidOne("hasHidingSpots",           "REQUIRED"));
-        if (householdActivityLevel == null)        r = r.and(Validation.invalidOne("householdActivityLevel",   "REQUIRED"));
+    private static Validation<?> hoursAlonePerDay(Integer v) {
+        if (v == null)        return Validation.invalidOne("hoursAlonePerDay", "REQUIRED");
+        if (v < 0 || v > 24) return Validation.invalidOne("hoursAlonePerDay", "INVALID_FORMAT");
+        return Validation.valid(v);
+    }
 
-        if (whyCatsNeedToPlay == null || whyCatsNeedToPlay.isBlank())           r = r.and(Validation.invalidOne("whyCatsNeedToPlay",          "REQUIRED"));
-        if (dailyPlayMinutes == null)              r = r.and(Validation.invalidOne("dailyPlayMinutes",         "REQUIRED"));
-        else if (dailyPlayMinutes < 0)             r = r.and(Validation.invalidOne("dailyPlayMinutes",         "TOO_SMALL"));
-        if (plannedEnrichment == null || plannedEnrichment.isBlank())           r = r.and(Validation.invalidOne("plannedEnrichment",          "REQUIRED"));
-        if (reactionToUnwantedBehavior == null || reactionToUnwantedBehavior.isBlank()) r = r.and(Validation.invalidOne("reactionToUnwantedBehavior", "REQUIRED"));
-        if (hasScratchingPost == null)             r = r.and(Validation.invalidOne("hasScratchingPost",        "REQUIRED"));
-        if (willingToEnrichEnvironment == null)    r = r.and(Validation.invalidOne("willingToEnrichEnvironment", "REQUIRED"));
+    private static Validation<?> housingSize(Integer v) {
+        if (v == null) return Validation.invalidOne("housingSize", "REQUIRED");
+        if (v < 1)     return Validation.invalidOne("housingSize", "TOO_SMALL");
+        return Validation.valid(v);
+    }
 
-        if (motivationToAdopt == null || motivationToAdopt.isBlank())           r = r.and(Validation.invalidOne("motivationToAdopt",          "REQUIRED"));
-        if (understandsLongTermCommitment == null) r = r.and(Validation.invalidOne("understandsLongTermCommitment", "REQUIRED"));
-        if (hasVetBudget == null)                  r = r.and(Validation.invalidOne("hasVetBudget",             "REQUIRED"));
-        if (allHouseholdMembersAgree == null)      r = r.and(Validation.invalidOne("allHouseholdMembersAgree", "REQUIRED"));
-        if (anyoneHasAllergies == null)            r = r.and(Validation.invalidOne("anyoneHasAllergies",       "REQUIRED"));
-
-        return r;
+    private static Validation<?> dailyPlayMinutes(Integer v) {
+        if (v == null) return Validation.invalidOne("dailyPlayMinutes", "REQUIRED");
+        if (v < 0)     return Validation.invalidOne("dailyPlayMinutes", "TOO_SMALL");
+        return Validation.valid(v);
     }
 }
