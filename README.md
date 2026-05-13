@@ -1,3 +1,8 @@
+<div align="right">
+  <strong>🇬🇧 English</strong> &nbsp;|&nbsp;
+  <a href="README.es.md">🇪🇸 Español</a>
+</div>
+
 # Kitties API
 
 Microservices backend for Kitties, a cat adoption platform for shelters and veterinarians. Maven multi-module monorepo built with Quarkus 3.34.3 and Java 21.
