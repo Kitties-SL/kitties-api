@@ -12,9 +12,8 @@ public record UserUpdateRequest(
         @JsonProperty("birthdate") LocalDate birthdate
 ) {
     public Validation<UserUpdateRequest> validate() {
-        var result = Validation.<UserUpdateRequest>valid(this);
-        if (name != null)    result = result.and(Name.of("name", name));
-        if (surname != null) result = result.and(Name.of("surname", surname));
-        return result;
+        return Validation.valid(this)
+                .optional(name,    v -> Name.of("name", v))
+                .optional(surname, v -> Name.of("surname", v));
     }
 }
