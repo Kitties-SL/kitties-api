@@ -1,6 +1,7 @@
 package es.kitti.organization.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
@@ -96,19 +97,19 @@ public class OrganizationMemberService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Void>> removeMember(Long organizationId, Long targetUserId, Long callerId) {
+    public Uni<Either<DomainError, Unit>> removeMember(Long organizationId, Long targetUserId, Long callerId) {
         return requireAdmin(organizationId, callerId)
                 .onItem().transformToUni(either -> either.fold(
                         err -> Uni.createFrom().item(Either.left(err)),
                         __ -> memberRepository.findActiveByOrganizationIdAndUserId(organizationId, targetUserId)
                                 .onItem().transformToUni(opt -> {
                                     if (opt.isEmpty())
-                                        return Uni.createFrom().item(Either.<DomainError, Void>left(
+                                        return Uni.createFrom().item(Either.left(
                                                 new NotFoundError("MEMBER_NOT_FOUND")));
                                     OrganizationMember member = opt.get();
                                     member.status = MemberStatus.Removed;
                                     return memberRepository.persist(member)
-                                            .onItem().transform(m -> Either.<DomainError, Void>right(null));
+                                            .onItem().transform(m -> Either.unit());
                                 })
                 ));
     }
@@ -117,17 +118,17 @@ public class OrganizationMemberService {
         return memberRepository.findActiveByUserId(userId);
     }
 
-    public Uni<Either<DomainError, Void>> requireAdmin(Long organizationId, Long userId) {
+    public Uni<Either<DomainError, Unit>> requireAdmin(Long organizationId, Long userId) {
         return memberRepository.isAdmin(organizationId, userId)
                 .onItem().transform(isAdmin -> isAdmin
-                        ? Either.<DomainError, Void>right(null)
-                        : Either.<DomainError, Void>left(new ForbiddenError("FORBIDDEN")));
+                        ? Either.unit()
+                        : Either.<DomainError, Unit>left(new ForbiddenError("FORBIDDEN")));
     }
 
-    public Uni<Either<DomainError, Void>> requireMember(Long organizationId, Long userId) {
+    public Uni<Either<DomainError, Unit>> requireMember(Long organizationId, Long userId) {
         return memberRepository.isMember(organizationId, userId)
                 .onItem().transform(isMember -> isMember
-                        ? Either.<DomainError, Void>right(null)
-                        : Either.<DomainError, Void>left(new ForbiddenError("FORBIDDEN")));
+                        ? Either.unit()
+                        : Either.<DomainError, Unit>left(new ForbiddenError("FORBIDDEN")));
     }
 }

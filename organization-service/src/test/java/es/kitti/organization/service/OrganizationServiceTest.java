@@ -74,11 +74,7 @@ class OrganizationServiceTest {
     @Test
     void testFindByIdNotFound_returnsLeft404() {
         when(memberService.requireMember(99L, 10L))
-                .thenReturn(
-                            Uni.createFrom()
-                                    .item(Either.right(null)
-                        )
-                );
+                .thenReturn(Uni.createFrom().item(Either.unit()));
         when(organizationRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
 
         var result = service.findById(99L, 10L).await().indefinitely();
@@ -134,7 +130,7 @@ class OrganizationServiceTest {
 
     @Test
     void testUpdateByAdmin_returnsRight() {
-        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(Either.right(null)));
+        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(Either.unit()));
         org.name = "Updated";
         when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
         when(organizationRepository.persist(any(Organization.class))).thenReturn(Uni.createFrom().item(org));
