@@ -27,6 +27,14 @@ public sealed interface Validation<T> permits Validation.Valid, Validation.Inval
         return new Invalid<>(new ValidationError(List.of(new FieldViolation(field, code))));
     }
 
+    static <T> Validation<T> required(String field, T value) {
+        return value == null ? invalidOne(field, "REQUIRED") : valid(value);
+    }
+
+    static Validation<String> requiredString(String field, String value) {
+        return (value == null || value.isBlank()) ? invalidOne(field, "REQUIRED") : valid(value);
+    }
+
     default <U> Validation<U> map(Function<T, U> fn) {
         return switch (this) {
             case Valid<T>(T t)               -> Validation.valid(fn.apply(t));
