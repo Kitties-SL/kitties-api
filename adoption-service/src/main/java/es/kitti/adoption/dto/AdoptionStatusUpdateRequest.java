@@ -9,8 +9,7 @@ public record AdoptionStatusUpdateRequest(
         @JsonProperty("reason") String reason
 ) {
     public Validation<AdoptionStatusUpdateRequest> validate() {
-        if (status == null)
-            return Validation.invalidOne("status", "REQUIRED");
-        return Validation.valid(this);
+        return Validation.valid(this)
+                .and(Validation.required("status", status));
     }
 }

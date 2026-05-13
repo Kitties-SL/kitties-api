@@ -16,10 +16,9 @@ public record IntakeRequestCreateRequest(
         @JsonProperty("description")          String description
 ) {
     public Validation<IntakeRequestCreateRequest> validate() {
-        var result = Validation.<IntakeRequestCreateRequest>valid(this);
-        if (targetOrganizationId == null) result = result.and(Validation.invalidOne("targetOrganizationId", "REQUIRED"));
-        if (vaccinated == null)           result = result.and(Validation.invalidOne("vaccinated",           "REQUIRED"));
-        return result
+        return Validation.valid(this)
+                .and(Validation.required("targetOrganizationId", targetOrganizationId))
+                .and(Validation.required("vaccinated",           vaccinated))
                 .and(Name.of("catName", catName))
                 .and(Name.of("region",  region))
                 .and(City.of(city))

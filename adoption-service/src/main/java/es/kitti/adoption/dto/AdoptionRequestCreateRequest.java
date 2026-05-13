@@ -8,9 +8,8 @@ public record AdoptionRequestCreateRequest(
         @JsonProperty("organizationId") Long organizationId
 ) {
     public Validation<AdoptionRequestCreateRequest> validate() {
-        var result = Validation.<AdoptionRequestCreateRequest>valid(this);
-        if (catId == null)          result = result.and(Validation.invalidOne("catId",          "REQUIRED"));
-        if (organizationId == null) result = result.and(Validation.invalidOne("organizationId", "REQUIRED"));
-        return result;
+        return Validation.valid(this)
+                .and(Validation.required("catId",          catId))
+                .and(Validation.required("organizationId", organizationId));
     }
 }

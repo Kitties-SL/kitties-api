@@ -24,13 +24,12 @@ public record AdoptionFormCreateRequest(
         @JsonProperty("additionalNotes")           String additionalNotes
 ) {
     public Validation<AdoptionFormCreateRequest> validate() {
-        var result = Validation.<AdoptionFormCreateRequest>valid(this);
-        if (acceptsVetVisits == null)          result = result.and(Validation.invalidOne("acceptsVetVisits",          "REQUIRED"));
-        if (acceptsFollowUpContact == null)    result = result.and(Validation.invalidOne("acceptsFollowUpContact",    "REQUIRED"));
-        if (acceptsReturnIfNeeded == null)     result = result.and(Validation.invalidOne("acceptsReturnIfNeeded",     "REQUIRED"));
-        if (acceptsTermsAndConditions == null) result = result.and(Validation.invalidOne("acceptsTermsAndConditions", "REQUIRED"));
-        if (consentHealthData == null)         result = result.and(Validation.invalidOne("consentHealthData",         "REQUIRED"));
-        return result
+        return Validation.valid(this)
+                .and(Validation.required("acceptsVetVisits",          acceptsVetVisits))
+                .and(Validation.required("acceptsFollowUpContact",    acceptsFollowUpContact))
+                .and(Validation.required("acceptsReturnIfNeeded",     acceptsReturnIfNeeded))
+                .and(Validation.required("acceptsTermsAndConditions", acceptsTermsAndConditions))
+                .and(Validation.required("consentHealthData",         consentHealthData))
                 .and(Name.of("fullName", fullName))
                 .and(IdNumber.of(idNumber))
                 .and(Phone.of(phone))
