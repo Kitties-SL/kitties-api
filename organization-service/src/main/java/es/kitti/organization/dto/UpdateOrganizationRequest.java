@@ -15,6 +15,9 @@ public record UpdateOrganizationRequest(
         @JsonProperty("logoUrl")     String logoUrl
 ) {
     public Validation<UpdateOrganizationRequest> validate() {
-        return Validation.valid(this);
+        return Validation.valid(this)
+                .optional(name, v -> v.isBlank()
+                        ? Validation.invalidOne("name", "REQUIRED")
+                        : Validation.valid(v));
     }
 }
