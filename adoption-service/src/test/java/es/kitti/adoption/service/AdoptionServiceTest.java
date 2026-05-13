@@ -322,7 +322,7 @@ class AdoptionServiceTest {
 
     @Test
     void onFormAnalysed_invalidJson_returnsVoid() throws Exception {
-        doThrow(new IOException("invalid")).when(objectMapper)
+        doThrow(new RuntimeException("invalid json")).when(objectMapper)
                 .readValue(anyString(), eq(AdoptionFormAnalysedEvent.class));
 
         adoptionService.onFormAnalysed("bad json").await().indefinitely();
