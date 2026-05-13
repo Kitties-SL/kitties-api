@@ -7,9 +7,9 @@ import es.kitti.user.entity.ErasureRequest;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
+import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
-import es.kitti.user.exception.LegalHoldException;
 import es.kitti.user.repository.ErasureRequestRepository;
 import es.kitti.user.repository.UserRepository;
 import io.quarkus.hibernate.reactive.panache.Panache;
@@ -49,12 +49,12 @@ public class ErasureService {
     @ConfigProperty(name = "kitties.internal.secret")
     String internalSecret;
 
-    public Uni<Void> requestErasure(Long userId, String requestIp) {
+    public Uni<Either<DomainError, Unit>> requestErasure(Long userId, String requestIp) {
         return Panache.withTransaction(() ->
                 userRepository.findById(userId)
                         .onItem().transformToUni(user -> {
                             if (user.legalHoldUntil != null && user.legalHoldUntil.isAfter(LocalDateTime.now())) {
-                                return Uni.createFrom().failure(new LegalHoldException());
+                                return Uni.createFrom().item(Either.left(new ConflictError("LEGAL_HOLD_ACTIVE")));
                             }
                             LocalDateTime now = LocalDateTime.now();
                             user.status = UserStatus.Inactive;
@@ -68,16 +68,18 @@ public class ErasureService {
                             er.scheduledPurgeAt = user.scheduledPurgeAt;
 
                             return userRepository.persist(user)
-                                    .chain(() -> erasureRequestRepository.persist(er));
+                                    .chain(() -> erasureRequestRepository.persist(er))
+                                    .replaceWith(Either.unit());
                         })
         )
-        .replaceWithVoid()
-        .chain(() -> authInternalClient.deleteTokensByUser(userId, internalSecret)
-                .replaceWithVoid()
-                .onFailure().recoverWithUni(e -> {
-                    Log.warnf("Could not delete auth tokens for user %d (will retry at purge): %s", userId, e.getMessage());
-                    return Uni.createFrom().voidItem();
-                })
+        .call(either -> either.isRight()
+                ? authInternalClient.deleteTokensByUser(userId, internalSecret)
+                        .replaceWithVoid()
+                        .onFailure().recoverWithUni(e -> {
+                            Log.warnf("Could not delete auth tokens for user %d (will retry at purge): %s", userId, e.getMessage());
+                            return Uni.createFrom().voidItem();
+                        })
+                : Uni.createFrom().voidItem()
         );
     }
 

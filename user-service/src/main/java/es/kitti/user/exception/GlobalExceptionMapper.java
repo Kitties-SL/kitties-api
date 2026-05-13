@@ -24,10 +24,6 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
             }
             case ForbiddenException __ ->
                 Response.status(403).entity(ErrorResponse.of(new ForbiddenError("FORBIDDEN"))).build();
-            case LegalHoldException __ ->
-                Response.status(409)
-                        .entity(new ErrorResponse(409, "LEGAL_HOLD_ACTIVE", null, LocalDateTime.now()))
-                        .build();
             default -> {
                 Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
                 yield Response.status(500)

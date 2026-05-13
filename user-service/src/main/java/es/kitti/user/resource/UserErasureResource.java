@@ -49,7 +49,10 @@ public class UserErasureResource {
         Long userId = Long.parseLong(jwt.getSubject());
         String ip = extractIp(headers);
         return erasureService.requestErasure(userId, ip)
-                .onItem().transform(v -> Response.accepted().build());
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        v   -> Response.accepted().build()
+                ));
     }
 
     @PUT
