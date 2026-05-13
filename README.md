@@ -20,6 +20,7 @@ Microservices backend for Kitties, a cat adoption platform for shelters and vete
 - [Deployment](#deployment)
 - [Testing](#testing)
 - [Known Patterns](#known-patterns)
+- [either-mon — Error Handling Library](#either-mon--error-handling-library)
 - [Environment Variables](#environment-variables)
 - [Roadmap](#roadmap)
 - [Privacy & Data Protection](PRIVACY.md)
@@ -616,6 +617,158 @@ public final class Email {
     public String value() { return value; }
 }
 ```
+
+---
+
+## either-mon — Error Handling Library
+
+`either-mon` (`es.kitti.mon`) is the only shared Maven module. It contains pure functional types with no business logic. All services depend on it.
+
+### Either\<L, R\>
+
+Represents a result that is either an error (`Left`) or a value (`Right`). Domain errors become explicit in the return type: if a method returns `Uni<Either<DomainError, CatResponse>>`, the compiler forces handling of both cases.
+
+Use it in service methods that can fail for expected business reasons (not found, forbidden, conflict). Unexpected errors (infrastructure, bugs) still propagate as `Uni` failures and are caught by `GlobalExceptionMapper`.
+
+```java
+// Construction
+Either<DomainError, Cat> ok  = Either.right(cat);
+Either<DomainError, Cat> err = Either.left(new NotFoundError("CAT_NOT_FOUND"));
+
+// For write operations with no useful return value: Unit instead of Void/null
+Either<DomainError, Unit> ok = Either.<DomainError>unit();  // Right(Unit.Instance)
+
+// Inspection
+result.isRight()   // true if Right
+result.isLeft()    // true if Left
+
+// Extract with fallback
+Cat cat = result.getOrElse(null);
+
+// Transform Right (Left propagates untouched)
+Either<DomainError, CatResponse> response = result.map(cat -> mapper.toResponse(cat));
+
+// Chain operations that can also fail
+Either<DomainError, String> name = result.flatMap(cat ->
+        cat.name == null ? Either.left(new BadRequestError("NAME_MISSING")) : Either.right(cat.name));
+
+// Collapse both branches to the same type
+Response httpResponse = result.fold(
+        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+        cat -> Response.ok(cat).build()
+);
+```
+
+**Full service → resource pattern:**
+
+```java
+// Service (@WithSession for reads; writes delegate to *WriteService with @WithTransaction)
+@WithSession
+public Uni<Either<DomainError, CatResponse>> findById(Long id, Long callerId) {
+    return catRepository.findById(id)
+            .onItem().transformToUni(cat -> {
+                if (cat == null)
+                    return Uni.createFrom().item(Either.left(new NotFoundError("CAT_NOT_FOUND")));
+                if (!cat.organizationId.equals(callerId))
+                    return Uni.createFrom().item(Either.left(new ForbiddenError("CAT_ACCESS_DENIED")));
+                return Uni.createFrom().item(Either.<DomainError, CatResponse>right(mapper.toResponse(cat)));
+            });
+}
+
+// Resource
+public Uni<Response> findById(@PathParam("id") Long id) {
+    return catService.findById(id, Long.parseLong(jwt.getSubject()))
+            .onItem().transform(either -> either.fold(
+                    err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                    cat -> Response.ok(cat).build()
+            ));
+}
+```
+
+### DomainError types
+
+| Type | HTTP | When |
+|---|---|---|
+| `NotFoundError(String code)` | 404 | Entity not found |
+| `ForbiddenError(String code)` | 403 | Access denied by domain permissions |
+| `ConflictError(String code)` | 409 | Invalid state: duplicate, limit reached, active adoption… |
+| `UnauthorizedError(String code)` | 401 | Invalid token or credentials |
+| `BadRequestError(String code)` | 400 | Invalid content that doesn't fit field validation |
+| `ValidationError(List<FieldViolation>)` | 422 | Result of `Validation` — see below |
+
+The `code` field is machine-readable so the client can look up the message in the user's language. Convention: `ENTITY_REASON` in uppercase, e.g. `CAT_NOT_FOUND`, `EMAIL_ALREADY_EXISTS`.
+
+### Validation\<T\>
+
+Accumulates all validation violations instead of stopping at the first one. Designed to validate HTTP input before it reaches the service layer.
+
+**Key difference vs Either:** `Either` short-circuits (if something fails, the rest is skipped). `Validation` evaluates all fields and returns all violations together.
+
+```java
+// In a request DTO
+public record CatCreateRequest(String name, Integer age, String city) {
+    public Validation<CatCreateRequest> validate() {
+        return Validation.valid(this)
+                .and(Name.of("name", name))
+                .and(CatAge.of(age))
+                .and(City.of(city));
+    }
+}
+
+// In a resource
+@POST
+public Uni<Response> create(CatCreateRequest request) {
+    return request.validate().match(
+            err   -> Uni.createFrom().item(Response.status(422).entity(ErrorResponse.of(err)).build()),
+            valid -> catService.create(valid, callerId).onItem().transform(cat -> Response.status(201).entity(cat).build())
+    );
+}
+```
+
+Operators: `.required()`, `.requiredString()`, `.optional()`, `.and()`, `.zip()`. Terminals: `.match()`, `.toEither()`, `.fromBusiness()`.
+
+### Try\<T\>
+
+Captures exceptions from synchronous code and converts them to `Either`. Useful in resources for parsing query string params:
+
+```java
+Try.attempt(() -> LocalDateTime.parse(param))
+   .<DomainError>toEither(e -> new BadRequestError("INVALID_DATE_FORMAT"))
+   .fold(
+       err  -> Uni.createFrom().item(Response.status(err.httpStatus())...),
+       date -> service.setLegalHold(userId, date)...
+   );
+```
+
+### Value Objects
+
+Guarantee a field is valid by construction: if you have a `Name` instance, the value satisfies all business rules for a name.
+
+```java
+public final class Name {
+    private final String value;
+    private Name(String value) { this.value = value; }
+
+    public static Validation<Name> of(String field, String raw) {
+        if (raw == null || raw.isBlank()) return Validation.invalidOne(field, "REQUIRED");
+        if (raw.length() > 100)           return Validation.invalidOne(field, "INVALID_SIZE");
+        return Validation.valid(new Name(raw.trim()));
+    }
+
+    public String value() { return value; }
+}
+```
+
+Rules: `final class`, private constructor, `of()` returns `Validation<VO>` (never throws).
+
+### ErrorResponse
+
+```json
+{ "status": 404, "code": "CAT_NOT_FOUND", "timestamp": "2026-05-14T10:30:00" }
+{ "status": 422, "code": "VALIDATION_FAILED", "violations": [{"field":"name","code":"REQUIRED"}], "timestamp": "..." }
+```
+
+Factories: `ErrorResponse.of(DomainError)` for domain errors, `ErrorResponse.internalError()` for unhandled 500s.
 
 ---
 
