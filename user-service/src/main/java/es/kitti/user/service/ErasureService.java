@@ -54,7 +54,7 @@ public class ErasureService {
                 userRepository.findById(userId)
                         .onItem().transformToUni(user -> {
                             if (user.legalHoldUntil != null && user.legalHoldUntil.isAfter(LocalDateTime.now())) {
-                                return Uni.createFrom().item(Either.left(new ConflictError("LEGAL_HOLD_ACTIVE")));
+                                return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("LEGAL_HOLD_ACTIVE")));
                             }
                             LocalDateTime now = LocalDateTime.now();
                             user.status = UserStatus.Inactive;
@@ -69,7 +69,7 @@ public class ErasureService {
 
                             return userRepository.persist(user)
                                     .chain(() -> erasureRequestRepository.persist(er))
-                                    .replaceWith(Either.unit());
+                                    .replaceWith(Either.<DomainError>unit());
                         })
         )
         .call(either -> either.isRight()
