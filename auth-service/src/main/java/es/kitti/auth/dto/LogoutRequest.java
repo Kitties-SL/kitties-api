@@ -8,6 +8,6 @@ public record LogoutRequest(
 ) {
     public Validation<LogoutRequest> validate() {
         return Validation.valid(this)
-                .requiredString("refreshToken", refreshToken));
+                .requiredString("refreshToken", refreshToken);
     }
 }

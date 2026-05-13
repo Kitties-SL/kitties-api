@@ -9,6 +9,6 @@ public record ChangeMemberRoleRequest(
 ) {
     public Validation<ChangeMemberRoleRequest> validate() {
         return Validation.valid(this)
-                .required("role", role));
+                .required("role", role);
     }
 }

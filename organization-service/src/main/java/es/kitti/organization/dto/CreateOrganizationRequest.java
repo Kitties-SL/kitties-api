@@ -16,6 +16,6 @@ public record CreateOrganizationRequest(
 ) {
     public Validation<CreateOrganizationRequest> validate() {
         return Validation.valid(this)
-                .requiredString("name", name));
+                .requiredString("name", name);
     }
 }
