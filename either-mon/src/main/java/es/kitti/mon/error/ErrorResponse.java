@@ -19,4 +19,8 @@ public record ErrorResponse(
         }
         return new ErrorResponse(error.httpStatus(), error.code(), null, LocalDateTime.now());
     }
+
+    public static ErrorResponse internalError() {
+        return new ErrorResponse(500, "INTERNAL_SERVER_ERROR", null, LocalDateTime.now());
+    }
 }
