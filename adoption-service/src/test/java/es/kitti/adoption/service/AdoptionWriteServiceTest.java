@@ -128,7 +128,7 @@ class AdoptionWriteServiceTest {
     void submitRequestForm_happyPath_returnsRight() {
         var form = new AdoptionRequestForm();
         when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
-        when(adoptionMapper.toEntity(null, 1L)).thenReturn(form);
+        when(adoptionMapper.toEntity((AdoptionRequestFormCreateRequest) null, 1L)).thenReturn(form);
         when(adoptionRequestFormRepository.persist(form)).thenReturn(Uni.createFrom().item(form));
         when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionMapper.toResponse(form)).thenReturn(null);
@@ -136,7 +136,7 @@ class AdoptionWriteServiceTest {
         var result = adoptionWriteService.submitRequestForm(1L, null, 100L).await().indefinitely();
 
         assertTrue(result.isRight());
-        verify(adoptionFormSubmittedEmitter).send(any());
+        verify(adoptionFormSubmittedEmitter).send(any(AdoptionFormSubmittedEvent.class));
     }
 
     @Test
@@ -156,7 +156,7 @@ class AdoptionWriteServiceTest {
         testAdoption.status = AdoptionStatus.Accepted;
         var interview = new Interview();
         when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
-        when(adoptionMapper.toEntity(null, 1L)).thenReturn(interview);
+        when(adoptionMapper.toEntity((InterviewCreateRequest) null, 1L)).thenReturn(interview);
         when(interviewRepository.persist(interview)).thenReturn(Uni.createFrom().item(interview));
         when(adoptionMapper.toResponse(interview)).thenReturn(null);
 
@@ -183,7 +183,7 @@ class AdoptionWriteServiceTest {
         var form = new AdoptionForm();
         when(adoptionFormRepository.findByAdoptionRequestId(1L)).thenReturn(Uni.createFrom().nullItem());
         when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
-        when(adoptionMapper.toEntity(null, 1L)).thenReturn(form);
+        when(adoptionMapper.toEntity((AdoptionFormCreateRequest) null, 1L)).thenReturn(form);
         when(adoptionFormRepository.persist(form)).thenReturn(Uni.createFrom().item(form));
         when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionMapper.toResponse(form)).thenReturn(null);
