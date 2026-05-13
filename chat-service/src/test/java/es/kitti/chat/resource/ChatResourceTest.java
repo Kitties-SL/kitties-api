@@ -89,7 +89,7 @@ class ChatResourceTest {
                 .when()
                 .post("/chats/1/messages")
                 .then()
-                .statusCode(400);
+                .statusCode(422);
     }
 
     @Test
