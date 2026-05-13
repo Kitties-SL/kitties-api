@@ -7,8 +7,7 @@ public record LogoutRequest(
         @JsonProperty("refreshToken") String refreshToken
 ) {
     public Validation<LogoutRequest> validate() {
-        return refreshToken == null || refreshToken.isBlank()
-                ? Validation.invalidOne("refreshToken", "REQUIRED")
-                : Validation.valid(this);
+        return Validation.valid(this)
+                .and(Validation.requiredString("refreshToken", refreshToken));
     }
 }
