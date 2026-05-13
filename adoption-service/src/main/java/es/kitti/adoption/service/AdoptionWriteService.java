@@ -142,4 +142,17 @@ public class AdoptionWriteService {
                 form.allHouseholdMembersAgree, form.anyoneHasAllergies, form.allergiesDetail
         );
     }
+
+    @WithTransaction
+    public Uni<Void> applyFormAnalysisResult(Long adoptionRequestId, String decision, String rejectionReason) {
+        return adoptionRequestRepository.findById(adoptionRequestId)
+                .onItem().transformToUni(adoption -> {
+                    if (adoption == null) return Uni.createFrom().voidItem();
+                    if ("REJECTED".equals(decision)) {
+                        adoption.status = AdoptionStatus.Rejected;
+                        adoption.rejectionReason = rejectionReason;
+                    }
+                    return adoptionRequestRepository.persist(adoption).replaceWithVoid();
+                });
+    }
 }

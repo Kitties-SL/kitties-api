@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.*;
-import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -208,19 +207,8 @@ public class AdoptionService {
     public Uni<Void> onFormAnalysed(String message) {
         try {
             AdoptionFormAnalysedEvent event = objectMapper.readValue(message, AdoptionFormAnalysedEvent.class);
-            return Panache.withTransaction(() ->
-                    findAdoptionOrNotFound(event.adoptionRequestId())
-                            .onItem().transformToUni(either -> either.fold(
-                                    err      -> Uni.createFrom().voidItem(),
-                                    adoption -> {
-                                        if ("REJECTED".equals(event.decision())) {
-                                            adoption.status = AdoptionStatus.Rejected;
-                                            adoption.rejectionReason = event.rejectionReason();
-                                        }
-                                        return adoptionRequestRepository.persist(adoption).replaceWithVoid();
-                                    }
-                            ))
-            );
+            return adoptionWriteService.applyFormAnalysisResult(
+                    event.adoptionRequestId(), event.decision(), event.rejectionReason());
         } catch (Exception e) {
             return Uni.createFrom().voidItem();
         }
