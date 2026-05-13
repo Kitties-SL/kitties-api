@@ -9,7 +9,7 @@ public record AdoptionRequestCreateRequest(
 ) {
     public Validation<AdoptionRequestCreateRequest> validate() {
         return Validation.valid(this)
-                .and(Validation.required("catId",          catId))
-                .and(Validation.required("organizationId", organizationId));
+                .required("catId",          catId))
+                .required("organizationId", organizationId));
     }
 }

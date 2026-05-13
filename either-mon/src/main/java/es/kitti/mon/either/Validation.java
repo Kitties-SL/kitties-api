@@ -27,13 +27,6 @@ public sealed interface Validation<T> permits Validation.Valid, Validation.Inval
         return new Invalid<>(new ValidationError(List.of(new FieldViolation(field, code))));
     }
 
-    static <T> Validation<T> required(String field, T value) {
-        return value == null ? invalidOne(field, "REQUIRED") : valid(value);
-    }
-
-    static Validation<String> requiredString(String field, String value) {
-        return (value == null || value.isBlank()) ? invalidOne(field, "REQUIRED") : valid(value);
-    }
 
     default <U> Validation<U> map(Function<T, U> fn) {
         return switch (this) {
@@ -74,6 +67,16 @@ public sealed interface Validation<T> permits Validation.Valid, Validation.Inval
             ),
             ignored -> this
         );
+    }
+
+    default <U> Validation<T> required(String field, U value) {
+        if (value == null) return and(Validation.invalidOne(field, "REQUIRED"));
+        return this;
+    }
+
+    default Validation<T> requiredString(String field, String value) {
+        if (value == null || value.isBlank()) return and(Validation.invalidOne(field, "REQUIRED"));
+        return this;
     }
 
     default <U> Validation<T> optional(U value, Function<U, Validation<?>> validator) {

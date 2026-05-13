@@ -10,6 +10,6 @@ public record AdoptionStatusUpdateRequest(
 ) {
     public Validation<AdoptionStatusUpdateRequest> validate() {
         return Validation.valid(this)
-                .and(Validation.required("status", status));
+                .required("status", status));
     }
 }

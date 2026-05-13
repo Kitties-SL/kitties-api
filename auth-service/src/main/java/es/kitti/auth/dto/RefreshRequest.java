@@ -8,6 +8,6 @@ public record RefreshRequest(
 ) {
     public Validation<RefreshRequest> validate() {
         return Validation.valid(this)
-                .and(Validation.requiredString("refreshToken", refreshToken));
+                .requiredString("refreshToken", refreshToken));
     }
 }

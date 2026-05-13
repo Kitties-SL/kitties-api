@@ -17,8 +17,8 @@ public record IntakeRequestCreateRequest(
 ) {
     public Validation<IntakeRequestCreateRequest> validate() {
         return Validation.valid(this)
-                .and(Validation.required("targetOrganizationId", targetOrganizationId))
-                .and(Validation.required("vaccinated",           vaccinated))
+                .required("targetOrganizationId", targetOrganizationId))
+                .required("vaccinated",           vaccinated))
                 .and(Name.of("catName", catName))
                 .and(Name.of("region",  region))
                 .and(City.of(city))
