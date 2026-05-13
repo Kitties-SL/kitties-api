@@ -25,6 +25,10 @@ propagándose como fallos del `Uni` y los captura el `GlobalExceptionMapper`.
 Either<DomainError, Cat> ok  = Either.right(cat);
 Either<DomainError, Cat> err = Either.left(new NotFoundError("CAT_NOT_FOUND"));
 
+// Para operaciones de escritura sin valor de retorno útil: Unit en lugar de Void/null
+Either<DomainError, Unit> ok = Either.unit();          // Right(Unit.Instance)
+Either<DomainError, Unit> ok = Either.<DomainError>unit(); // con type witness explícito
+
 // Inspección
 result.isRight()   // true si es Right
 result.isLeft()    // true si es Left
@@ -257,6 +261,27 @@ Reglas:
 
 ---
 
+## Try<T>
+
+Captura excepciones de código síncrono y las convierte en `Either`. Especialmente útil en la
+capa resource para parsear parámetros de query string que pueden lanzar en el parsing:
+
+```java
+// Parsear fecha de un query param sin propagar la excepción
+Try.attempt(() -> LocalDateTime.parse(holdUntilIso))
+   .<DomainError>toEither(e -> new BadRequestError("INVALID_DATE_FORMAT"))
+   .fold(
+       err       -> Uni.createFrom().item(Response.status(err.httpStatus())...),
+       holdUntil -> service.setLegalHold(userId, holdUntil)...
+   );
+```
+
+`Try.attempt(Callable)` ejecuta el lambda: si tiene éxito devuelve `Try.Success(value)`;
+si lanza, devuelve `Try.Failure(exception)`. `toEither(Function<Exception, DomainError>)`
+convierte el fallo en el tipo de error de dominio apropiado.
+
+---
+
 ## ErrorResponse y FieldViolation
 
 Lo que llega al cliente cuando hay errores:
@@ -290,6 +315,18 @@ Para errores de dominio sin violaciones:
 | `TOO_SMALL` | Valor numérico por debajo del mínimo |
 | `TOO_LARGE` | Valor numérico por encima del máximo |
 | `INVALID_VALUE` | Valor no pertenece al conjunto válido (p.ej. enum desconocido) |
+
+### Factory para errores 500
+
+El `GlobalExceptionMapper` de cada servicio usa `ErrorResponse.internalError()` para el
+caso por defecto en lugar de construir el record a mano:
+
+```java
+default -> {
+    Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
+    yield Response.status(500).entity(ErrorResponse.internalError()).build();
+}
+```
 
 ### Añadir params a una violación
 
@@ -333,8 +370,11 @@ public Uni<Response> create(CatCreateRequest request) {
 
 ### Service — firma estándar para operaciones que pueden fallar
 
+Las lecturas usan `@WithSession`; las escrituras se delegan a un bean `*WriteService`
+con `@WithTransaction` (ver sección Reactividad en CLAUDE.md — DIP).
+
 ```java
-@WithTransaction
+@WithSession
 public Uni<Either<DomainError, CatResponse>> updateCat(Long id, CatUpdateRequest request, Long callerId) {
     return catRepository.findById(id)
             .onItem().transformToUni(cat -> {

@@ -113,6 +113,21 @@ Módulo Maven `either-mon` (`es.kitti.mon`). Contiene tipos funcionales puros si
 
 Sealed interface con `Left` y `Right`. Métodos: `map`, `flatMap`, `fold`, `getOrElse`, `isLeft`, `isRight`.
 
+Para operaciones de escritura cuyo happy path no devuelve ningún valor útil, usar `Either<DomainError, Unit>` con el factory `Either.unit()`:
+```java
+return Uni.createFrom().item(Either.<DomainError>unit()); // Right(Unit.Instance)
+```
+
+### Try<T>
+
+Captura excepciones de código síncrono y las convierte en `Either`. Útil en resources para parsear parámetros que pueden lanzar:
+```java
+Try.attempt(() -> LocalDateTime.parse(param))
+   .<DomainError>toEither(e -> new BadRequestError("INVALID_DATE_FORMAT"))
+   .fold(err -> Uni.createFrom().item(Response.status(err.httpStatus())...),
+         date -> service.doSomething(date))
+```
+
 ```java
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.*;
@@ -173,6 +188,14 @@ El `GlobalExceptionMapper` de cada servicio convierte `ConstraintViolationExcept
 ```
 
 Códigos normalizados: `REQUIRED` (NotNull/NotBlank), `INVALID_SIZE` (Size), `INVALID_EMAIL` (Email), `INVALID_FORMAT` (Pattern), `TOO_SMALL`/`TOO_LARGE` (Min/Max).
+
+El `default` case del `GlobalExceptionMapper` usa `ErrorResponse.internalError()`:
+```java
+default -> {
+    Log.errorf(exception, "Unhandled exception: %s", exception.getMessage());
+    yield Response.status(500).entity(ErrorResponse.internalError()).build();
+}
+```
 
 > **Nota:** el `GlobalExceptionMapper` implementa `ExceptionMapper<Throwable>`, que es menos específico que el mapper built-in de Quarkus para `ConstraintViolationException`. El mapper built-in tiene precedencia para validaciones `@Valid` en endpoints JAX-RS y devuelve 400. El `ConstraintViolationMapper` solo actúa para violaciones lanzadas manualmente desde código de servicio.
 
@@ -259,7 +282,18 @@ public Uni<Response> search(
           .onItem().transformToMulti(list -> Multi.createFrom().iterable(list));
   }
   ```
-- `@Incoming` (Kafka) + `@WithTransaction` combinados directamente → fallo. Delegar la persistencia a un bean separado.
+- **`@Incoming` (Kafka) + `@WithTransaction` combinados directamente → fallo.** Delegar la persistencia a un bean `@ApplicationScoped` separado con `@WithTransaction` en el método:
+  ```java
+  // MAL — @Incoming con Panache.withTransaction() inline
+  @Incoming("topic") public Uni<Void> onEvent(String msg) { return Panache.withTransaction(() -> ...); }
+
+  // BIEN — @Incoming delega a un bean @WithTransaction
+  @Incoming("topic") public Uni<Void> onEvent(String msg) { return writeService.persist(...); }
+
+  @ApplicationScoped class WriteService {
+      @WithTransaction public Uni<Void> persist(...) { ... }
+  }
+  ```
 
 ## Autenticación interna (servicio-a-servicio)
 
@@ -380,8 +414,10 @@ El gateway (`gateway-service`, puerto 8080) no debe hacer proxy de rutas `/*/int
 - **Quarkus dev cwd = directorio del módulo**, no la raíz del proyecto. El `.env` raíz NO se carga cuando se arranca con `mvn -pl <módulo>`. Solución: symlink `<módulo>/.env → ../.env` (ya existe en `storage-service`). Si los defaults en `application.properties` no coinciden con el `.env` raíz, el servicio usará credenciales incorrectas.
 - Kafka EXTERNAL listener debe vincularse a `0.0.0.0` dentro del contenedor, no a `127.0.0.1` (Docker no redirige al loopback del contenedor).
 - `MailHogClient.extractActivationToken` espera el body decodificado de Quoted-Printable. Los emails HTML llegan con soft line breaks (`=\n`) y `=3D` en lugar de `=`.
+- **DIP — nunca `Panache.withTransaction()` / `Panache.withSession()` inline en la capa de servicio.** La gestión de transacciones pertenece a beans de infraestructura dedicados (`*WriteService`) con `@WithTransaction` en el método. Un servicio de dominio llama a ese bean inyectado; Mockito puede mockearlo. Las llamadas estáticas de Panache requieren el contexto Quarkus completo y no son testables con `@InjectMocks`.
+- **Testabilidad Mockito:** `@WithSession` / `@WithTransaction` como anotaciones CDI son bypassadas por `@InjectMocks` → no necesitan contexto Vert.x. Las llamadas `Panache.withSession()` / `Panache.withTransaction()` **estáticas e inline** sí necesitan el contexto Quarkus → no testables con Mockito puro.
 - **`Uni.combine()` con dos métodos `@WithSession` en paralelo → 500 en producción.** Hibernate Reactive no permite abrir dos sesiones simultáneamente en el mismo contexto Vert.x. En unit tests no se aprecia porque Mockito bypassa la gestión de sesiones. Solución: siempre encadenar con `transformToUni` (secuencial), nunca combinar en paralelo queries que requieran sesión.
-- **Excepciones de dominio eliminadas.** No crear clases `XxxNotFoundException`, `XxxAlreadyExistsException`, etc. Usar los tipos de `either-mon` (`NotFoundError`, `ConflictError`…) y devolver `Either.left(...)`. Las excepciones que aún existen (`LegalHoldException`) son residuales y deben seguir el mismo patrón al próximo refactor.
+- **Excepciones de dominio eliminadas.** No crear clases `XxxNotFoundException`, `XxxAlreadyExistsException`, etc. Usar los tipos de `either-mon` (`NotFoundError`, `ConflictError`…) y devolver `Either.left(...)`.
 
 ## Comandos habituales
 
@@ -417,10 +453,11 @@ mvn test -Pe2e -pl e2e-tests
 ## Estructura de paquetes (igual en todos los servicios)
 
 ```
-src/main/java/org/ciscoadiz/<servicio>/
+src/main/java/es/kitti/<servicio>/
   entity/      PanacheEntity subclasses
   repository/  PanacheRepository implementations (@ApplicationScoped)
-  service/     Business logic (@WithSession / @WithTransaction)
+  service/     Business logic (@WithSession para lecturas; escribe delegando a *WriteService)
+  service/*WriteService  Beans @ApplicationScoped con @WithTransaction para escrituras atómicas
   resource/    JAX-RS endpoints (@Path, @RolesAllowed)
   dto/         Java Records (request / response)
   mapper/      Manual entity ↔ DTO conversion

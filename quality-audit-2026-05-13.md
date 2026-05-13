@@ -4,56 +4,56 @@ Auditoría de los 11 servicios + either-mon. Foco: patrones de dominio, segurida
 
 ---
 
-## CRÍTICO
+## CRÍTICO ✅ (resueltos en fix/quality-audit)
 
-### 1. `Either.right(null)` en AdoptionService
+### 1. ✅ `Either.right(null)` en AdoptionService
 **Fichero:** `adoption-service/src/main/java/es/kitti/adoption/service/AdoptionService.java` ~línea 122  
 **Problema:** `Either.<DomainError, Void>right(null)` en el happy path de `updateStatus`.  
 **Fix:** Reemplazar por `Either.unit()`.
 
-### 2. `Uni.combine()` con 4 queries `@WithSession` en paralelo
+### 2. ✅ `Uni.combine()` con 4 queries `@WithSession` en paralelo
 **Fichero:** `adoption-service/src/main/java/es/kitti/adoption/service/AdoptionService.java` ~línea 277 (`exportByAdopterId`)  
 **Problema:** `@WithSession` + `Uni.combine().all().unis(...)` con cuatro repositorios en paralelo. Hibernate Reactive no permite abrir dos sesiones simultáneamente en el mismo contexto Vert.x. En tests no se aprecia porque Mockito bypassa la gestión de sesiones.  
 **Fix:** Encadenar con `transformToUni` en lugar de combinar en paralelo (patrón estándar del resto del proyecto).
 
 ---
 
-## ALTO
+## ALTO ✅ (resueltos en fix/quality-audit)
 
-### 3. `StorageResource` sin anotaciones de seguridad
+### 3. ✅ `StorageResource` sin anotaciones de seguridad
 **Ficheros:**
 - `storage-service/src/main/java/es/kitti/storage/resource/StorageResource.java` — `POST /storage/upload` y `DELETE /storage/{key}` sin `@Authenticated`/`@RolesAllowed`
 - `storage-service/src/main/java/es/kitti/storage/resource/FileResource.java` — `GET /storage/files/{key}` es intencionalmente público (documentado en CLAUDE.md), pero la clase no tiene `@PermitAll` explícito
 
 **Fix:** Añadir `@Authenticated` + `@RolesAllowed` apropiados en `StorageResource`; `@PermitAll` en `FileResource`.
 
-### 4. `@Incoming` con `Panache.withTransaction()` directo en `AdoptionService`
+### 4. ✅ `@Incoming` con `Panache.withTransaction()` directo en `AdoptionService`
 **Fichero:** `adoption-service/src/main/java/es/kitti/adoption/service/AdoptionService.java` ~línea 294 (`onFormAnalysed`)  
 **Problema:** El método `@Incoming` contiene `Panache.withTransaction()` inline. El gotcha documentado en CLAUDE.md indica que `@Incoming` + `@WithTransaction` combinados directamente pueden fallar; la lógica de persistencia debe delegarse a un bean separado con `@WithTransaction` en su método.  
 **Fix:** Extraer la lógica transaccional a un método `@ApplicationScoped` + `@WithTransaction`.
 
 ---
 
-## MEDIO
+## MEDIO ✅ (resueltos en fix/quality-audit)
 
-### 5. `new ErrorResponse(500, ...)` directo en los 7 `GlobalExceptionMapper`
+### 5. ✅ `new ErrorResponse(500, ...)` directo en los 7 `GlobalExceptionMapper`
 **Ficheros:** `GlobalExceptionMapper.java` en adoption, user, chat, organization, auth, cat, storage.  
 **Problema:** El `default` case usa el constructor directo (`new ErrorResponse(500, "INTERNAL_SERVER_ERROR", null, LocalDateTime.now())`) mientras que los otros casos (422, 403) usan el factory `ErrorResponse.of(error)`.  
 **Fix:** Añadir `ErrorResponse.internalError()` en either-mon y usarlo en los 7 mappers.
 
-### 6. `ChatResource.blockUser` — null-coalescing antipatrón
+### 6. ✅ `ChatResource.blockUser` — null-coalescing antipatrón
 **Fichero:** `chat-service/src/main/java/es/kitti/chat/resource/ChatResource.java` ~línea 70  
 **Problema:** `BlockUserRequest req = request != null ? request : new BlockUserRequest(null)` — crea un objeto con `null` en lugar de rechazar el request vacío. JAX-RS devolvería 400 automáticamente sin este fallback.  
 **Fix:** Eliminar la asignación; usar `request` directamente.
 
 ---
 
-## BAJO (deuda ya registrada en memoria)
+## BAJO
 
-### 7. 10+ endpoints de colección sin paginación
+### 7. ⏳ 10+ endpoints de colección sin paginación (deuda conocida, pendiente)
 Afecta: adoption × 4 (`/adoptions/my`, `/adoptions/organization`, `/adoptions/organization/cats/{catId}`, `/intake-requests/mine`, `/intake-requests/organization`), cat (`/cats/mine`), chat × 2 (`/chats/mine`, `/chats/organization`), user-internal (`/users/internal/active`), organization-internal (`/organizations/internal/by-region/{region}`).
 
-### 8. Import `@Blocking` sin usar
+### 8. ✅ Import `@Blocking` sin usar
 **Fichero:** `form-analysis-service/src/main/java/es/kitti/formanalysis/service/FormAnalysisService.java` línea 6  
 **Fix:** Eliminar `import io.smallrye.common.annotation.Blocking;`.
 
