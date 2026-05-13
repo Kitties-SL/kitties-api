@@ -1,10 +1,11 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -20,25 +21,32 @@ import java.util.List;
 @Authenticated
 public class AdoptionResource {
 
-    @Inject
-    AdoptionService adoptionService;
-
-    @Inject
-    JsonWebToken jwt;
+    @Inject AdoptionService adoptionService;
+    @Inject JsonWebToken jwt;
 
     @POST
     @RolesAllowed("User")
-    public Uni<Response> createAdoptionRequest(@Valid AdoptionRequestCreateRequest request) {
+    public Uni<Response> createAdoptionRequest(AdoptionRequestCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
-        return adoptionService.createAdoptionRequest(request, adopterId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> adoptionService.createAdoptionRequest(valid, adopterId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
+        );
     }
 
     @GET
     @Path("/{id}")
-    public Uni<AdoptionRequestResponse> findById(@PathParam("id") Long id) {
+    public Uni<Response> findById(@PathParam("id") Long id) {
         Long callerId = Long.parseLong(jwt.getSubject());
-        return adoptionService.findById(id, callerId);
+        return adoptionService.findById(id, callerId)
+                .onItem().transform(either -> either.fold(
+                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        data -> Response.ok(data).build()
+                ));
     }
 
     @GET
@@ -76,43 +84,67 @@ public class AdoptionResource {
     @PATCH
     @Path("/{id}/status")
     @RolesAllowed("Organization")
-    public Uni<AdoptionRequestResponse> updateStatus(
-            @PathParam("id") Long id,
-            @Valid AdoptionStatusUpdateRequest request) {
+    public Uni<Response> updateStatus(@PathParam("id") Long id, AdoptionStatusUpdateRequest request) {
         Long userId = Long.parseLong(jwt.getSubject());
-        return adoptionService.updateStatus(id, request, userId);
+        return request.validate().match(
+                this::validationFailed,
+                valid -> adoptionService.updateStatus(id, valid, userId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.ok(data).build()
+                        ))
+        );
     }
 
     @POST
     @Path("/{id}/form")
     @RolesAllowed("User")
-    public Uni<Response> submitRequestForm(
-            @PathParam("id") Long id,
-            @Valid AdoptionRequestFormCreateRequest request) {
+    public Uni<Response> submitRequestForm(@PathParam("id") Long id,
+                                           AdoptionRequestFormCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
-        return adoptionService.submitRequestForm(id, request, adopterId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                req -> adoptionService.submitRequestForm(id, req, adopterId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        )));
     }
 
     @POST
     @Path("/{id}/interview")
     @RolesAllowed("Organization")
-    public Uni<Response> scheduleInterview(
-            @PathParam("id") Long id,
-            @Valid InterviewCreateRequest request) {
+    public Uni<Response> scheduleInterview(@PathParam("id") Long id, InterviewCreateRequest request) {
         Long organizationId = Long.parseLong(jwt.getSubject());
-        return adoptionService.scheduleInterview(id, request, organizationId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> adoptionService.scheduleInterview(id, valid, organizationId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
+        );
     }
 
     @POST
     @Path("/{id}/adoption-form")
     @RolesAllowed("User")
-    public Uni<Response> submitAdoptionForm(
-            @PathParam("id") Long id,
-            @Valid AdoptionFormCreateRequest request) {
+    public Uni<Response> submitAdoptionForm(@PathParam("id") Long id, AdoptionFormCreateRequest request) {
         Long adopterId = Long.parseLong(jwt.getSubject());
-        return adoptionService.submitAdoptionForm(id, request, adopterId)
-                .onItem().transform(r -> Response.status(Response.Status.CREATED).entity(r).build());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> adoptionService.submitAdoptionForm(id, valid, adopterId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.status(Response.Status.CREATED).entity(data).build()
+                        ))
+        );
     }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
+    }
+
 }

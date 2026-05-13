@@ -15,7 +15,7 @@ import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @QuarkusTest
@@ -67,6 +67,49 @@ class UserResourceTest {
         given().contentType(ContentType.JSON).body(body)
                 .when().post("/users")
                 .then().statusCode(409);
+    }
+
+    @Test
+    void testRegisterUser_invalidEmail_returns422() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {"email": "notanemail", "password": "password123", "name": "Test", "surname": "User"}
+                    """)
+                .when().post("/users")
+                .then()
+                .statusCode(422)
+                .body("code", equalTo("VALIDATION_FAILED"))
+                .body("violations.size()", equalTo(1))
+                .body("violations[0].field", equalTo("email"));
+    }
+
+    @Test
+    void testRegisterUser_shortPassword_returns422() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {"email": "test@kitti.es", "password": "short", "name": "Test", "surname": "User"}
+                    """)
+                .when().post("/users")
+                .then()
+                .statusCode(422)
+                .body("code", equalTo("VALIDATION_FAILED"))
+                .body("violations[0].field", equalTo("password"));
+    }
+
+    @Test
+    void testRegisterUser_multipleErrors_accumulatesAll() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                    {"email": "bad", "password": "x", "name": "", "surname": ""}
+                    """)
+                .when().post("/users")
+                .then()
+                .statusCode(422)
+                .body("code", equalTo("VALIDATION_FAILED"))
+                .body("violations.size()", equalTo(4));
     }
 
     @Test

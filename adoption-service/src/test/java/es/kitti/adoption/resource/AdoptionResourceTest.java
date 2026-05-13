@@ -68,6 +68,24 @@ class AdoptionResourceTest {
     }
 
     @Test
+    @TestSecurity(user = "1", roles = "User")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = "1"),
+            @Claim(key = "email", value = "test@kitti.es")
+    })
+    void testCreateAdoptionRequest_missingFields_returns422() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .when()
+                .post("/adoptions")
+                .then()
+                .statusCode(422)
+                .body("code", equalTo("VALIDATION_FAILED"))
+                .body("violations.size()", equalTo(2));
+    }
+
+    @Test
     void testCreateAdoptionRequestUnauthorized() {
         given()
                 .contentType(ContentType.JSON)

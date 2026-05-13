@@ -2,11 +2,11 @@ package es.kitti.user.resource;
 
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
 import es.kitti.user.dto.*;
@@ -35,29 +35,35 @@ public class UserResource {
 
     @POST
     @PermitAll
-    public Uni<Response> createUser(@Valid UserCreateRequest request, @Context UriInfo uriInfo) {
-        return userService.createUser(request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        user -> {
-                            var location = uriInfo.getAbsolutePathBuilder().path(user.email()).build();
-                            return Response.created(location).entity(user).build();
-                        }
-                ));
+    public Uni<Response> createUser(UserCreateRequest request, @Context UriInfo uriInfo) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.createUser(valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                user -> {
+                                    var location = uriInfo.getAbsolutePathBuilder().path(user.email()).build();
+                                    return Response.created(location).entity(user).build();
+                                }
+                        ))
+        );
     }
 
     @PUT
     @Path("/{email}")
     public Uni<Response> updateUser(@PathParam("email") String email, UserUpdateRequest request) {
-        return requireSelf(email)
-                .onItem().transformToUni(either -> either.fold(
-                        err -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
-                        __ -> userService.updateUser(email, request)
-                                .onItem().transform(upd -> upd.fold(
-                                        e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
-                                        user -> Response.ok(user).build()
-                                ))
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> requireSelf(email)
+                        .onItem().transformToUni(either -> either.fold(
+                                err -> Uni.createFrom().item(Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()),
+                                __ -> userService.updateUser(email, valid)
+                                        .onItem().transform(upd -> upd.fold(
+                                                e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
+                                                user -> Response.ok(user).build()
+                                        ))
+                        ))
+        );
     }
 
     @PUT
@@ -91,12 +97,15 @@ public class UserResource {
     @POST
     @Path("/activate")
     @PermitAll
-    public Uni<Response> activate(@Valid ActivationRequest request) {
-        return userService.activateByToken(request.token())
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        user -> Response.ok(user).build()
-                ));
+    public Uni<Response> activate(ActivationRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.activateByToken(valid.token())
+                        .onItem().transform(either -> either.fold(
+                                e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
+                                user -> Response.ok(user).build()
+                        ))
+        );
     }
 
     @GET
@@ -109,6 +118,12 @@ public class UserResource {
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         data -> Response.ok(data).build()
                 ));
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
     }
 
     private Uni<es.kitti.mon.either.Either<es.kitti.mon.error.DomainError, UserResponse>> requireSelf(String email) {

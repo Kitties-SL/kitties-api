@@ -1,17 +1,27 @@
 package es.kitti.adoption.intake.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import es.kitti.mon.either.Validation;
+import es.kitti.adoption.domain.CatAge;
+import es.kitti.adoption.domain.City;
+import es.kitti.adoption.domain.Name;
 
 public record IntakeRequestCreateRequest(
-        @JsonProperty("targetOrganizationId") @NotNull Long targetOrganizationId,
-        @JsonProperty("catName") @NotBlank String catName,
-        @JsonProperty("catAge") @NotNull @Min(0) @Max(30) Integer catAge,
-        @JsonProperty("region") @NotBlank String region,
-        @JsonProperty("city") @NotBlank String city,
-        @JsonProperty("vaccinated") @NotNull Boolean vaccinated,
-        @JsonProperty("description") String description
-) {}
+        @JsonProperty("targetOrganizationId") Long targetOrganizationId,
+        @JsonProperty("catName")              String catName,
+        @JsonProperty("catAge")               Integer catAge,
+        @JsonProperty("region")               String region,
+        @JsonProperty("city")                 String city,
+        @JsonProperty("vaccinated")           Boolean vaccinated,
+        @JsonProperty("description")          String description
+) {
+    public Validation<IntakeRequestCreateRequest> validate() {
+        return Validation.valid(this)
+                .required("targetOrganizationId", targetOrganizationId)
+                .required("vaccinated",           vaccinated)
+                .and(Name.of("catName", catName))
+                .and(Name.of("region",  region))
+                .and(City.of(city))
+                .and(CatAge.of(catAge));
+    }
+}

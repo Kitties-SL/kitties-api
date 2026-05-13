@@ -1,19 +1,19 @@
 package es.kitti.chat.resource;
 
 import es.kitti.mon.error.ErrorResponse;
-import io.quarkus.security.Authenticated;
-import io.smallrye.mutiny.Uni;
-import jakarta.annotation.security.RolesAllowed;
-import jakarta.inject.Inject;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import es.kitti.mon.error.ValidationError;
 import es.kitti.chat.dto.BlockUserRequest;
 import es.kitti.chat.dto.ConversationResponse;
 import es.kitti.chat.dto.SendMessageRequest;
 import es.kitti.chat.entity.SenderType;
 import es.kitti.chat.service.ChatService;
+import io.quarkus.security.Authenticated;
+import io.smallrye.mutiny.Uni;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
@@ -53,23 +53,30 @@ public class ChatResource {
 
     @POST
     @Path("/{id}/messages")
-    public Uni<Response> sendMessage(@PathParam("id") Long id, @Valid SendMessageRequest request) {
-        return service.sendMessage(id, request, callerId(), callerType())
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        m -> Response.status(Response.Status.CREATED).entity(m).build()
-                ));
+    public Uni<Response> sendMessage(@PathParam("id") Long id, SendMessageRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> service.sendMessage(id, valid, callerId(), callerType())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                m -> Response.status(Response.Status.CREATED).entity(m).build()
+                        ))
+        );
     }
 
     @POST
     @Path("/{id}/block")
     @RolesAllowed("Organization")
-    public Uni<Response> blockUser(@PathParam("id") Long id, @Valid BlockUserRequest request) {
-        return service.blockUser(id, callerId(), request)
-                .onItem().transform(either -> either.fold(
-                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        v -> Response.noContent().build()
-                ));
+    public Uni<Response> blockUser(@PathParam("id") Long id, BlockUserRequest request) {
+        BlockUserRequest req = request != null ? request : new BlockUserRequest(null);
+        return req.validate().match(
+                this::validationFailed,
+                valid -> service.blockUser(id, callerId(), valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                v -> Response.noContent().build()
+                        ))
+        );
     }
 
     @DELETE
@@ -89,5 +96,11 @@ public class ChatResource {
 
     private SenderType callerType() {
         return jwt.getGroups().contains("Organization") ? SenderType.Organization : SenderType.User;
+    }
+
+    private Uni<Response> validationFailed(ValidationError err) {
+        return Uni.createFrom().item(
+                Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build()
+        );
     }
 }

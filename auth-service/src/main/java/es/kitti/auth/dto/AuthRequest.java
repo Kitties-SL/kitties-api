@@ -1,10 +1,21 @@
 package es.kitti.auth.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import es.kitti.mon.either.Validation;
+import es.kitti.auth.domain.Email;
 
 public record AuthRequest(
-        @JsonProperty("email")    @NotBlank @Email String email,
-        @JsonProperty("password") @NotBlank String password
-) {}
+        @JsonProperty("email")    String email,
+        @JsonProperty("password") String password
+) {
+    public Validation<AuthRequest> validate() {
+        return Email.of(email)
+                .zip(validatePassword(password), (e, p) -> new AuthRequest(e.value(), p));
+    }
+
+    private static Validation<String> validatePassword(String raw) {
+        return raw == null || raw.isBlank()
+                ? Validation.invalidOne("password", "REQUIRED")
+                : Validation.valid(raw);
+    }
+}

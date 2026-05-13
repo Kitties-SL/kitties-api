@@ -1,12 +1,17 @@
 package es.kitti.adoption.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.NotNull;
+import es.kitti.mon.either.Validation;
+import es.kitti.adoption.domain.FutureDateTime;
 
 import java.time.LocalDateTime;
 
 public record InterviewCreateRequest(
-        @JsonProperty("scheduledAt") @NotNull @Future LocalDateTime scheduledAt,
-        @JsonProperty("notes") String notes
-) {}
+        @JsonProperty("scheduledAt") LocalDateTime scheduledAt,
+        @JsonProperty("notes")       String notes
+) {
+    public Validation<InterviewCreateRequest> validate() {
+        return FutureDateTime.of("scheduledAt", scheduledAt)
+                .map(__ -> this);
+    }
+}

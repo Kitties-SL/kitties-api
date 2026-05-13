@@ -1,9 +1,14 @@
 package es.kitti.chat.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import es.kitti.chat.domain.MessageContent;
+import es.kitti.mon.either.Validation;
 
 public record SendMessageRequest(
-        @JsonProperty("content") @NotBlank @Size(max = 4000) String content
-) {}
+        @JsonProperty("content") String content
+) {
+    public Validation<SendMessageRequest> validate() {
+        return Validation.valid(this)
+                .and(MessageContent.of(content));
+    }
+}
