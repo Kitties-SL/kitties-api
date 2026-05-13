@@ -1,6 +1,7 @@
 package es.kitti.storage.resource;
 
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
@@ -11,6 +12,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Path("/storage/files")
+@PermitAll
 public class FileResource {
 
     @Inject
