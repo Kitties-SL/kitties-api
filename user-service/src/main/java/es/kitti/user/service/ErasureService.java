@@ -115,7 +115,6 @@ public class ErasureService {
                 .replaceWithVoid();
     }
 
-    @WithSession
     private Uni<Void> purgeUser(ErasureRequest er) {
         Long userId = er.userId;
         return userRepository.findById(userId)
