@@ -11,6 +11,8 @@ import io.quarkus.grpc.GlobalInterceptor;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.util.concurrent.TimeUnit;
+
 @GlobalInterceptor
 @ApplicationScoped
 public class GrpcClientAuthInterceptor implements ClientInterceptor {
@@ -25,7 +27,8 @@ public class GrpcClientAuthInterceptor implements ClientInterceptor {
     public <Q, R> ClientCall<Q, R> interceptCall(
             MethodDescriptor<Q, R> method, CallOptions callOptions, Channel next) {
 
-        return new ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
+        CallOptions withDeadline = callOptions.withDeadlineAfter(5, TimeUnit.SECONDS);
+        return new ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, withDeadline)) {
             @Override
             public void start(Listener<R> responseListener, Metadata headers) {
                 headers.put(TOKEN_KEY, secret);
