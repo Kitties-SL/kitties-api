@@ -10,6 +10,8 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Readiness
 @ApplicationScoped
@@ -24,8 +26,11 @@ public class MinioHealthCheck implements HealthCheck {
     @Override
     public HealthCheckResponse call() {
         try {
-            s3.headBucket(HeadBucketRequest.builder().bucket(bucketName).build()).get();
+            s3.headBucket(HeadBucketRequest.builder().bucket(bucketName).build())
+              .get(5, TimeUnit.SECONDS);
             return HealthCheckResponse.up("minio");
+        } catch (TimeoutException e) {
+            return HealthCheckResponse.named("minio").down().withData("error", "timeout after 5s").build();
         } catch (ExecutionException e) {
             String cause = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
             return HealthCheckResponse.named("minio").down().withData("error", cause).build();

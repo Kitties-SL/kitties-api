@@ -60,11 +60,12 @@ public class ProxyService {
             request = request.putHeader("Content-Type", contentType);
         }
 
+        long timeoutMs = path.startsWith("/api/storage/upload") ? 30_000L : 5_000L;
         Uni<io.vertx.mutiny.ext.web.client.HttpResponse<Buffer>> response;
         if (body != null && body.length > 0) {
-            response = request.timeout(5000).sendBuffer(Buffer.buffer(body));
+            response = request.timeout(timeoutMs).sendBuffer(Buffer.buffer(body));
         } else {
-            response = request.timeout(5000).send();
+            response = request.timeout(timeoutMs).send();
         }
 
         return response.onItem().transform(r -> {
@@ -75,8 +76,10 @@ public class ProxyService {
             }
             rb.header("X-Content-Type-Options", "nosniff");
             return rb.build();
-        }).onFailure().recoverWithItem(t -> {
-            Log.warnf("Proxy timeout or connection error: %s", t.getMessage());
+        }).onFailure(t -> t instanceof java.io.IOException
+                        || t instanceof java.util.concurrent.TimeoutException)
+          .recoverWithItem(t -> {
+            Log.warnf("Proxy network error [%s]: %s", t.getClass().getSimpleName(), t.getMessage());
             return Response.status(504).build();
         });
     }
