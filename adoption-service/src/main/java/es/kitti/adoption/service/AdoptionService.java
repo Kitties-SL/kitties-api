@@ -1,6 +1,7 @@
 package es.kitti.adoption.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.logging.Log;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.*;
@@ -253,6 +254,11 @@ public class AdoptionService {
                 .recoverWithItem(e -> ((jakarta.ws.rs.WebApplicationException) e).getResponse())
                 .onItem().transform(response -> response.getStatus() == 200
                         ? Either.<DomainError>unit()
-                        : Either.<DomainError, Unit>left(new ConflictError("CAT_NOT_AVAILABLE")));
+                        : Either.<DomainError, Unit>left(new ConflictError("CAT_NOT_AVAILABLE")))
+                .onFailure(org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException.class)
+                .recoverWithItem(__ -> {
+                    Log.warnf("cat-service circuit breaker OPEN — catId=%d", catId);
+                    return Either.<DomainError, Unit>left(new ConflictError("CAT_SERVICE_UNAVAILABLE"));
+                });
     }
 }

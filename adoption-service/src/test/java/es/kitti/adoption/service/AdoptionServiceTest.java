@@ -91,6 +91,20 @@ class AdoptionServiceTest {
         assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
+    @Test
+    void createAdoptionRequest_catServiceUnavailable_returnsLeft409() {
+        var request = new AdoptionRequestCreateRequest(10L, 200L);
+        when(catClient.findById(10L))
+                .thenReturn(Uni.createFrom().failure(
+                        new org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException("circuit open")));
+
+        var result = adoptionService.createAdoptionRequest(request, 100L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals("CAT_SERVICE_UNAVAILABLE", ((ConflictError) ((Either.Left<?, ?>) result).value()).code());
+    }
+
     // --- findById ---
 
     @Test
