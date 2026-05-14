@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -446,5 +447,24 @@ class GatewayResourceTest {
                 .contentType(ContentType.JSON).body(body)
                 .when().post("/api/auth/refresh")
                 .then().statusCode(429);
+    }
+
+    @Test
+    void proxy_timeout_returns504WhenDownstreamIsSlow() {
+        wiremock.register(post(urlEqualTo("/auth/login"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withFixedDelay(6000))); // 6 s > read-timeout de 5 s
+
+        long start = System.currentTimeMillis();
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"email\":\"x@y.com\",\"password\":\"pass\"}")
+                .when()
+                .post("/api/auth/login")
+                .then()
+                .statusCode(504);
+
+        assertThat(System.currentTimeMillis() - start).isLessThan(7000L);
     }
 }
