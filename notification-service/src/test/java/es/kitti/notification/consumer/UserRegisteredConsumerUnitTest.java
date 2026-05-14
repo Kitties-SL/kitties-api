@@ -74,14 +74,30 @@ class UserRegisteredConsumerUnitTest {
     }
 
     @Test
-    void onUserRegistered_invalidJson_returnsVoidWithoutSendingEmail() throws Exception {
+    void onUserRegistered_invalidJson_returnsFailure_notSwallowed() throws Exception {
         when(objectMapper.readValue("invalid-json", UserRegisteredEvent.class))
                 .thenThrow(new RuntimeException("Parse error"));
 
-        var result = consumer.onUserRegistered("invalid-json")
-                .await().indefinitely();
+        var result = consumer.onUserRegistered("invalid-json");
 
-        assertNull(result);
+        assertThrows(RuntimeException.class, () -> result.await().indefinitely());
         verify(mailer, never()).send(any(Mail.class));
+    }
+
+    @Test
+    void onUserRegistered_mailerFails_returnsFailure_notSwallowed() throws Exception {
+        var event = new UserRegisteredEvent(1L, "test@kitti.es", "Test", "token-123");
+        var json = new ObjectMapper().writeValueAsString(event);
+
+        when(objectMapper.readValue(json, UserRegisteredEvent.class)).thenReturn(event);
+        when(activationTemplate.data(anyString(), any())).thenReturn(templateInstance);
+        when(templateInstance.data(anyString(), any())).thenReturn(templateInstance);
+        when(templateInstance.render()).thenReturn("<html>token-123</html>");
+        when(mailer.send(any(Mail.class)))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("SMTP down")));
+
+        var result = consumer.onUserRegistered(json);
+
+        assertThrows(RuntimeException.class, () -> result.await().indefinitely());
     }
 }

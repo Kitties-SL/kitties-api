@@ -108,6 +108,35 @@ class FormAnalysisServiceTest {
     }
 
     @Test
+    void persistenceFailed_noMessageEmitted_failureNotSwallowed() throws Exception {
+        when(persistenceService.persist(any(FormAnalysis.class), any()))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("DB down")));
+
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        var event = new AdoptionFormSubmittedEvent(
+                99L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        Thread.sleep(500); // dar tiempo al consumer para procesar y fallar
+        assertTrue(sink.received().isEmpty());
+    }
+
+    @Test
     void formWithWarningFlags_emitsReviewRequiredDecision() throws Exception {
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");

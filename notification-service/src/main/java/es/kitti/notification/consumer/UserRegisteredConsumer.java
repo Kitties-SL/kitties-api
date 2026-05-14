@@ -50,8 +50,8 @@ public class UserRegisteredConsumer {
                     )
             );
         } catch (Exception e) {
-            Log.errorf("Error processing user-registered event: %s", e.getMessage());
-            return Uni.createFrom().voidItem();
+            Log.errorf("Error processing user-registered event, routing to DLQ: %s", e.getMessage());
+            return Uni.createFrom().failure(e);
         }
     }
 }

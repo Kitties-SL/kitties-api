@@ -1,5 +1,6 @@
 package es.kitti.gateway.config;
 
+import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,6 +16,6 @@ public class WebClientConfig {
     @Produces
     @ApplicationScoped
     public WebClient webClient() {
-        return WebClient.create(vertx);
+        return WebClient.create(vertx, new WebClientOptions().setConnectTimeout(2000));
     }
 }

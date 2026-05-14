@@ -93,8 +93,8 @@ public class FormAnalysisService {
                     .replaceWithVoid();
 
         } catch (Exception e) {
-            Log.errorf("Error processing adoption-form-submitted: %s", e.getMessage());
-            return Uni.createFrom().voidItem();
+            Log.errorf("Error processing adoption-form-submitted, routing to DLQ: %s", e.getMessage());
+            return Uni.createFrom().failure(e);
         }
     }
 

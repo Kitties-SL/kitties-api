@@ -64,13 +64,11 @@ public class AdoptionFormAnalysedConsumer {
                     })
                     .onFailure().invoke(e ->
                             Log.errorf("Failed to send notification for request %d: %s",
-                                    event.adoptionRequestId(), e.getMessage()))
-                    .onFailure().recoverWithNull()
-                    .replaceWithVoid();
+                                    event.adoptionRequestId(), e.getMessage()));
 
         } catch (Exception e) {
-            Log.errorf("Error processing adoption-form-analysed event: %s", e.getMessage());
-            return Uni.createFrom().voidItem();
+            Log.errorf("Error processing adoption-form-analysed event, routing to DLQ: %s", e.getMessage());
+            return Uni.createFrom().failure(e);
         }
     }
 
