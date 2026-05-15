@@ -251,6 +251,39 @@ class FormAnalysisServiceTest {
     }
 
     @Test
+    void llmMalformedJson_fallbackSilencioso_approvedFormSigueSiendoApproved() throws Exception {
+        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn("not-valid-json{{{");
+
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        var event = new AdoptionFormSubmittedEvent(
+                10L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertFalse(sink.received().isEmpty());
+            var analysed = sink.received().get(0).getPayload();
+            assertEquals(AnalysisDecision.Approved.name(), analysed.decision());
+            assertEquals(0, analysed.criticalFlags());
+            assertEquals(0, analysed.warningFlags());
+        });
+    }
+
+    @Test
     void llmWarning_cleanRulesForm_emitsReviewRequired() throws Exception {
         // LLM detecta HIGH punishmentRisk → 1 Warning (LLM_PUNISHMENT_RISK); rules limpias → ReviewRequired
         when(formAnalysisAiService.analyzeTextFields(any())).thenReturn(
