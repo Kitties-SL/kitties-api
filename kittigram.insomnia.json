@@ -18,6 +18,84 @@
         "adoption_id": "1",
         "intake_id": "1",
         "conversation_id": "1"
+      },
+      "kvPairData": [
+        {
+          "id": "envPair_fd574ddc77ca4cd7bfc2b4229821426a",
+          "name": "base_url",
+          "value": "http://localhost:8080",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_33abd2b78c19417d809ef9405762e5dc",
+          "name": "access_token",
+          "value": "",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_61db7ba86cd44775b60d910718d7ba11",
+          "name": "refresh_token",
+          "value": "",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_1c669d03dcc448ef9ff578a544429f66",
+          "name": "user_email",
+          "value": "tote@ciscoadiz.org",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_1ec348165e414e94abf7b618f57cc086",
+          "name": "cat_id",
+          "value": "1",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_9ce8202082e548b8baa065d9e9b51786",
+          "name": "org_id",
+          "value": "1",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_f2ac0146f7c04b11a10cdcaf1f9b945a",
+          "name": "adoption_id",
+          "value": "1",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_de61ebec09604ee8bbb9278a45640d90",
+          "name": "intake_id",
+          "value": "1",
+          "type": "str",
+          "enabled": true
+        },
+        {
+          "id": "envPair_51d3604a42964000a99193621baf259d",
+          "name": "conversation_id",
+          "value": "1",
+          "type": "str",
+          "enabled": true
+        }
+      ],
+      "dataPropertyOrder": {
+        "&": [
+          "base_url",
+          "access_token",
+          "refresh_token",
+          "user_email",
+          "cat_id",
+          "org_id",
+          "adoption_id",
+          "intake_id",
+          "conversation_id"
+        ]
       }
     },
     {
@@ -26,9 +104,12 @@
       "name": "Kitties API",
       "description": "Entorno de pruebas para la API de Kitties"
     },
-
-    { "_id": "fld_auth", "_type": "request_group", "name": "Auth", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "name": "Auth",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_login",
       "_type": "request",
@@ -40,7 +121,12 @@
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"{{ _.user_email }}\",\n  \"password\": \"Password1!\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('access_token', r.accessToken);\n  insomnia.environment.set('refresh_token', r.refreshToken);\n}"
     },
     {
@@ -54,7 +140,12 @@
         "mimeType": "application/json",
         "text": "{\n  \"refreshToken\": \"{{ _.refresh_token }}\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('access_token', r.accessToken);\n  insomnia.environment.set('refresh_token', r.refreshToken);\n}"
     },
     {
@@ -69,13 +160,22 @@
         "text": "{\n  \"refreshToken\": \"{{ _.refresh_token }}\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
-
-    { "_id": "fld_users", "_type": "request_group", "name": "Users", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_users",
+      "_type": "request_group",
+      "name": "Users",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_register",
       "_type": "request",
@@ -87,7 +187,12 @@
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"tote@ciscoadiz.org\",\n  \"password\": \"Password1!\",\n  \"name\": \"Tote\",\n  \"surname\": \"Cisco\",\n  \"role\": \"User\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  if (r.email) insomnia.environment.set('user_email', r.email);\n}"
     },
     {
@@ -101,7 +206,12 @@
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"protectora@elrefugio.org\",\n  \"password\": \"Password1!\",\n  \"name\": \"Protectora\",\n  \"surname\": \"El Refugio\",\n  \"role\": \"Organization\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }]
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
     },
     {
       "_id": "req_activate_token",
@@ -114,7 +224,12 @@
         "mimeType": "application/json",
         "text": "{\n  \"token\": \"PASTE_TOKEN_FROM_EMAIL\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }]
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
     },
     {
       "_id": "req_get_user",
@@ -123,7 +238,12 @@
       "parentId": "fld_users",
       "method": "GET",
       "url": "{{ _.base_url }}/api/users/{{ _.user_email }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_update_user",
@@ -137,8 +257,14 @@
         "text": "{\n  \"name\": \"Tote\",\n  \"surname\": \"Cisco\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -148,7 +274,12 @@
       "parentId": "fld_users",
       "method": "PUT",
       "url": "{{ _.base_url }}/api/users/{{ _.user_email }}/deactivate",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_activate_user",
@@ -157,7 +288,12 @@
       "parentId": "fld_users",
       "method": "PUT",
       "url": "{{ _.base_url }}/api/users/{{ _.user_email }}/activate",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_export_my_data",
@@ -166,7 +302,12 @@
       "parentId": "fld_users",
       "method": "GET",
       "url": "{{ _.base_url }}/api/users/me/export",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_erasure_request",
@@ -175,11 +316,19 @@
       "parentId": "fld_users",
       "method": "POST",
       "url": "{{ _.base_url }}/api/users/me/erasure-request",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
-
-    { "_id": "fld_orgs", "_type": "request_group", "name": "Organizations", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_orgs",
+      "_type": "request_group",
+      "name": "Organizations",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_create_org",
       "_type": "request",
@@ -192,8 +341,14 @@
         "text": "{\n  \"name\": \"Protectora El Refugio\",\n  \"description\": \"Protectora de animales de la zona sur de Madrid\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"Madrid\",\n  \"region\": \"Comunidad de Madrid\",\n  \"country\": \"España\",\n  \"phone\": \"+34 910 000 001\",\n  \"email\": \"info@elrefugio.org\",\n  \"logoUrl\": null\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('org_id', String(r.id));\n}"
     },
@@ -204,7 +359,12 @@
       "parentId": "fld_orgs",
       "method": "GET",
       "url": "{{ _.base_url }}/api/organizations/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('org_id', String(r.id));\n}"
     },
     {
@@ -214,7 +374,12 @@
       "parentId": "fld_orgs",
       "method": "GET",
       "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_update_org",
@@ -228,8 +393,14 @@
         "text": "{\n  \"name\": \"Protectora El Refugio\",\n  \"description\": \"Descripción actualizada\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"Madrid\",\n  \"region\": \"Comunidad de Madrid\",\n  \"country\": \"España\",\n  \"phone\": \"+34 910 000 001\",\n  \"email\": \"info@elrefugio.org\",\n  \"logoUrl\": null\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -239,7 +410,12 @@
       "parentId": "fld_orgs",
       "method": "GET",
       "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_invite_member",
@@ -253,8 +429,14 @@
         "text": "{\n  \"userId\": 2,\n  \"role\": \"Member\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -269,8 +451,14 @@
         "text": "{\n  \"role\": \"Manager\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -280,11 +468,19 @@
       "parentId": "fld_orgs",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members/USER_ID",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
-
-    { "_id": "fld_cats", "_type": "request_group", "name": "Cats", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_cats",
+      "_type": "request_group",
+      "name": "Cats",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_search_cats",
       "_type": "request",
@@ -293,10 +489,22 @@
       "method": "GET",
       "url": "{{ _.base_url }}/api/cats",
       "parameters": [
-        { "name": "city", "value": "" },
-        { "name": "name", "value": "" },
-        { "name": "page", "value": "0" },
-        { "name": "size", "value": "20" }
+        {
+          "name": "city",
+          "value": ""
+        },
+        {
+          "name": "name",
+          "value": ""
+        },
+        {
+          "name": "page",
+          "value": "0"
+        },
+        {
+          "name": "size",
+          "value": "20"
+        }
       ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = r.content && r.content[0];\n  if (first) insomnia.environment.set('cat_id', String(first.id));\n}"
     },
@@ -316,7 +524,12 @@
       "parentId": "fld_cats",
       "method": "GET",
       "url": "{{ _.base_url }}/api/cats/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('cat_id', String(first.id));\n}"
     },
     {
@@ -326,7 +539,12 @@
       "parentId": "fld_cats",
       "method": "GET",
       "url": "{{ _.base_url }}/api/cats/mine/stats",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_create_cat",
@@ -340,8 +558,14 @@
         "text": "{\n  \"name\": \"Peluso\",\n  \"age\": 2,\n  \"sex\": \"Male\",\n  \"description\": \"Gato muy cariñoso\",\n  \"neutered\": true,\n  \"city\": \"La Orotava\",\n  \"region\": \"Tenerife\",\n  \"country\": \"España\",\n  \"latitude\": 28.3392,\n  \"longitude\": -16.5226\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('cat_id', String(r.id));\n}"
     },
@@ -357,8 +581,14 @@
         "text": "{\n  \"name\": \"Peluso\",\n  \"age\": 3,\n  \"description\": \"Gato muy cariñoso y juguetón\",\n  \"neutered\": true,\n  \"city\": \"La Orotava\",\n  \"region\": \"Tenerife\",\n  \"country\": \"España\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -368,7 +598,12 @@
       "parentId": "fld_cats",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_upload_image",
@@ -379,9 +614,20 @@
       "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}/images",
       "body": {
         "mimeType": "multipart/form-data",
-        "params": [{ "name": "file", "type": "file", "fileName": "" }]
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
       },
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_delete_image",
@@ -390,11 +636,19 @@
       "parentId": "fld_cats",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}/images/IMAGE_ID",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
-
-    { "_id": "fld_intake", "_type": "request_group", "name": "Intake Requests", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_intake",
+      "_type": "request_group",
+      "name": "Intake Requests",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_create_intake",
       "_type": "request",
@@ -407,8 +661,14 @@
         "text": "{\n  \"targetOrganizationId\": {{ _.org_id }},\n  \"catName\": \"Michi\",\n  \"catAge\": 3,\n  \"region\": \"Comunidad de Madrid\",\n  \"city\": \"Madrid\",\n  \"vaccinated\": true,\n  \"description\": \"Gato rescatado de la calle, muy tranquilo\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('intake_id', String(r.id));\n}"
     },
@@ -419,7 +679,12 @@
       "parentId": "fld_intake",
       "method": "GET",
       "url": "{{ _.base_url }}/api/intake-requests/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('intake_id', String(first.id));\n}"
     },
     {
@@ -429,7 +694,12 @@
       "parentId": "fld_intake",
       "method": "GET",
       "url": "{{ _.base_url }}/api/intake-requests/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('intake_id', String(first.id));\n}"
     },
     {
@@ -439,7 +709,12 @@
       "parentId": "fld_intake",
       "method": "GET",
       "url": "{{ _.base_url }}/api/intake-requests/organization/stats",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_approve_intake",
@@ -448,7 +723,12 @@
       "parentId": "fld_intake",
       "method": "PATCH",
       "url": "{{ _.base_url }}/api/intake-requests/{{ _.intake_id }}/approve",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_reject_intake",
@@ -462,13 +742,22 @@
         "text": "{\n  \"reason\": \"No disponemos de espacio actualmente\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
-
-    { "_id": "fld_adoptions", "_type": "request_group", "name": "Adoptions", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_adoptions",
+      "_type": "request_group",
+      "name": "Adoptions",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_create_adoption",
       "_type": "request",
@@ -481,8 +770,14 @@
         "text": "{\n  \"catId\": {{ _.cat_id }},\n  \"organizationId\": {{ _.org_id }}\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('adoption_id', String(r.id));\n}"
     },
@@ -493,7 +788,12 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/{{ _.adoption_id }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('adoption_id', String(r.id));\n}"
     },
     {
@@ -503,7 +803,12 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/my",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('adoption_id', String(first.id));\n}"
     },
     {
@@ -513,7 +818,12 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('adoption_id', String(first.id));\n}"
     },
     {
@@ -523,7 +833,12 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/organization/pipeline",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_adoptions_by_cat",
@@ -532,7 +847,12 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/organization/cats/{{ _.cat_id }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_update_adoption_status",
@@ -546,8 +866,14 @@
         "text": "{\n  \"status\": \"Accepted\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -562,8 +888,14 @@
         "text": "{\n  \"hasPreviousCatExperience\": true,\n  \"previousPetsHistory\": \"Tuve dos gatos antes, murieron de vejez\",\n  \"adultsInHousehold\": 2,\n  \"hasChildren\": false,\n  \"childrenAges\": null,\n  \"hasOtherPets\": false,\n  \"otherPetsDescription\": null,\n  \"hoursAlonePerDay\": 4,\n  \"stableHousing\": true,\n  \"housingInstabilityReason\": null,\n  \"housingType\": \"Apartment\",\n  \"housingSize\": 70,\n  \"hasOutdoorAccess\": false,\n  \"isRental\": true,\n  \"rentalPetsAllowed\": true,\n  \"hasWindowsWithView\": true,\n  \"hasVerticalSpace\": true,\n  \"hasHidingSpots\": true,\n  \"householdActivityLevel\": \"Moderate\",\n  \"whyCatsNeedToPlay\": \"Para su estimulación mental y salud\",\n  \"dailyPlayMinutes\": 30,\n  \"plannedEnrichment\": \"Juguetes, rascadores, árbol para gatos\",\n  \"reactionToUnwantedBehavior\": \"Redirigir con juguetes, nunca castigar\",\n  \"hasScratchingPost\": true,\n  \"willingToEnrichEnvironment\": true,\n  \"motivationToAdopt\": \"Dar un hogar amoroso a un gato que lo necesita\",\n  \"understandsLongTermCommitment\": true,\n  \"hasVetBudget\": true,\n  \"allHouseholdMembersAgree\": true,\n  \"anyoneHasAllergies\": false,\n  \"allergiesDetail\": null\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -578,8 +910,14 @@
         "text": "{\n  \"scheduledAt\": \"2026-06-01T10:00:00\",\n  \"notes\": \"Por favor traiga DNI\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -594,13 +932,22 @@
         "text": "{\n  \"fullName\": \"Tote Cisco\",\n  \"idNumber\": \"12345678A\",\n  \"phone\": \"600000000\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"La Orotava\",\n  \"postalCode\": \"38300\",\n  \"acceptsVetVisits\": true,\n  \"acceptsFollowUpContact\": true,\n  \"acceptsReturnIfNeeded\": true,\n  \"acceptsTermsAndConditions\": true,\n  \"consentHealthData\": true,\n  \"additionalNotes\": null\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
-
-    { "_id": "fld_chat", "_type": "request_group", "name": "Chat", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_chat",
+      "_type": "request_group",
+      "name": "Chat",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_my_conversations_user",
       "_type": "request",
@@ -608,7 +955,12 @@
       "parentId": "fld_chat",
       "method": "GET",
       "url": "{{ _.base_url }}/api/chats/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('conversation_id', String(first.id));\n}"
     },
     {
@@ -618,7 +970,12 @@
       "parentId": "fld_chat",
       "method": "GET",
       "url": "{{ _.base_url }}/api/chats/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ],
       "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('conversation_id', String(first.id));\n}"
     },
     {
@@ -628,7 +985,12 @@
       "parentId": "fld_chat",
       "method": "GET",
       "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/messages",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_send_message",
@@ -642,8 +1004,14 @@
         "text": "{\n  \"content\": \"Hola, me interesa adoptar a Luna\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -658,8 +1026,14 @@
         "text": "{\n  \"reason\": \"Comportamiento inapropiado\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
       ]
     },
     {
@@ -669,11 +1043,19 @@
       "parentId": "fld_chat",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/block",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
-
-    { "_id": "fld_storage", "_type": "request_group", "name": "Storage", "parentId": "wrk_1" },
-
+    {
+      "_id": "fld_storage",
+      "_type": "request_group",
+      "name": "Storage",
+      "parentId": "wrk_1"
+    },
     {
       "_id": "req_upload_file",
       "_type": "request",
@@ -683,9 +1065,20 @@
       "url": "{{ _.base_url }}/api/storage/upload",
       "body": {
         "mimeType": "multipart/form-data",
-        "params": [{ "name": "file", "type": "file", "fileName": "" }]
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
       },
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     },
     {
       "_id": "req_serve_file",
@@ -702,7 +1095,12 @@
       "parentId": "fld_storage",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/storage/FILE_KEY",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.access_token }}"
+        }
+      ]
     }
   ]
 }
