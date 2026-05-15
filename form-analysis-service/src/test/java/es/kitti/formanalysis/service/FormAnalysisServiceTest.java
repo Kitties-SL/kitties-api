@@ -249,4 +249,78 @@ class FormAnalysisServiceTest {
             assertEquals(0, analysed.warningFlags());
         });
     }
+
+    @Test
+    void llmWarning_cleanRulesForm_emitsReviewRequired() throws Exception {
+        // LLM detecta HIGH punishmentRisk → 1 Warning (LLM_PUNISHMENT_RISK); rules limpias → ReviewRequired
+        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn(
+                "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"NONE\",\"motivationQuality\":\"GENUINE\"," +
+                "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
+                "\"subterfugeSignals\":[],\"reasoning\":\"Posible riesgo de castigo físico en el texto\"}");
+
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        var event = new AdoptionFormSubmittedEvent(
+                8L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertFalse(sink.received().isEmpty());
+            var payload = sink.received().get(0).getPayload();
+            assertEquals(AnalysisDecision.ReviewRequired.name(), payload.decision());
+            assertEquals(0, payload.criticalFlags());
+            assertEquals(1, payload.warningFlags());
+        });
+    }
+
+    @Test
+    void llmThreeWarnings_cleanRulesForm_emitsRejected() throws Exception {
+        // LLM detecta HIGH en 3 campos → 3 Warnings → Rejected (aunque ninguno es Critical)
+        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn(
+                "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"HIGH\",\"motivationQuality\":\"SUPERFICIAL\"," +
+                "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
+                "\"subterfugeSignals\":[],\"reasoning\":\"Múltiples señales de alerta detectadas\"}");
+
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        var event = new AdoptionFormSubmittedEvent(
+                9L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertFalse(sink.received().isEmpty());
+            var payload = sink.received().get(0).getPayload();
+            assertEquals(AnalysisDecision.Rejected.name(), payload.decision());
+            assertEquals(0, payload.criticalFlags());
+            assertEquals(3, payload.warningFlags());
+        });
+    }
 }
