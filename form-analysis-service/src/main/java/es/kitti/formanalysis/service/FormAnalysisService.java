@@ -16,6 +16,7 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
+import io.quarkus.arc.Arc;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 import java.util.List;
@@ -61,7 +62,15 @@ public class FormAnalysisService {
         List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
         String prompt = llmPromptBuilder.build(event);
 
-        return Uni.createFrom().item(() -> formAnalysisAiService.analyzeTextFields(prompt))
+        return Uni.createFrom().item(() -> {
+                    var rc = Arc.container().requestContext();
+                    rc.activate();
+                    try {
+                        return formAnalysisAiService.analyzeTextFields(prompt);
+                    } finally {
+                        rc.deactivate();
+                    }
+                })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().recoverWithItem(e -> {
                     Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
