@@ -54,8 +54,13 @@ class FormAnalysisServiceTest {
         when(persistenceService.persist(any(FormAnalysis.class), any()))
                 .thenReturn(Uni.createFrom().item(savedAnalysis));
 
-        when(formAnalysisAiService.analyzeTextFields(any()))
-                .thenReturn(Uni.createFrom().item(LlmTextAnalysis.unavailable()));
+        try {
+            String unavailableJson = objectMapper.writeValueAsString(LlmTextAnalysis.unavailable());
+            when(formAnalysisAiService.analyzeTextFields(any()))
+                    .thenReturn(Uni.createFrom().item(unavailableJson));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

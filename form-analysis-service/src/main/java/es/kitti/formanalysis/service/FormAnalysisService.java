@@ -70,8 +70,10 @@ public class FormAnalysisService {
         return formAnalysisAiService.analyzeTextFields(prompt)
                 .onFailure().recoverWithItem(e -> {
                     Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
-                    return LlmTextAnalysis.unavailable();
+                    return null;
                 })
+                .onItem().transform(this::parseLlmResponse)
+                .onItem().transform(r -> r != null ? r : LlmTextAnalysis.unavailable())
                 .onItem().transformToUni(llmResult -> {
                     List<FlagResult> llmFlags = llmFlagConverter.convert(llmResult);
                     List<FlagResult> allFlags = Stream.concat(rulesFlags.stream(), llmFlags.stream()).toList();
@@ -119,6 +121,16 @@ public class FormAnalysisService {
                             })
                             .replaceWithVoid();
                 });
+    }
+
+    private LlmTextAnalysis parseLlmResponse(String json) {
+        if (json == null) return null;
+        try {
+            return objectMapper.readValue(json, LlmTextAnalysis.class);
+        } catch (Exception e) {
+            Log.warnf("LLM returned unparseable JSON: %s", e.getMessage());
+            return null;
+        }
     }
 
     private AnalysisDecision determineDecision(long criticalCount, long warningCount) {

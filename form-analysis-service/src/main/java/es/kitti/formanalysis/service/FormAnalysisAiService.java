@@ -4,7 +4,6 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.smallrye.mutiny.Uni;
-import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 
 @RegisterAiService
 @SystemMessage("""
@@ -34,5 +33,5 @@ import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
         """)
 public interface FormAnalysisAiService {
 
-    Uni<LlmTextAnalysis> analyzeTextFields(@UserMessage String formContent);
+    Uni<String> analyzeTextFields(@UserMessage String formContent);
 }
