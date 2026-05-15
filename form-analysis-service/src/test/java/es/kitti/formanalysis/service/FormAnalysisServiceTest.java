@@ -9,9 +9,9 @@ import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySink;
 import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
+import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.entity.AnalysisDecision;
 import es.kitti.formanalysis.entity.FormAnalysis;
-import es.kitti.formanalysis.entity.FormFlag;
 import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.test.KafkaTestResource;
@@ -40,6 +40,9 @@ class FormAnalysisServiceTest {
     @InjectMock
     FormAnalysisPersistenceService persistenceService;
 
+    @InjectMock
+    FormAnalysisAiService formAnalysisAiService;
+
     @BeforeEach
     void setUp() {
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
@@ -50,6 +53,9 @@ class FormAnalysisServiceTest {
 
         when(persistenceService.persist(any(FormAnalysis.class), any()))
                 .thenReturn(Uni.createFrom().item(savedAnalysis));
+
+        when(formAnalysisAiService.analyzeTextFields(any()))
+                .thenReturn(Uni.createFrom().item(LlmTextAnalysis.unavailable()));
     }
 
     @Test
@@ -202,6 +208,40 @@ class FormAnalysisServiceTest {
             assertFalse(sink.received().isEmpty());
             var analysed = sink.received().get(0).getPayload();
             assertNotEquals(AnalysisDecision.Approved.name(), analysed.decision());
+        });
+    }
+
+    @Test
+    void llmUnavailable_fallbackSilencioso_approvedFormSigueSiendoApproved() throws Exception {
+        when(formAnalysisAiService.analyzeTextFields(any()))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("NVIDIA timeout")));
+
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        var event = new AdoptionFormSubmittedEvent(
+                7L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertFalse(sink.received().isEmpty());
+            var analysed = sink.received().get(0).getPayload();
+            assertEquals(AnalysisDecision.Approved.name(), analysed.decision());
+            assertEquals(0, analysed.criticalFlags());
+            assertEquals(0, analysed.warningFlags());
         });
     }
 }
