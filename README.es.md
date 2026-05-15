@@ -920,17 +920,37 @@ Las protectoras desconfían de plataformas que las automatizan y las sacan del c
 
 ### Deuda técnica
 
-- [ ] **HTTPS** en el gateway
-- [ ] Value Objects para los servicios restantes
-- [ ] Interfaces de repositorio como puertos (DIP) en todos los servicios — las operaciones de escritura ya están extraídas a beans `*WriteService`; quedan las abstracciones de repositorio (interfaces como puertos).
-- [ ] **Gate de cobertura Tests/CC en CI** — añadir un check mínimo de JaCoCo en la matriz de GitHub Actions para que el ratio no pueda regresar por debajo de los baselines establecidos en `test-coverage-report-2026-05-15.md`.
-- [ ] **`AdoptionService` — ampliar tests** — CC=46, 23 tests actuales (ratio 0,50). Los caminos de `verifyCatActive` con CircuitBreaker abierto y `findAlternatives` con lookup fallido no están cubiertos.
-- [ ] **`IpRateLimiter` — ampliar tests** — solo 1 test para CC≈15. Faltan: bucket compartido entre endpoints, ventana de tiempo deslizante, reset tras expirar.
-- [ ] Paginación en el listado de gatos
-- [ ] **`findAlternatives` incluye la organización rechazante** — `IntakeRequestService.findAlternatives` filtra por `o.id() == excludeOrgId`, pero `o.id()` es el id de la entidad `Organization` mientras que `excludeOrgId` es el JWT sub del usuario de organización. La organización rechazante reaparece en `alternatives` cuando las secuencias coinciden por casualidad. El assert del test e2e está relajado pendiente de corrección.
-- [ ] **Eventos de desactivación de usuario/organización** — `UserService.deactivateUser` solo establece `status = Inactive`; no se emite ningún evento Kafka. Las solicitudes de adopción activas quedan huérfanas al desactivarse un adoptante o una organización.
-- [ ] **Ingreso viviendo dentro de adoption-service** — `IntakeRequest` se colocó en `adoption-service` bajo `intake/` como atajo de v1. Extraer a `intake-service` si el dominio crece significativamente.
-- [ ] **Extracción de OrganizationMember** — `OrganizationService` y `OrganizationMemberService` ya están divididos en beans separados. La extracción completa a un microservicio dedicado requiere convertir `Organization.create()` en una saga Kafka.
+**Arquitectura**
+
+- [ ] **HTTPS entre servicios** en producción. El gateway termina TLS; el tráfico interno entre servicios es HTTP plano dentro de la red privada.
+- [ ] **Interfaces de repositorio como puertos (DIP)** — las operaciones de escritura ya están extraídas a beans `*WriteService` con `@WithTransaction`; quedan las abstracciones de repositorio (interfaces inyectadas como puertos). Próximo candidato: `CatRepository`, `AdoptionRequestRepository`.
+- [ ] **`AdoptionService` God Object** — 381 líneas mezclando dominio, eventos Kafka y exportación de datos. Tres correcciones concretas antes de producción:
+  1. Extraer `@Incoming("adoption-form-analysed") onFormAnalysed()` a un bean dedicado `AdoptionEventHandler` (SRP).
+  2. Reemplazar la instancia local `new ObjectMapper()` dentro de `onFormAnalysed` por `@Inject ObjectMapper` — la instancia local no lleva la configuración global de Jackson (módulos registrados, etc.).
+  3. Corregir el fire-and-forget de persist en torno a la línea 179: `subscribe().with(v -> {}, e -> {})` silencia los fallos de persistencia. Como mínimo loguear el error; idealmente encadenar el persist reactivamente.
+- [ ] **Value Objects** para los DTOs de request restantes — `cat-service` ya usa el patrón declarativo `validate()` con VOs. Extender a `adoption-service`, `organization-service`, `chat-service` y `user-service` de forma incremental al tocar esos DTOs.
+- [ ] **Ficheros `.proto` duplicados por servicio** — decisión intencionada (2026-04-27): se intentó un módulo compartido `kitties-proto` pero falló por problemas de codegen gRPC de Quarkus al importar protos desde un JAR. Replantear solo si hay ≥ 3 protos compartidos y la duplicación duele activamente.
+- [ ] **`findAlternatives` incluye la organización rechazante** — `IntakeRequestService.findAlternatives` filtra por `o.id() == excludeOrgId`, pero `o.id()` es el id de la entidad `Organization` mientras que `excludeOrgId` es el JWT sub del usuario de organización. La causa raíz es que `organizationId` no es consistentemente entity-id vs user-sub en `Cat`, `AdoptionRequest` e `IntakeRequest`. La corrección requiere alinear la convención de IDs en todo el sistema. (`feat/fix-intake-alternatives-exclude`)
+- [ ] **Eventos de desactivación de usuario/organización** — `UserService.deactivateUser` solo establece `status = Inactive`; no se emite evento Kafka. Las solicitudes activas quedan huérfanas. Patrón acordado: `user-service` emite `user-deactivated`, `organization-service` emite `organization-deactivated`; `adoption-service` (y otros) suscriben y cancelan las entidades relacionadas. (`feat/user-deactivated-event`, `feat/org-deactivated-event`)
+- [ ] **Ingreso dentro de adoption-service** — colocado ahí como atajo de v1. Extraer a `intake-service` si el dominio crece significativamente; mantener los paquetes `intake/` y `adoption/` estrictamente separados mientras tanto.
+- [ ] **Extracción de OrganizationMember** — beans ya separados; la extracción completa a microservicio requiere una saga Kafka para `Organization.create()`. Diferido hasta que el acoplamiento duela.
+
+**Paginación**
+
+Ningún endpoint de colección tiene paginación. Con datos reales esto agotará memoria y añadirá latencia. Orden de prioridad:
+
+- [ ] `GET /cats` — búsqueda pública, crecimiento sin límite.
+- [ ] `GET /adoptions/organization` — historial completo de una protectora.
+- [ ] `GET /chats/{id}/messages` — historial de conversación.
+- [ ] `GET /intake-requests/organization` — todos los intakes de una org.
+
+Enfoque planificado: query params `page` + `size`, `PageResponse<T>` con metadatos (`total`, `totalPages`). Considerar extraer `PageRequest` (VO con clamping de size) y `PageResponse<T>` a un módulo `page-mon` junto a `either-mon` — actualmente `PageResponse<T>` está duplicado solo en cat-service.
+
+**Calidad de tests**
+
+- [ ] **Gate Tests/CC en CI** — check mínimo de JaCoCo en la matriz de GitHub Actions para que el ratio global 0,48 no pueda regresar. Ver `test-coverage-report-2026-05-15.md` para los baselines por servicio.
+- [ ] **`AdoptionService` — ampliar tests** — CC=46, 23 tests (ratio 0,50). Sin cubrir: `verifyCatActive` con CircuitBreaker abierto, `findAlternatives` con fallo de lookup en org-service.
+- [ ] **`IpRateLimiter` — ampliar tests** — 1 test para CC≈15. Faltan: bucket compartido entre endpoints, reset de ventana deslizante, clave por email en login.
 
 ---
 

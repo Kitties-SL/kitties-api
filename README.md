@@ -914,17 +914,37 @@ These features make the portal self-sustaining without depending solely on shelt
 
 ### Technical debt
 
-- [ ] **HTTPS** in gateway.
-- [ ] Value Objects for remaining services.
-- [ ] Repository interfaces as ports (DIP) across all services — write operations already extracted to `*WriteService` beans; repository abstractions (interfaces as ports) remain. Next: `CatRepository`, `AdoptionRequestRepository` as interfaces injected into services.
-- [ ] **Test/CC coverage gate in CI** — add a JaCoCo minimum-coverage check in the GitHub Actions matrix so the ratio cannot regress below the baselines established in `test-coverage-report-2026-05-15.md`.
-- [ ] **`AdoptionService` — ampliar tests** — CC=46, 23 tests actuales (ratio 0,50). Los caminos de `verifyCatActive` con CircuitBreaker abierto y `findAlternatives` con lookup fallido no están cubiertos con tests unitarios.
-- [ ] **`IpRateLimiter` — ampliar tests** — solo 1 test para CC≈15. Faltan: bucket compartido entre endpoints, ventana de tiempo deslizante, reset tras expirar.
-- [ ] Pagination on cat listing.
-- [ ] **`findAlternatives` includes the rejecting org** — `IntakeRequestService.findAlternatives` filters by `o.id() == excludeOrgId`, but `o.id()` is the `Organization` entity id while `excludeOrgId` is the JWT sub of the org user (two independent sequences). The rejecting org reappears in `alternatives` when the sequences happen to collide. The e2e assert is relaxed pending a fix. Root cause: `organizationId` is not consistently entity-id vs user-sub across `Cat`, `AdoptionRequest`, and `IntakeRequest`. Fix requires aligning the ID convention system-wide before patching the filter. (`feat/fix-intake-alternatives-exclude`)
-- [ ] **User / org deactivation events** — `UserService.deactivateUser` only sets `status = Inactive`; no Kafka event is emitted. Active adoption requests are left orphaned when an adopter or organization is deactivated. Agreed pattern: `user-service` emits `user-deactivated`, `organization-service` emits `organization-deactivated`; `adoption-service` (and others) subscribe and cancel related active entities. (`feat/user-deactivated-event`, `feat/org-deactivated-event`)
-- [ ] **Intake living inside adoption-service** — `IntakeRequest` was placed in `adoption-service` under `intake/` as a v1 shortcut (shared DB, shared config). It models a different responsibility (surrendering a cat to a shelter vs. adopting one). Extract to `intake-service` if the domain grows significantly. Keep `intake/` and `adoption/` packages strictly separate in the meantime.
-- [ ] **OrganizationMember extraction** — `OrganizationService` and `OrganizationMemberService` are already split into separate beans. Full extraction to a dedicated microservice requires converting `Organization.create()` into a Kafka saga and removing the cross-bean repo read in `inviteMember`. Deferred until the coupling actually hurts.
+**Architecture**
+
+- [ ] **HTTPS between services** in production. Gateway terminates TLS; internal service-to-service traffic is plain HTTP inside the private network.
+- [ ] **Repository interfaces as ports (DIP)** — write operations already extracted to `*WriteService` beans with `@WithTransaction`; repository abstractions (interfaces injected as ports) remain. Next candidate: `CatRepository`, `AdoptionRequestRepository`.
+- [ ] **`AdoptionService` God Object** — 381 lines mixing domain, Kafka events, and data export. Three concrete fixes before production:
+  1. Extract `@Incoming("adoption-form-analysed") onFormAnalysed()` into a dedicated `AdoptionEventHandler` bean (SRP).
+  2. Replace `new ObjectMapper()` local instantiation inside `onFormAnalysed` with `@Inject ObjectMapper` — the local instance does not carry global Jackson configuration (registered modules, etc.).
+  3. Fix the fire-and-forget persist around line 179: `subscribe().with(v -> {}, e -> {})` silently swallows persistence failures. At minimum log the error; ideally chain the persist reactively.
+- [ ] **Value Objects** for remaining request DTOs — `cat-service` already uses the declarative `validate()` pattern with VOs. Extend to `adoption-service`, `organization-service`, `chat-service`, and `user-service` incrementally as those DTOs are touched.
+- [ ] **`.proto` files duplicated per service** — intentional decision (2026-04-27): a shared `kitties-proto` Maven module was attempted but failed due to Quarkus gRPC codegen issues when importing protos from a dependency JAR. Revisit only if ≥ 3 protos need sharing and the duplication actively hurts.
+- [ ] **`findAlternatives` includes the rejecting org** — `IntakeRequestService.findAlternatives` filters by `o.id() == excludeOrgId`, but `o.id()` is the `Organization` entity id while `excludeOrgId` is the JWT sub of the org user (two independent sequences). The rejecting org reappears when both sequences happen to assign the same number. Root cause: `organizationId` is not consistently entity-id vs user-sub across `Cat`, `AdoptionRequest`, and `IntakeRequest`. Fix requires aligning the ID convention system-wide. (`feat/fix-intake-alternatives-exclude`)
+- [ ] **User / org deactivation events** — `UserService.deactivateUser` only sets `status = Inactive`; no Kafka event is emitted. Active adoption requests are left orphaned. Agreed pattern: `user-service` emits `user-deactivated`, `organization-service` emits `organization-deactivated`; `adoption-service` (and others) subscribe and cancel related active entities. (`feat/user-deactivated-event`, `feat/org-deactivated-event`)
+- [ ] **Intake living inside adoption-service** — placed there as a v1 shortcut. Extract to `intake-service` if the domain grows significantly; keep `intake/` and `adoption/` packages strictly separate in the meantime.
+- [ ] **OrganizationMember extraction** — beans already split; full microservice extraction requires a Kafka saga for `Organization.create()`. Deferred until the coupling hurts.
+
+**Pagination**
+
+No collection endpoint has pagination. With real data this will exhaust memory and add latency. Priority order:
+
+- [ ] `GET /cats` — public search, unbounded growth.
+- [ ] `GET /adoptions/organization` — full history of a shelter.
+- [ ] `GET /chats/{id}/messages` — conversation history.
+- [ ] `GET /intake-requests/organization` — all intakes for an org.
+
+Planned approach: `page` + `size` query params, `PageResponse<T>` with metadata (`total`, `totalPages`). Consider extracting `PageRequest` (VO with size clamping) and `PageResponse<T>` into a `page-mon` module alongside `either-mon` — currently `PageResponse<T>` is duplicated in cat-service only.
+
+**Test quality**
+
+- [ ] **Test/CC coverage gate in CI** — JaCoCo minimum-ratio check in the GitHub Actions matrix so the 0,48 global ratio cannot regress. See `test-coverage-report-2026-05-15.md` for per-service baselines.
+- [ ] **`AdoptionService` — expand tests** — CC=46, 23 tests (ratio 0,50). Uncovered: `verifyCatActive` with CircuitBreaker open, `findAlternatives` with org-service lookup failure.
+- [ ] **`IpRateLimiter` — expand tests** — 1 test for CC≈15. Missing: shared bucket between endpoints, sliding-window reset, per-email key for login.
 
 ---
 
