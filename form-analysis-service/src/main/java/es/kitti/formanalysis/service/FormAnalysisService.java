@@ -7,8 +7,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.entity.*;
-import es.kitti.formanalysis.repository.FormAnalysisRepository;
-import es.kitti.formanalysis.repository.FormFlagRepository;
 import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.rules.FlagResult;
@@ -25,12 +23,6 @@ import java.util.stream.Stream;
 
 @ApplicationScoped
 public class FormAnalysisService {
-
-    @Inject
-    FormAnalysisRepository formAnalysisRepository;
-
-    @Inject
-    FormFlagRepository formFlagRepository;
 
     @Inject
     FormAnalysisRules formAnalysisRules;
