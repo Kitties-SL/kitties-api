@@ -3,9 +3,9 @@ package es.kitti.organization.service;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Validation;
 import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
-import jakarta.ws.rs.ForbiddenException;
 import es.kitti.organization.dto.*;
 import es.kitti.organization.entity.*;
 import es.kitti.organization.mapper.OrganizationMapper;
@@ -72,6 +72,38 @@ class OrganizationServiceTest {
     }
 
     @Test
+    void testCreateWithOptionalFields() {
+        org.name = "Protectora Completa";
+        org.address = "Calle Mayor 1";
+        org.city = "Madrid";
+        when(organizationRepository.persist(any(Organization.class)))
+                .thenReturn(Uni.createFrom().item(org));
+        when(memberService.addCreatorAsAdmin(1L, 10L))
+                .thenReturn(Uni.createFrom().item(adminMember));
+
+        OrganizationResponse response = service.create(
+                new CreateOrganizationRequest("Protectora Completa", "Desc", "Calle Mayor 1", "Madrid", "Madrid", "ES", "600000000", "info@prot.es", null),
+                10L
+        ).await().indefinitely();
+
+        assertNotNull(response.name());
+    }
+
+    @Test
+    void testFindByIdSuccess_returnsRight() {
+        when(memberService.requireMember(1L, 10L))
+                .thenReturn(Uni.createFrom().item(Either.unit()));
+        when(organizationRepository.findById(1L))
+                .thenReturn(Uni.createFrom().item(org));
+
+        var result = service.findById(1L, 10L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(1L, result.getOrElse(null).id());
+        assertEquals("Protectora Test", result.getOrElse(null).name());
+    }
+
+    @Test
     void testFindByIdNotFound_returnsLeft404() {
         when(memberService.requireMember(99L, 10L))
                 .thenReturn(Uni.createFrom().item(Either.unit()));
@@ -85,12 +117,15 @@ class OrganizationServiceTest {
     }
 
     @Test
-    void testFindByIdForbiddenForNonMember() {
+    void testFindByIdForbidden_returnsLeft403() {
         when(memberService.requireMember(1L, 999L))
-                .thenReturn(Uni.createFrom().failure(new ForbiddenException()));
+                .thenReturn(Uni.createFrom().item(Either.left(new ForbiddenError("FORBIDDEN"))));
 
-        assertThrows(ForbiddenException.class,
-                () -> service.findById(1L, 999L).await().indefinitely());
+        var result = service.findById(1L, 999L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
     @Test
@@ -118,14 +153,44 @@ class OrganizationServiceTest {
     }
 
     @Test
-    void testUpdateRequiresAdmin() {
-        when(memberService.requireAdmin(1L, 20L))
-                .thenReturn(Uni.createFrom().failure(new ForbiddenException()));
+    void testFindByCurrentUser_orgNotFound_returnsLeft404() {
+        when(memberService.findActiveByUserId(10L))
+                .thenReturn(Uni.createFrom().item(Optional.of(adminMember)));
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().nullItem());
 
-        assertThrows(ForbiddenException.class,
-                () -> service.update(1L, 20L,
-                        new UpdateOrganizationRequest("New Name", null, null, null, null, null, null, null, null))
-                        .await().indefinitely());
+        var result = service.findByCurrentUser(10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void testUpdateForbidden_returnsLeft403() {
+        when(memberService.requireAdmin(1L, 20L))
+                .thenReturn(Uni.createFrom().item(Either.left(new ForbiddenError("FORBIDDEN"))));
+
+        var result = service.update(1L, 20L,
+                new UpdateOrganizationRequest("New Name", null, null, null, null, null, null, null, null))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void testUpdateNotFound_returnsLeft404() {
+        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(Either.unit()));
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = service.update(1L, 10L,
+                new UpdateOrganizationRequest("Updated", null, null, null, null, null, null, null, null))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
     @Test
@@ -141,5 +206,21 @@ class OrganizationServiceTest {
 
         assertTrue(result.isRight());
         assertEquals("Updated", result.getOrElse(null).name());
+    }
+
+    @Test
+    void testUpdatePartialFields_onlyUpdatesNonNullFields() {
+        org.name = "Original";
+        org.description = "Desc";
+        when(memberService.requireAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(Either.unit()));
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
+        when(organizationRepository.persist(any(Organization.class))).thenReturn(Uni.createFrom().item(org));
+
+        service.update(1L, 10L,
+                new UpdateOrganizationRequest("New Name", null, null, null, null, null, null, null, null))
+                .await().indefinitely();
+
+        assertEquals("New Name", org.name);
+        assertEquals("Desc", org.description);
     }
 }
