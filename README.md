@@ -853,6 +853,7 @@ Copy `.env.example` to `.env` and fill in all values. Variables marked **require
 - [x] **Production Docker Compose** — all 10 services + Nginx (TLS termination, HTTP→HTTPS redirect) + Certbot auto-renewal. CI/CD pushes images to Docker Hub; `docker compose -f docker-compose.prod.yml up -d` is the full deploy.
 - [x] **Observability** — OpenTelemetry traces + Micrometer metrics in every service (`quarkus-opentelemetry` + `quarkus-micrometer`). Grafana Alloy collects and forwards to Grafana Cloud (OTLP). SDK disabled in `%dev` and `%test` profiles; active only in prod.
 - [x] **Coverage baselines for remaining modules** — JaCoCo configured across all modules via root pom (`quarkus-jacoco` + `jacoco-maven-plugin`); reports available at `target/site/jacoco/index.html` per service after `mvn test`.
+- [x] **Fault tolerance** — circuit breakers (`@CircuitBreaker`) on all inter-service REST calls; `@Retry` with backoff on scheduler clients; HTTP/gRPC connection and read timeouts across all services; MinIO readiness health check (`@Readiness`); Dead Letter Queue activated for all Kafka consumers. (`feat/fault-tolerance-g1`)
 
 ### Priority 2 — Shelter Dashboard (core revenue)
 

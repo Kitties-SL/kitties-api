@@ -862,6 +862,7 @@ Copia `.env.example` a `.env` y rellena todos los valores. Las variables marcada
 - [x] **Flyway** — migraciones SQL versionadas por servicio
 - [x] **Docker Compose de producción** — 10 servicios + Nginx (TLS) + renovación automática con Certbot
 - [x] **Observabilidad** — trazas OpenTelemetry + métricas Micrometer en cada servicio. Grafana Alloy recopila y reenvía a Grafana Cloud
+- [x] **Tolerancia a fallos** — circuit breakers (`@CircuitBreaker`) en todas las llamadas REST inter-servicio; `@Retry` con backoff en los clientes del scheduler; timeouts de conexión y lectura HTTP/gRPC en todos los servicios; health check de readiness para MinIO (`@Readiness`); Dead Letter Queue activada en todos los consumers Kafka. (`feat/fault-tolerance-g1`)
 
 ### Prioridad 2 — Dashboard para protectoras (núcleo del negocio)
 
