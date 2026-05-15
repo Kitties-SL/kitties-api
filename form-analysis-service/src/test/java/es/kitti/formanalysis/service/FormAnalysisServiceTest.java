@@ -57,7 +57,7 @@ class FormAnalysisServiceTest {
         try {
             String unavailableJson = objectMapper.writeValueAsString(LlmTextAnalysis.unavailable());
             when(formAnalysisAiService.analyzeTextFields(any()))
-                    .thenReturn(Uni.createFrom().item(unavailableJson));
+                    .thenReturn(unavailableJson);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -219,7 +219,7 @@ class FormAnalysisServiceTest {
     @Test
     void llmUnavailable_fallbackSilencioso_approvedFormSigueSiendoApproved() throws Exception {
         when(formAnalysisAiService.analyzeTextFields(any()))
-                .thenReturn(Uni.createFrom().failure(new RuntimeException("NVIDIA timeout")));
+                .thenThrow(new RuntimeException("NVIDIA timeout"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");

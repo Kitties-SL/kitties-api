@@ -18,6 +18,8 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -67,7 +69,8 @@ public class FormAnalysisService {
         List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
         String prompt = llmPromptBuilder.build(event);
 
-        return formAnalysisAiService.analyzeTextFields(prompt)
+        return Uni.createFrom().item(() -> formAnalysisAiService.analyzeTextFields(prompt))
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().recoverWithItem(e -> {
                     Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
                     return null;

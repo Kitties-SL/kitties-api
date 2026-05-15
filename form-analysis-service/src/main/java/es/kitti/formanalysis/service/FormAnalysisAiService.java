@@ -3,8 +3,6 @@ package es.kitti.formanalysis.service;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
-import io.smallrye.mutiny.Uni;
-
 @RegisterAiService
 @SystemMessage("""
         Eres un asistente que ayuda a una protectora de animales a evaluar \
@@ -33,5 +31,5 @@ import io.smallrye.mutiny.Uni;
         """)
 public interface FormAnalysisAiService {
 
-    Uni<String> analyzeTextFields(@UserMessage String formContent);
+    String analyzeTextFields(@UserMessage String formContent);
 }
