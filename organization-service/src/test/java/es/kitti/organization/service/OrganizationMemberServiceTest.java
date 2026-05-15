@@ -4,6 +4,7 @@ import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.ForbiddenException;
 import es.kitti.organization.dto.*;
@@ -179,5 +180,45 @@ class OrganizationMemberServiceTest {
 
         assertEquals(2, members.getOrElse(List.of()).size());
         assertTrue(members.isRight());
+    }
+
+    @Test
+    void testInviteMemberOrganizationNotFound_returnsLeft404() {
+        when(memberRepository.isAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(true));
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = service.inviteMember(1L, 10L, new InviteMemberRequest(20L, MemberRole.Staff))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void testChangeMemberRoleMemberNotFound_returnsLeft404() {
+        when(memberRepository.isAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(true));
+        when(memberRepository.findActiveByOrganizationIdAndUserId(1L, 20L))
+                .thenReturn(Uni.createFrom().item(Optional.empty()));
+
+        var result = service.changeMemberRole(1L, 20L, 10L, new ChangeMemberRoleRequest(MemberRole.Admin))
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void testRemoveMemberNotFound_returnsLeft404() {
+        when(memberRepository.isAdmin(1L, 10L)).thenReturn(Uni.createFrom().item(true));
+        when(memberRepository.findActiveByOrganizationIdAndUserId(1L, 20L))
+                .thenReturn(Uni.createFrom().item(Optional.empty()));
+
+        var result = service.removeMember(1L, 20L, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
     }
 }

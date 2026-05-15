@@ -6,7 +6,6 @@ import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
-import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
@@ -38,6 +37,9 @@ public class CatService {
 
     @Inject
     CatMapper catMapper;
+
+    @Inject
+    CatWriteService catWriteService;
 
     @RestClient
     StorageClient storageClient;
@@ -194,31 +196,22 @@ public class CatService {
                 });
     }
 
+    @WithSession
     public Uni<Either<DomainError, Unit>> deleteCat(Long id, Long organizationId) {
-        return Panache.withSession(() ->
-                catRepository.findById(id)
-                        .onItem().transform(cat -> {
-                            if (cat == null)
-                                return Either.<DomainError, Unit>left(new NotFoundError("CAT_NOT_FOUND"));
-                            if (!cat.organizationId.equals(organizationId))
-                                return Either.<DomainError, Unit>left(new ForbiddenError("CAT_ACCESS_DENIED"));
-                            return Either.<DomainError>unit();
-                        })
-        )
-        .onItem().transformToUni(either -> either.fold(
-                error -> Uni.createFrom().item(Either.left(error)),
-                __ -> adoptionClient.hasActiveRequestsForCat(id, internalSecret)
-                        .onItem().transformToUni(hasActive -> {
-                            if (hasActive)
-                                return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("CAT_HAS_ACTIVE_ADOPTIONS")));
-                            return Panache.withTransaction(() ->
-                                    catRepository.findById(id)
-                                            .onItem().transformToUni(cat -> {
-                                                cat.status = CatStatus.Deleted;
-                                                return catRepository.persist(cat).replaceWithVoid();
-                                            })
-                            ).onItem().transform(v -> Either.unit());
-                        })
-        ));
+        return catRepository.findById(id)
+                .onItem().transformToUni(cat -> {
+                    if (cat == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("CAT_NOT_FOUND")));
+                    if (!cat.organizationId.equals(organizationId))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ForbiddenError("CAT_ACCESS_DENIED")));
+                    return adoptionClient.hasActiveRequestsForCat(id, internalSecret)
+                            .onItem().transformToUni(hasActive -> {
+                                if (hasActive)
+                                    return Uni.createFrom().item(Either.<DomainError, Unit>left(
+                                            new ConflictError("CAT_HAS_ACTIVE_ADOPTIONS")));
+                                return catWriteService.markDeleted(id)
+                                        .onItem().transform(v -> Either.unit());
+                            });
+                });
     }
 }

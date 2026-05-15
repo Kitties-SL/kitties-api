@@ -1,6 +1,7 @@
 package es.kitti.cat.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
@@ -40,6 +41,7 @@ class CatServiceTest {
     @Mock CatMapper catMapper;
     @Mock StorageClient storageClient;
     @Mock AdoptionClient adoptionClient;
+    @Mock CatWriteService catWriteService;
 
     @InjectMocks
     CatService catService;
@@ -142,6 +144,15 @@ class CatServiceTest {
         assertEquals(1, result.size());
     }
 
+    @Test
+    void findMine_noOwnedCats_returnsEmptyList() {
+        when(catRepository.findByOrganizationId(10L)).thenReturn(Uni.createFrom().item(List.of()));
+
+        var result = catService.findMine(10L).await().indefinitely();
+
+        assertTrue(result.isEmpty());
+    }
+
     // --- search ---
 
     @Test
@@ -170,6 +181,58 @@ class CatServiceTest {
 
         assertEquals(1, result.content().size());
         assertTrue(result.content().size() <= size);
+    }
+
+    @Test
+    void search_byName_returnsSummaries() {
+        when(catRepository.findByName("Peluso", page, size))
+                .thenReturn(Uni.createFrom().item(List.of(testCat)));
+        when(catRepository.countByName("Peluso"))
+                .thenReturn(Uni.createFrom().item(1L));
+        when(catMapper.toSummaryResponse(testCat)).thenReturn(testCatSummaryResponse);
+
+        var result = catService.search(null, "Peluso", page, size).await().indefinitely();
+
+        assertEquals(1, result.content().size());
+        assertEquals("Peluso", result.content().getFirst().name());
+    }
+
+    @Test
+    void search_byCityAndName_returnsSummaries() {
+        when(catRepository.findByCityAndName("La Orotava", "Peluso", page, size))
+                .thenReturn(Uni.createFrom().item(List.of(testCat)));
+        when(catRepository.countByCityAndName("La Orotava", "Peluso"))
+                .thenReturn(Uni.createFrom().item(1L));
+        when(catMapper.toSummaryResponse(testCat)).thenReturn(testCatSummaryResponse);
+
+        var result = catService.search("La Orotava", "Peluso", page, size).await().indefinitely();
+
+        assertEquals(1, result.content().size());
+    }
+
+    @Test
+    void search_sizeExceedsMax_capsAt100() {
+        when(catRepository.findAvailable(page, 100))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(catRepository.countAvailable())
+                .thenReturn(Uni.createFrom().item(0L));
+
+        catService.search(null, null, page, 200).await().indefinitely();
+
+        verify(catRepository).findAvailable(page, 100);
+    }
+
+    @Test
+    void search_emptyResults_returnsEmptyPage() {
+        when(catRepository.findByCity("Desconocida", page, size))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(catRepository.countByCity("Desconocida"))
+                .thenReturn(Uni.createFrom().item(0L));
+
+        var result = catService.search("Desconocida", null, page, size).await().indefinitely();
+
+        assertTrue(result.content().isEmpty());
+        assertEquals(0L, result.total());
     }
 
     // --- uploadImage ---
@@ -206,6 +269,27 @@ class CatServiceTest {
         assertTrue(result.isLeft());
         assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
         verify(storageClient, never()).upload(any());
+    }
+
+    @Test
+    void uploadImage_doesNotOverwriteExistingProfileImageUrl() {
+        testCat.profileImageUrl = "http://existing/profile.jpg";
+        FileUpload file = mock(FileUpload.class);
+        StorageResponse storageResponse = new StorageResponse("cats/img2.jpg", "http://storage/cats/img2.jpg");
+        CatImage savedImage = new CatImage();
+        savedImage.catId = 1L;
+        savedImage.key = "cats/img2.jpg";
+
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(storageClient.upload(file)).thenReturn(Uni.createFrom().item(storageResponse));
+        when(catRepository.persist(any(Cat.class))).thenReturn(Uni.createFrom().item(testCat));
+        when(catImageRepository.persist(any(CatImage.class))).thenReturn(Uni.createFrom().item(savedImage));
+        when(catImageRepository.findByCatId(1L)).thenReturn(Multi.createFrom().items(savedImage));
+        when(catMapper.toResponse(eq(testCat), any())).thenReturn(testCatResponse);
+
+        catService.uploadImage(1L, file, 10L).await().indefinitely();
+
+        assertEquals("http://existing/profile.jpg", testCat.profileImageUrl);
     }
 
     @Test
@@ -274,7 +358,63 @@ class CatServiceTest {
         verify(storageClient, never()).delete(any());
     }
 
+    // --- getInventoryStats ---
+
+    @Test
+    void getInventoryStats_countsCorrectly() {
+        Cat available = new Cat();   available.status   = CatStatus.Available;
+        Cat unavailable = new Cat(); unavailable.status = CatStatus.Unavailable;
+        Cat deleted = new Cat();     deleted.status     = CatStatus.Deleted;
+        when(catRepository.findAllByOrganizationId(10L))
+                .thenReturn(Uni.createFrom().item(List.of(available, unavailable, deleted)));
+
+        var result = catService.getInventoryStats(10L).await().indefinitely();
+
+        assertEquals(1L, result.available());
+        assertEquals(1L, result.unavailable());
+        assertEquals(1L, result.deleted());
+        assertEquals(3L, result.total());
+    }
+
+    @Test
+    void getInventoryStats_emptyOrg_returnsAllZeros() {
+        when(catRepository.findAllByOrganizationId(10L))
+                .thenReturn(Uni.createFrom().item(List.of()));
+
+        var result = catService.getInventoryStats(10L).await().indefinitely();
+
+        assertEquals(0L, result.available());
+        assertEquals(0L, result.total());
+    }
+
     // --- updateCat ---
+
+    @Test
+    void updateCat_success_returnsRight() {
+        var request = new CatUpdateRequest("Peluso Updated", 3, null, true,
+                "Santa Cruz", "Tenerife", "España", null, null);
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(catRepository.persist(any(Cat.class))).thenReturn(Uni.createFrom().item(testCat));
+        when(catImageRepository.findByCatId(1L)).thenReturn(Multi.createFrom().empty());
+        when(catMapper.toResponse(eq(testCat), any())).thenReturn(testCatResponse);
+
+        var result = catService.updateCat(1L, request, 10L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(1L, result.getOrElse(null).id());
+    }
+
+    @Test
+    void updateCat_catNotFound_returnsLeft404() {
+        var request = new CatUpdateRequest(null, null, null, null, null, null, null, null, null);
+        when(catRepository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = catService.updateCat(999L, request, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+    }
 
     @Test
     void updateCat_notOwner_returnsLeft403() {
@@ -289,6 +429,56 @@ class CatServiceTest {
         assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
-    // deleteCat uses Panache.withSession/withTransaction (static method calls that require a live Vert.x context).
-    // adoptionClient.hasActiveRequestsForCat is verified in CatE2E (orders 23-24).
+    // --- deleteCat ---
+
+    @Test
+    void deleteCat_catNotFound_returnsLeft404() {
+        when(catRepository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = catService.deleteCat(999L, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        verify(adoptionClient, never()).hasActiveRequestsForCat(any(), any());
+    }
+
+    @Test
+    void deleteCat_notOwner_returnsLeft403() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+
+        var result = catService.deleteCat(1L, 99L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
+        verify(adoptionClient, never()).hasActiveRequestsForCat(any(), any());
+    }
+
+    @Test
+    void deleteCat_activeAdoptions_returnsLeft409() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(adoptionClient.hasActiveRequestsForCat(eq(1L), any()))
+                .thenReturn(Uni.createFrom().item(true));
+
+        var result = catService.deleteCat(1L, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(ConflictError.class, result.fold(e -> e, __ -> null));
+        verify(catWriteService, never()).markDeleted(any());
+    }
+
+    @Test
+    void deleteCat_success_returnsRight() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(adoptionClient.hasActiveRequestsForCat(eq(1L), any()))
+                .thenReturn(Uni.createFrom().item(false));
+        when(catWriteService.markDeleted(1L)).thenReturn(Uni.createFrom().voidItem());
+
+        var result = catService.deleteCat(1L, 10L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(catWriteService).markDeleted(1L);
+    }
 }

@@ -12,7 +12,6 @@ import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
 import es.kitti.user.repository.ErasureRequestRepository;
 import es.kitti.user.repository.UserRepository;
-import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.quarkus.logging.Log;
@@ -35,6 +34,9 @@ public class ErasureService {
     ErasureRequestRepository erasureRequestRepository;
 
     @Inject
+    ErasureWriteService erasureWriteService;
+
+    @Inject
     @RestClient
     AuthInternalClient authInternalClient;
 
@@ -49,38 +51,38 @@ public class ErasureService {
     @ConfigProperty(name = "kitties.internal.secret")
     String internalSecret;
 
+    @WithSession
     public Uni<Either<DomainError, Unit>> requestErasure(Long userId, String requestIp) {
-        return Panache.withTransaction(() ->
-                userRepository.findById(userId)
-                        .onItem().transformToUni(user -> {
-                            if (user.legalHoldUntil != null && user.legalHoldUntil.isAfter(LocalDateTime.now())) {
-                                return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("LEGAL_HOLD_ACTIVE")));
-                            }
-                            LocalDateTime now = LocalDateTime.now();
-                            user.status = UserStatus.Inactive;
-                            user.deletedAt = now;
-                            user.scheduledPurgeAt = now.plusDays(30);
+        return userRepository.findById(userId)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("USER_NOT_FOUND")));
+                    if (user.legalHoldUntil != null && user.legalHoldUntil.isAfter(LocalDateTime.now()))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("LEGAL_HOLD_ACTIVE")));
 
-                            ErasureRequest er = new ErasureRequest();
-                            er.userId = user.id;
-                            er.requestedAt = now;
-                            er.requestedIp = requestIp;
-                            er.scheduledPurgeAt = user.scheduledPurgeAt;
+                    LocalDateTime now = LocalDateTime.now();
+                    user.status = UserStatus.Inactive;
+                    user.deletedAt = now;
+                    user.scheduledPurgeAt = now.plusDays(30);
 
-                            return userRepository.persist(user)
-                                    .chain(() -> erasureRequestRepository.persist(er))
-                                    .replaceWith(Either.<DomainError>unit());
-                        })
-        )
-        .call(either -> either.isRight()
-                ? authInternalClient.deleteTokensByUser(userId, internalSecret)
-                        .replaceWithVoid()
-                        .onFailure().recoverWithUni(e -> {
-                            Log.warnf("Could not delete auth tokens for user %d (will retry at purge): %s", userId, e.getMessage());
-                            return Uni.createFrom().voidItem();
-                        })
-                : Uni.createFrom().voidItem()
-        );
+                    ErasureRequest er = new ErasureRequest();
+                    er.userId = user.id;
+                    er.requestedAt = now;
+                    er.requestedIp = requestIp;
+                    er.scheduledPurgeAt = user.scheduledPurgeAt;
+
+                    return erasureWriteService.createErasureRequest(user, er)
+                            .onItem().transform(v -> Either.<DomainError>unit());
+                })
+                .call(either -> either.isRight()
+                        ? authInternalClient.deleteTokensByUser(userId, internalSecret)
+                                .replaceWithVoid()
+                                .onFailure().recoverWithUni(e -> {
+                                    Log.warnf("Could not delete auth tokens for user %d (will retry at purge): %s", userId, e.getMessage());
+                                    return Uni.createFrom().voidItem();
+                                })
+                        : Uni.createFrom().voidItem()
+                );
     }
 
     @WithTransaction
@@ -115,18 +117,14 @@ public class ErasureService {
 
     private Uni<Void> purgeUser(ErasureRequest er) {
         Long userId = er.userId;
-        return Panache.withSession(() -> userRepository.findById(userId))
+        return userRepository.findById(userId)
                 .onItem().transformToUni(user -> {
                     if (user != null
                             && user.legalHoldUntil != null
                             && user.legalHoldUntil.isAfter(LocalDateTime.now())) {
-                        return Panache.withTransaction(() -> {
-                            if (!er.blockedByHold) {
-                                er.blockedByHold = true;
-                                return erasureRequestRepository.<ErasureRequest>persist(er).replaceWithVoid();
-                            }
-                            return Uni.createFrom().voidItem();
-                        });
+                        if (!er.blockedByHold)
+                            return erasureWriteService.markBlockedByHold(er);
+                        return Uni.createFrom().voidItem();
                     }
                     return executeAnonymization(userId, er);
                 })
@@ -142,12 +140,6 @@ public class ErasureService {
                 })
                 .chain(() -> adoptionInternalClient.anonymizeUser(userId, internalSecret).replaceWithVoid())
                 .chain(() -> chatInternalClient.anonymizeUser(userId, internalSecret).replaceWithVoid())
-                .chain(() -> Panache.withTransaction(() ->
-                        userRepository.delete("id = ?1", userId)
-                                .chain(count -> {
-                                    er.purgedAt = LocalDateTime.now();
-                                    return erasureRequestRepository.<ErasureRequest>persist(er).replaceWithVoid();
-                                })
-                ));
+                .chain(() -> erasureWriteService.deleteUserAndMarkPurged(userId, er));
     }
 }

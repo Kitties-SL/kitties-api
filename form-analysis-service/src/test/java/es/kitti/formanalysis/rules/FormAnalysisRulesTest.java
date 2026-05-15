@@ -173,4 +173,353 @@ class FormAnalysisRulesTest {
 
         assertTrue(criticalCount >= 3);
     }
+
+    // --- ABANDONMENT_HISTORY ---
+
+    @Test
+    void abandonmentHistory_triggersCriticalFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "abandoné a mi gato anterior", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("ABANDONMENT_HISTORY")));
+    }
+
+    @Test
+    void abandonmentHistory_soltePhrasing_triggersCriticalFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "solté al perro porque me mudé", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("ABANDONMENT_HISTORY")));
+    }
+
+    // --- TOO_MANY_HOURS_ALONE ---
+
+    @Test
+    void tooManyHoursAlone_noOtherPets_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 11, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("TOO_MANY_HOURS_ALONE")));
+    }
+
+    @Test
+    void tooManyHoursAlone_withOtherPets_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                true, "Un perro", 11, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("TOO_MANY_HOURS_ALONE")));
+    }
+
+    @Test
+    void tooManyHoursAlone_exactlyTen_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 10, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("TOO_MANY_HOURS_ALONE")));
+    }
+
+    // --- YOUNG_CHILDREN_NO_EXPERIENCE ---
+
+    @Test
+    void youngChildren_noExperience_ageThree_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                false, "Murió de vejez", 2, true, "3",
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("YOUNG_CHILDREN_NO_EXPERIENCE")));
+    }
+
+    @Test
+    void youngChildren_noExperience_ageFour_noFlag() {
+        // La regla usa regex \b[0-3]\b: edad 4 no dispara
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                false, "Murió de vejez", 2, true, "4",
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("YOUNG_CHILDREN_NO_EXPERIENCE")));
+    }
+
+    @Test
+    void youngChildren_withExperience_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, true, "2",
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("YOUNG_CHILDREN_NO_EXPERIENCE")));
+    }
+
+    // --- UNSTABLE_HOUSING ---
+
+    @Test
+    void unstableHousing_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, false, "Mudanza prevista en 6 meses",
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("UNSTABLE_HOUSING")));
+    }
+
+    // --- SUPERFICIAL_MOTIVATION ---
+
+    @Test
+    void superficialMotivation_deRegalo_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "Lo quiero de regalo para mi pareja", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("SUPERFICIAL_MOTIVATION")));
+    }
+
+    @Test
+    void superficialMotivation_paraLosNinos_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "Lo quiero para los niños", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("SUPERFICIAL_MOTIVATION")));
+    }
+
+    // --- Notice flags ---
+
+    @Test
+    void noWindowView_triggersNoticeFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                false, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Notice && f.code().equals("NO_WINDOW_VIEW")));
+    }
+
+    @Test
+    void noPreviousExperience_triggersNoticeFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                false, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Notice && f.code().equals("NO_PREVIOUS_EXPERIENCE")));
+    }
+
+    @Test
+    void noScratchingPost_triggersNoticeFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                false, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Notice && f.code().equals("NO_SCRATCHING_POST")));
+    }
+
+    // --- Valores límite ---
+
+    @Test
+    void playTime_exactlyFifteenMinutes_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 15, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("INSUFFICIENT_PLAY_TIME")));
+    }
+
+    @Test
+    void playTime_fourteenMinutes_triggersFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 14, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f -> f.code().equals("INSUFFICIENT_PLAY_TIME")));
+    }
+
+    @Test
+    void housingSize_exactlyFortySquareMeters_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 40, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("SMALL_HOUSING")));
+    }
+
+    @Test
+    void rentalWithPermission_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, true, true,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("RENTAL_NO_PERMISSION")));
+    }
+
+    @Test
+    void physicalPunishment_englishKeyword_triggersCriticalFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "I would smack it if it scratches me",
+                true, true, "amor", true, true, true, false, null
+        );
+
+        var flags = formAnalysisRules.evaluate(event);
+
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("PHYSICAL_PUNISHMENT")));
+    }
 }

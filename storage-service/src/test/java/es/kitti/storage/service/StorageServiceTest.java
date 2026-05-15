@@ -114,6 +114,50 @@ class StorageServiceTest {
     }
 
     @Test
+    void upload_emptyFile_returnsLeft400() {
+        var result = storageService.upload(new byte[0], "image/jpeg", "photo.jpg")
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
+        verify(storageProvider, never()).upload(any(), any(), any());
+    }
+
+    @Test
+    void upload_jpegMagicDeclaredAsPng_returnsLeft400() {
+        var result = storageService.upload(JPEG_DATA, "image/png", "photo.png")
+                .await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(400, result.fold(DomainError::httpStatus, __ -> 0));
+        verify(storageProvider, never()).upload(any(), any(), any());
+    }
+
+    @Test
+    void upload_oneByteBelowMaxSize_returnsRight() {
+        byte[] data = jpegData(5 * 1024 * 1024 - 1);
+        when(storageProvider.upload(anyString(), eq(data), eq("image/jpeg")))
+                .thenReturn(Uni.createFrom().item("some-key.jpg"));
+
+        var result = storageService.upload(data, "image/jpeg", "photo.jpg")
+                .await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(storageProvider).upload(anyString(), eq(data), eq("image/jpeg"));
+    }
+
+    @Test
+    void upload_providerFailure_propagatesError() {
+        byte[] data = jpegData(100);
+        when(storageProvider.upload(anyString(), eq(data), eq("image/jpeg")))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("S3 unavailable")));
+
+        assertThrows(RuntimeException.class,
+                () -> storageService.upload(data, "image/jpeg", "photo.jpg")
+                        .await().indefinitely());
+    }
+
+    @Test
     void delete_delegatesToProvider() {
         when(storageProvider.delete("some-key.jpg"))
                 .thenReturn(Uni.createFrom().voidItem());

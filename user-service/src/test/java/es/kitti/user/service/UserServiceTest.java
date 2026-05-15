@@ -1,13 +1,19 @@
 package es.kitti.user.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
 import es.kitti.mon.error.UnauthorizedError;
 import io.smallrye.mutiny.Uni;
+import es.kitti.user.client.AdoptionInternalClient;
+import es.kitti.user.client.ChatInternalClient;
 import es.kitti.user.dto.UserCreateRequest;
+import es.kitti.user.dto.UserDataExportResponse;
 import es.kitti.user.dto.UserResponse;
+import es.kitti.user.dto.UserUpdateRequest;
 import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
@@ -23,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +42,9 @@ class UserServiceTest {
     @Mock UserRepository userRepository;
     @Mock UserMapper userMapper;
     @Mock Emitter<UserRegisteredEvent> userRegisteredEmitter;
+    @Mock AdoptionInternalClient adoptionInternalClient;
+    @Mock ChatInternalClient chatInternalClient;
+    @Mock ObjectMapper objectMapper;
 
     @InjectMocks
     UserService userService;
@@ -43,7 +53,11 @@ class UserServiceTest {
     private UserResponse testUserResponse;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        var field = UserService.class.getDeclaredField("internalSecret");
+        field.setAccessible(true);
+        field.set(userService, "test-secret");
+
         testUser = new User();
         testUser.id = 1L;
         testUser.email = "test@kitti.es";
@@ -180,5 +194,166 @@ class UserServiceTest {
 
         assertTrue(result.isLeft());
         assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    // --- findById ---
+
+    @Test
+    void findById_userExists_returnsRight() {
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
+
+        var result = userService.findById(1L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(1L, result.getOrElse(null).id());
+    }
+
+    @Test
+    void findById_userNotFound_returnsLeft404() {
+        when(userRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.findById(99L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    // --- activateByToken (casos adicionales) ---
+
+    @Test
+    void activateByToken_expiredToken_returnsLeft401() {
+        testUser.activationTokenExpiresAt = LocalDateTime.now().minusHours(1);
+        when(userRepository.findByActivationToken("expired-token"))
+                .thenReturn(Uni.createFrom().item(testUser));
+
+        var result = userService.activateByToken("expired-token").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(UnauthorizedError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(401, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void activateByToken_clearsTokenAndExpiryOnSuccess() {
+        testUser.activationTokenExpiresAt = LocalDateTime.now().plusHours(1);
+        when(userRepository.findByActivationToken("valid-token-123"))
+                .thenReturn(Uni.createFrom().item(testUser));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
+
+        userService.activateByToken("valid-token-123").await().indefinitely();
+
+        assertNull(testUser.activationToken);
+        assertNull(testUser.activationTokenExpiresAt);
+    }
+
+    // --- activateUser (activación por email, uso admin) ---
+
+    @Test
+    void activateUser_userExists_setsActiveStatus() {
+        var activeResponse = new UserResponse(
+                1L, "test@kitti.es", "Test", "User",
+                UserStatus.Active, UserRole.User, null,
+                LocalDateTime.now(), LocalDateTime.now());
+
+        when(userRepository.findByEmail("test@kitti.es")).thenReturn(Uni.createFrom().item(testUser));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(activeResponse);
+
+        var result = userService.activateUser("test@kitti.es").await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(UserStatus.Active, result.getOrElse(null).status());
+        assertEquals(UserStatus.Active, testUser.status);
+    }
+
+    @Test
+    void activateUser_userNotFound_returnsLeft404() {
+        when(userRepository.findByEmail("nonexistent@kitti.es"))
+                .thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.activateUser("nonexistent@kitti.es").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    // --- updateUser ---
+
+    @Test
+    void updateUser_userExists_returnsRight() {
+        var request = new UserUpdateRequest("Nuevo", "Apellido", null);
+        when(userRepository.findByEmail("test@kitti.es")).thenReturn(Uni.createFrom().item(testUser));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
+
+        var result = userService.updateUser("test@kitti.es", request).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(userMapper).updateEntity(eq(testUser), eq(request));
+        verify(userRegisteredEmitter).send(any(UserRegisteredEvent.class));
+    }
+
+    @Test
+    void updateUser_userNotFound_returnsLeft404() {
+        var request = new UserUpdateRequest("Nuevo", "Apellido", null);
+        when(userRepository.findByEmail("nonexistent@kitti.es"))
+                .thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.updateUser("nonexistent@kitti.es", request).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+        verify(userRegisteredEmitter, never()).send(any(UserRegisteredEvent.class));
+    }
+
+    // --- findAllActiveUsers ---
+
+    @Test
+    void findAllActiveUsers_returnsMappedList() {
+        when(userRepository.findAllActiveUsers()).thenReturn(Uni.createFrom().item(List.of(testUser)));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
+
+        var result = userService.findAllActiveUsers().await().indefinitely();
+
+        assertEquals(1, result.size());
+        assertEquals("test@kitti.es", result.get(0).email());
+    }
+
+    // --- exportMyData ---
+
+    @Test
+    void exportMyData_userExists_returnsCombinedExport() {
+        var adoptionsJson = mock(JsonNode.class);
+        var chatJson = mock(JsonNode.class);
+        var exportResponse = new UserDataExportResponse(testUserResponse, adoptionsJson, chatJson);
+
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(testUserResponse);
+        when(adoptionInternalClient.exportUser(eq(1L), anyString()))
+                .thenReturn(Uni.createFrom().item(adoptionsJson));
+        when(chatInternalClient.exportUser(eq(1L), anyString()))
+                .thenReturn(Uni.createFrom().item(chatJson));
+
+        var result = userService.exportMyData(1L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(testUserResponse, result.getOrElse(null).profile());
+        verify(adoptionInternalClient).exportUser(1L, "test-secret");
+        verify(chatInternalClient).exportUser(1L, "test-secret");
+    }
+
+    @Test
+    void exportMyData_userNotFound_returnsLeft404() {
+        when(userRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.exportMyData(99L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        verifyNoInteractions(adoptionInternalClient, chatInternalClient);
     }
 }

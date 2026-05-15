@@ -137,6 +137,50 @@ class FormAnalysisServiceTest {
     }
 
     @Test
+    void invalidJson_noEventEmitted() throws Exception {
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        source.send("not-valid-json{");
+
+        Thread.sleep(500);
+        assertTrue(sink.received().isEmpty());
+    }
+
+    @Test
+    void formWithExactlyOneWarning_emitsReviewRequired() throws Exception {
+        InMemorySource<String> source = connector.source("adoption-form-submitted");
+        InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
+        sink.clear();
+
+        // Form limpio con dailyPlayMinutes=10 (< 15) → exactamente 1 Warning (INSUFFICIENT_PLAY_TIME)
+        var event = new AdoptionFormSubmittedEvent(
+                5L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                10, "Caña, ratones, túneles",   // ← dailyPlayMinutes=10 < 15 → Warning
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+
+        source.send(objectMapper.writeValueAsString(event));
+
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertFalse(sink.received().isEmpty());
+            var payload = sink.received().get(0).getPayload();
+            assertEquals(AnalysisDecision.ReviewRequired.name(), payload.decision());
+            assertEquals(0, payload.criticalFlags());
+            assertTrue(payload.warningFlags() >= 1);
+        });
+    }
+
+    @Test
     void formWithWarningFlags_emitsReviewRequiredDecision() throws Exception {
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
