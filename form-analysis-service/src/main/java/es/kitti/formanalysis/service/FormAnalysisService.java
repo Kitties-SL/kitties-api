@@ -5,18 +5,19 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.entity.*;
 import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
-import es.kitti.formanalysis.repository.FormAnalysisRepository;
-import es.kitti.formanalysis.repository.FormFlagRepository;
 import es.kitti.formanalysis.rules.FlagResult;
 import es.kitti.formanalysis.rules.FormAnalysisRules;
+import es.kitti.formanalysis.rules.LlmFlagConverter;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 @ApplicationScoped
 public class FormAnalysisService {
@@ -31,6 +32,15 @@ public class FormAnalysisService {
     FormAnalysisRules formAnalysisRules;
 
     @Inject
+    FormAnalysisAiService formAnalysisAiService;
+
+    @Inject
+    LlmPromptBuilder llmPromptBuilder;
+
+    @Inject
+    LlmFlagConverter llmFlagConverter;
+
+    @Inject
     ObjectMapper objectMapper;
 
     @Inject
@@ -42,60 +52,71 @@ public class FormAnalysisService {
 
     @Incoming("adoption-form-submitted")
     public Uni<Void> onFormSubmitted(String message) {
+        AdoptionFormSubmittedEvent event;
         try {
-            AdoptionFormSubmittedEvent event = objectMapper.readValue(
-                    message, AdoptionFormSubmittedEvent.class);
-
-            Log.infof("Analysing form for adoption request: %d", event.adoptionRequestId());
-
-            List<FlagResult> flags = formAnalysisRules.evaluate(event);
-
-            long criticalCount = flags.stream()
-                    .filter(f -> f.severity() == FlagSeverity.Critical).count();
-            long warningCount = flags.stream()
-                    .filter(f -> f.severity() == FlagSeverity.Warning).count();
-            long noticeCount = flags.stream()
-                    .filter(f -> f.severity() == FlagSeverity.Notice).count();
-
-            AnalysisDecision decision = determineDecision(criticalCount, warningCount);
-            String rejectionReason = buildRejectionReason(flags, decision);
-
-            FormAnalysis analysis = new FormAnalysis();
-            analysis.adoptionRequestId = event.adoptionRequestId();
-            analysis.decision = decision;
-            analysis.rejectionReason = rejectionReason;
-            analysis.criticalFlags = (int) criticalCount;
-            analysis.warningFlags = (int) warningCount;
-            analysis.noticeFlags = (int) noticeCount;
-
-            List<FormFlag> formFlags = flags.stream().map(f -> {
-                FormFlag flag = new FormFlag();
-                flag.severity = f.severity();
-                flag.code = f.code();
-                flag.description = f.description();
-                return flag;
-            }).toList();
-
-            return persistenceService.persist(analysis, formFlags)
-                    .onItem().invoke(saved -> {
-                        adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
-                                event.adoptionRequestId(),
-                                decision.name(),
-                                rejectionReason,
-                                event.adopterId(),
-                                (int) criticalCount,
-                                (int) warningCount,
-                                (int) noticeCount
-                        ));
-                        Log.infof("Form analysis completed for request %d: %s",
-                                event.adoptionRequestId(), decision);
-                    })
-                    .replaceWithVoid();
-
+            event = objectMapper.readValue(message, AdoptionFormSubmittedEvent.class);
         } catch (Exception e) {
             Log.errorf("Error processing adoption-form-submitted, routing to DLQ: %s", e.getMessage());
             return Uni.createFrom().failure(e);
         }
+
+        Log.infof("Analysing form for adoption request: %d", event.adoptionRequestId());
+
+        List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
+        String prompt = llmPromptBuilder.build(event);
+
+        return formAnalysisAiService.analyzeTextFields(prompt)
+                .onFailure().recoverWithItem(e -> {
+                    Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
+                    return LlmTextAnalysis.unavailable();
+                })
+                .onItem().transformToUni(llmResult -> {
+                    List<FlagResult> llmFlags = llmFlagConverter.convert(llmResult);
+                    List<FlagResult> allFlags = Stream.concat(rulesFlags.stream(), llmFlags.stream()).toList();
+
+                    long criticalCount = allFlags.stream()
+                            .filter(f -> f.severity() == FlagSeverity.Critical).count();
+                    long warningCount = allFlags.stream()
+                            .filter(f -> f.severity() == FlagSeverity.Warning).count();
+                    long noticeCount = allFlags.stream()
+                            .filter(f -> f.severity() == FlagSeverity.Notice).count();
+
+                    AnalysisDecision decision = determineDecision(criticalCount, warningCount);
+                    String rejectionReason = buildRejectionReason(allFlags, decision);
+
+                    FormAnalysis analysis = new FormAnalysis();
+                    analysis.adoptionRequestId = event.adoptionRequestId();
+                    analysis.decision = decision;
+                    analysis.rejectionReason = rejectionReason;
+                    analysis.criticalFlags = (int) criticalCount;
+                    analysis.warningFlags = (int) warningCount;
+                    analysis.noticeFlags = (int) noticeCount;
+                    analysis.llmReasoning = llmResult.reasoning();
+
+                    List<FormFlag> formFlags = allFlags.stream().map(f -> {
+                        FormFlag flag = new FormFlag();
+                        flag.severity = f.severity();
+                        flag.code = f.code();
+                        flag.description = f.description();
+                        return flag;
+                    }).toList();
+
+                    return persistenceService.persist(analysis, formFlags)
+                            .onItem().invoke(saved -> {
+                                adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
+                                        event.adoptionRequestId(),
+                                        decision.name(),
+                                        rejectionReason,
+                                        event.adopterId(),
+                                        (int) criticalCount,
+                                        (int) warningCount,
+                                        (int) noticeCount
+                                ));
+                                Log.infof("Form analysis completed for request %d: %s",
+                                        event.adoptionRequestId(), decision);
+                            })
+                            .replaceWithVoid();
+                });
     }
 
     private AnalysisDecision determineDecision(long criticalCount, long warningCount) {
