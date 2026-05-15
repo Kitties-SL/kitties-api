@@ -505,6 +505,123 @@ class FormAnalysisRulesTest {
         assertTrue(flags.stream().noneMatch(f -> f.code().equals("RENTAL_NO_PERMISSION")));
     }
 
+    // --- Campos null (paths sin dato) ---
+
+    @Test
+    void dailyPlayMinutes_null_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", null, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("INSUFFICIENT_PLAY_TIME")));
+    }
+
+    @Test
+    void housingSize_null_noFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", null, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("SMALL_HOUSING")));
+    }
+
+    @Test
+    void rentalPetsAllowed_null_isRental_true_triggersCriticalFlag() {
+        // rentalPetsAllowed=null equivale a "sin permiso explícito" → dispara RENTAL_NO_PERMISSION
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, true, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("RENTAL_NO_PERMISSION")));
+    }
+
+    // --- Keywords adicionales ---
+
+    @Test
+    void physicalPunishment_bofetadaKeyword_triggersCriticalFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "le daría una bofetada",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("PHYSICAL_PUNISHMENT")));
+    }
+
+    @Test
+    void abandonmentHistory_tireKeyword_triggersCriticalFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "lo tiré a la calle cuando me mudé", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Critical && f.code().equals("ABANDONMENT_HISTORY")));
+    }
+
+    @Test
+    void superficialMotivation_caprichoKeyword_triggersWarningFlag() {
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "Fue un capricho del momento", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().anyMatch(f ->
+                f.severity() == FlagSeverity.Warning && f.code().equals("SUPERFICIAL_MOTIVATION")));
+    }
+
+    // --- Enriquecimiento parcial ---
+
+    @Test
+    void enrichmentSpace_onlyVerticalSpace_noFlag() {
+        // Ambas condiciones deben ser false para disparar; solo una false → no flag
+        var event = new AdoptionFormSubmittedEvent(
+                1L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, false, true, "Quiet",
+                "instinto", 30, "juguetes", "ignorar",
+                true, true, "amor", true, true, true, false, null
+        );
+        var flags = formAnalysisRules.evaluate(event);
+        assertTrue(flags.stream().noneMatch(f -> f.code().equals("NO_ENRICHMENT_SPACE")));
+    }
+
     @Test
     void physicalPunishment_englishKeyword_triggersCriticalFlag() {
         var event = new AdoptionFormSubmittedEvent(
