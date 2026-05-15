@@ -1,27 +1,30 @@
 {
   "_type": "export",
   "__export_format": 4,
-  "__export_date": "2026-04-18",
-  "__export_source": "kittigram",
+  "__export_date": "2026-05-15",
+  "__export_source": "kitties",
   "resources": [
     {
       "_id": "env_1",
       "_type": "environment",
-      "name": "Kittigram Dev",
+      "name": "Kitties Dev",
       "data": {
         "base_url": "http://localhost:8080",
         "access_token": "",
         "refresh_token": "",
         "user_email": "tote@ciscoadiz.org",
         "cat_id": "1",
-        "adoption_id": "1"
+        "org_id": "1",
+        "adoption_id": "1",
+        "intake_id": "1",
+        "conversation_id": "1"
       }
     },
     {
       "_id": "wrk_1",
       "_type": "workspace",
-      "name": "Kittigram API",
-      "description": "Entorno de pruebas para la API de Kittigram"
+      "name": "Kitties API",
+      "description": "Entorno de pruebas para la API de Kitties"
     },
 
     { "_id": "fld_auth", "_type": "request_group", "name": "Auth", "parentId": "wrk_1" },
@@ -76,13 +79,26 @@
     {
       "_id": "req_register",
       "_type": "request",
-      "name": "Register",
+      "name": "Register (User)",
       "parentId": "fld_users",
       "method": "POST",
       "url": "{{ _.base_url }}/api/users",
       "body": {
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"tote@ciscoadiz.org\",\n  \"password\": \"Password1!\",\n  \"name\": \"Tote\",\n  \"surname\": \"Cisco\",\n  \"role\": \"User\"\n}"
+      },
+      "headers": [{ "name": "Content-Type", "value": "application/json" }]
+    },
+    {
+      "_id": "req_register_org",
+      "_type": "request",
+      "name": "Register (Organization)",
+      "parentId": "fld_users",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/users",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"protectora@elrefugio.org\",\n  \"password\": \"Password1!\",\n  \"name\": \"Protectora\",\n  \"surname\": \"El Refugio\",\n  \"role\": \"Organization\"\n}"
       },
       "headers": [{ "name": "Content-Type", "value": "application/json" }]
     },
@@ -106,15 +122,6 @@
       "parentId": "fld_users",
       "method": "GET",
       "url": "{{ _.base_url }}/api/users/{{ _.user_email }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
-    },
-    {
-      "_id": "req_list_active_users",
-      "_type": "request",
-      "name": "List Active Users",
-      "parentId": "fld_users",
-      "method": "GET",
-      "url": "{{ _.base_url }}/api/users/active",
       "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
     {
@@ -151,6 +158,127 @@
       "url": "{{ _.base_url }}/api/users/{{ _.user_email }}/activate",
       "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
+    {
+      "_id": "req_export_my_data",
+      "_type": "request",
+      "name": "Export My Data (GDPR)",
+      "parentId": "fld_users",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/users/me/export",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_erasure_request",
+      "_type": "request",
+      "name": "Request Erasure (GDPR)",
+      "parentId": "fld_users",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/users/me/erasure-request",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+
+    { "_id": "fld_orgs", "_type": "request_group", "name": "Organizations", "parentId": "wrk_1" },
+
+    {
+      "_id": "req_create_org",
+      "_type": "request",
+      "name": "Create Organization",
+      "parentId": "fld_orgs",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/organizations",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Protectora El Refugio\",\n  \"description\": \"Protectora de animales de la zona sur de Madrid\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"Madrid\",\n  \"region\": \"Comunidad de Madrid\",\n  \"country\": \"España\",\n  \"phone\": \"+34 910 000 001\",\n  \"email\": \"info@elrefugio.org\",\n  \"logoUrl\": null\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_my_org",
+      "_type": "request",
+      "name": "My Organization",
+      "parentId": "fld_orgs",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/organizations/mine",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_get_org",
+      "_type": "request",
+      "name": "Get Organization",
+      "parentId": "fld_orgs",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_update_org",
+      "_type": "request",
+      "name": "Update Organization",
+      "parentId": "fld_orgs",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Protectora El Refugio\",\n  \"description\": \"Descripción actualizada\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"Madrid\",\n  \"region\": \"Comunidad de Madrid\",\n  \"country\": \"España\",\n  \"phone\": \"+34 910 000 001\",\n  \"email\": \"info@elrefugio.org\",\n  \"logoUrl\": null\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_list_members",
+      "_type": "request",
+      "name": "List Members",
+      "parentId": "fld_orgs",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_invite_member",
+      "_type": "request",
+      "name": "Invite Member",
+      "parentId": "fld_orgs",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"userId\": 2,\n  \"role\": \"Member\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_change_member_role",
+      "_type": "request",
+      "name": "Change Member Role",
+      "parentId": "fld_orgs",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members/USER_ID/role",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"role\": \"Manager\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_remove_member",
+      "_type": "request",
+      "name": "Remove Member",
+      "parentId": "fld_orgs",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/organizations/{{ _.org_id }}/members/USER_ID",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
 
     { "_id": "fld_cats", "_type": "request_group", "name": "Cats", "parentId": "wrk_1" },
 
@@ -163,7 +291,9 @@
       "url": "{{ _.base_url }}/api/cats",
       "parameters": [
         { "name": "city", "value": "" },
-        { "name": "name", "value": "" }
+        { "name": "name", "value": "" },
+        { "name": "page", "value": "0" },
+        { "name": "size", "value": "20" }
       ]
     },
     {
@@ -173,6 +303,24 @@
       "parentId": "fld_cats",
       "method": "GET",
       "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}"
+    },
+    {
+      "_id": "req_my_cats",
+      "_type": "request",
+      "name": "My Cats (org)",
+      "parentId": "fld_cats",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/cats/mine",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_cat_stats",
+      "_type": "request",
+      "name": "Inventory Stats (org)",
+      "parentId": "fld_cats",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/cats/mine/stats",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
     {
       "_id": "req_create_cat",
@@ -238,6 +386,77 @@
       "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
 
+    { "_id": "fld_intake", "_type": "request_group", "name": "Intake Requests", "parentId": "wrk_1" },
+
+    {
+      "_id": "req_create_intake",
+      "_type": "request",
+      "name": "Create Intake Request (user)",
+      "parentId": "fld_intake",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/intake-requests",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"targetOrganizationId\": {{ _.org_id }},\n  \"catName\": \"Michi\",\n  \"catAge\": 3,\n  \"region\": \"Comunidad de Madrid\",\n  \"city\": \"Madrid\",\n  \"vaccinated\": true,\n  \"description\": \"Gato rescatado de la calle, muy tranquilo\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_my_intakes",
+      "_type": "request",
+      "name": "My Intake Requests (user)",
+      "parentId": "fld_intake",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/intake-requests/mine",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_org_intakes",
+      "_type": "request",
+      "name": "Organization Intake Requests (org)",
+      "parentId": "fld_intake",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/intake-requests/organization",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_org_intake_stats",
+      "_type": "request",
+      "name": "Intake Stats (org)",
+      "parentId": "fld_intake",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/intake-requests/organization/stats",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_approve_intake",
+      "_type": "request",
+      "name": "Approve Intake (org)",
+      "parentId": "fld_intake",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/intake-requests/{{ _.intake_id }}/approve",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_reject_intake",
+      "_type": "request",
+      "name": "Reject Intake (org)",
+      "parentId": "fld_intake",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/intake-requests/{{ _.intake_id }}/reject",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"reason\": \"No disponemos de espacio actualmente\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+
     { "_id": "fld_adoptions", "_type": "request_group", "name": "Adoptions", "parentId": "wrk_1" },
 
     {
@@ -249,7 +468,7 @@
       "url": "{{ _.base_url }}/api/adoptions",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"catId\": 1,\n  \"organizationId\": 2\n}"
+        "text": "{\n  \"catId\": {{ _.cat_id }},\n  \"organizationId\": {{ _.org_id }}\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
@@ -284,6 +503,24 @@
       "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
     {
+      "_id": "req_org_pipeline",
+      "_type": "request",
+      "name": "Organization Pipeline (org)",
+      "parentId": "fld_adoptions",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/adoptions/organization/pipeline",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_adoptions_by_cat",
+      "_type": "request",
+      "name": "Adoptions by Cat (org)",
+      "parentId": "fld_adoptions",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/adoptions/organization/cats/{{ _.cat_id }}",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
       "_id": "req_update_adoption_status",
       "_type": "request",
       "name": "Update Adoption Status (org)",
@@ -308,7 +545,7 @@
       "url": "{{ _.base_url }}/api/adoptions/{{ _.adoption_id }}/form",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"hasPreviousCatExperience\": true,\n  \"previousPetsHistory\": \"Tuve dos gatos antes\",\n  \"adultsInHousehold\": 2,\n  \"hasChildren\": false,\n  \"hasOtherPets\": false,\n  \"hoursAlonePerDay\": 4,\n  \"stableHousing\": true,\n  \"housingType\": \"Apartment\",\n  \"housingSize\": 70,\n  \"hasOutdoorAccess\": false,\n  \"isRental\": true,\n  \"rentalPetsAllowed\": true,\n  \"hasWindowsWithView\": true,\n  \"hasVerticalSpace\": true,\n  \"hasHidingSpots\": true,\n  \"householdActivityLevel\": \"Moderate\",\n  \"whyCatsNeedToPlay\": \"Para su estimulación mental y salud\",\n  \"dailyPlayMinutes\": 30,\n  \"plannedEnrichment\": \"Juguetes, rascadores, árbol para gatos\",\n  \"reactionToUnwantedBehavior\": \"Redirigir con juguetes, nunca castigar\",\n  \"hasScratchingPost\": true,\n  \"willingToEnrichEnvironment\": true,\n  \"motivationToAdopt\": \"Dar un hogar amoroso a un gato\",\n  \"understandsLongTermCommitment\": true,\n  \"hasVetBudget\": true,\n  \"allHouseholdMembersAgree\": true,\n  \"anyoneHasAllergies\": false\n}"
+        "text": "{\n  \"hasPreviousCatExperience\": true,\n  \"previousPetsHistory\": \"Tuve dos gatos antes, murieron de vejez\",\n  \"adultsInHousehold\": 2,\n  \"hasChildren\": false,\n  \"childrenAges\": null,\n  \"hasOtherPets\": false,\n  \"otherPetsDescription\": null,\n  \"hoursAlonePerDay\": 4,\n  \"stableHousing\": true,\n  \"housingInstabilityReason\": null,\n  \"housingType\": \"Apartment\",\n  \"housingSize\": 70,\n  \"hasOutdoorAccess\": false,\n  \"isRental\": true,\n  \"rentalPetsAllowed\": true,\n  \"hasWindowsWithView\": true,\n  \"hasVerticalSpace\": true,\n  \"hasHidingSpots\": true,\n  \"householdActivityLevel\": \"Moderate\",\n  \"whyCatsNeedToPlay\": \"Para su estimulación mental y salud\",\n  \"dailyPlayMinutes\": 30,\n  \"plannedEnrichment\": \"Juguetes, rascadores, árbol para gatos\",\n  \"reactionToUnwantedBehavior\": \"Redirigir con juguetes, nunca castigar\",\n  \"hasScratchingPost\": true,\n  \"willingToEnrichEnvironment\": true,\n  \"motivationToAdopt\": \"Dar un hogar amoroso a un gato que lo necesita\",\n  \"understandsLongTermCommitment\": true,\n  \"hasVetBudget\": true,\n  \"allHouseholdMembersAgree\": true,\n  \"anyoneHasAllergies\": false,\n  \"allergiesDetail\": null\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
@@ -324,7 +561,7 @@
       "url": "{{ _.base_url }}/api/adoptions/{{ _.adoption_id }}/interview",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"scheduledAt\": \"2026-05-01T10:00:00\",\n  \"notes\": \"Por favor traiga DNI\"\n}"
+        "text": "{\n  \"scheduledAt\": \"2026-06-01T10:00:00\",\n  \"notes\": \"Por favor traiga DNI\"\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
@@ -340,12 +577,83 @@
       "url": "{{ _.base_url }}/api/adoptions/{{ _.adoption_id }}/adoption-form",
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"fullName\": \"Tote Cisco\",\n  \"idNumber\": \"12345678A\",\n  \"phone\": \"600000000\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"La Orotava\",\n  \"postalCode\": \"38300\",\n  \"acceptsVetVisits\": true,\n  \"acceptsFollowUpContact\": true,\n  \"acceptsReturnIfNeeded\": true,\n  \"acceptsTermsAndConditions\": true\n}"
+        "text": "{\n  \"fullName\": \"Tote Cisco\",\n  \"idNumber\": \"12345678A\",\n  \"phone\": \"600000000\",\n  \"address\": \"Calle Mayor 1\",\n  \"city\": \"La Orotava\",\n  \"postalCode\": \"38300\",\n  \"acceptsVetVisits\": true,\n  \"acceptsFollowUpContact\": true,\n  \"acceptsReturnIfNeeded\": true,\n  \"acceptsTermsAndConditions\": true,\n  \"consentHealthData\": true,\n  \"additionalNotes\": null\n}"
       },
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
         { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
       ]
+    },
+
+    { "_id": "fld_chat", "_type": "request_group", "name": "Chat", "parentId": "wrk_1" },
+
+    {
+      "_id": "req_my_conversations_user",
+      "_type": "request",
+      "name": "My Conversations (user)",
+      "parentId": "fld_chat",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/chats/mine",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_my_conversations_org",
+      "_type": "request",
+      "name": "My Conversations (org)",
+      "parentId": "fld_chat",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/chats/organization",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_list_messages",
+      "_type": "request",
+      "name": "List Messages",
+      "parentId": "fld_chat",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/messages",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+    },
+    {
+      "_id": "req_send_message",
+      "_type": "request",
+      "name": "Send Message",
+      "parentId": "fld_chat",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/messages",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"content\": \"Hola, me interesa adoptar a Luna\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_block_user",
+      "_type": "request",
+      "name": "Block User (org)",
+      "parentId": "fld_chat",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/block",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"reason\": \"Comportamiento inapropiado\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ]
+    },
+    {
+      "_id": "req_unblock_user",
+      "_type": "request",
+      "name": "Unblock User (org)",
+      "parentId": "fld_chat",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/chats/{{ _.conversation_id }}/block",
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
     },
 
     { "_id": "fld_storage", "_type": "request_group", "name": "Storage", "parentId": "wrk_1" },
