@@ -484,21 +484,24 @@ Los pull requests solo disparan la matriz de tests (sin push de imágenes).
 
 Los tests unitarios usan Mockito puro (`@ExtendWith(MockitoExtension.class)`), sin contenedores. Los tests de integración usan `@QuarkusTest` + RestAssured con perfiles `%test.*` en la configuración principal.
 
-| Servicio               | Unitarios | Integración | Notas                                                |
-|------------------------|-----------|-------------|------------------------------------------------------|
-| user-service           | 8         | 3           | Kafka in-memory SmallRye                             |
-| auth-service           | 7         | 4           | `@InjectMock` en cliente gRPC                        |
-| cat-service            | 9         | 5           | Tokens JWT de test vía `quarkus-smallrye-jwt-build`  |
-| storage-service        | 9         | 3           | MinIO real vía `QuarkusTestResourceLifecycleManager` |
-| gateway-service        | 2         | 23          | WireMock 1.6.1 DevService; Mockito para unit tests   |
-| notification-service   | 3         | 2           | MockMailbox + Kafka in-memory + Awaitility           |
-| adoption-service       | 19        | 23          | RBAC + ownership; flujo intake + alternativas; guardia gato eliminado |
-| form-analysis-service  | 8         | 3           | Motor de reglas + Kafka in-memory                    |
-| organization-service   | 16        | 17          | Límites de miembros por plan; `@TestSecurity` RBAC; `@InternalOnly` by-region |
-| chat-service           | 17        | 16          | Conversaciones, mensajes, ban, creación interna      |
-| gateway-service        | 2         | 26          | + 404 ruta interna + routing chat                    |
+| Servicio               | Tests | Notas                                                                              |
+|------------------------|------:|------------------------------------------------------------------------------------|
+| adoption-service       | 142   | RBAC + ownership; flujo intake; guardia gato eliminado; purga retención; anonimización GDPR |
+| user-service           | 58    | Borrado GDPR; activación; cambio de contraseña; VOs de dominio                     |
+| cat-service            | 50    | CRUD completo + ciclo de vida de imágenes; reglas de negocio deleteCat vía CatWriteService |
+| either-mon             | 57    | Either, Try, Validation, ConstraintViolationMapper                                 |
+| organization-service   | 52    | Límites de miembros por plan; `@TestSecurity` RBAC; `@InternalOnly` by-region      |
+| chat-service           | 44    | Conversaciones, mensajes, ban, creación interna; purga de retención               |
+| auth-service           | 28    | Ciclo de vida de tokens; rotación de refresh; logout idempotente; checks con ArgumentCaptor |
+| form-analysis-service  | 33    | Motor de reglas (27 casos); consumidor Kafka; ReviewRequired; JSON inválido DLQ    |
+| gateway-service        | 29    | WireMock proxy; timeout 504; rate limiter; filtro JWT                              |
+| storage-service        | 17    | Validación MIME; magic bytes; límite de tamaño; propagación de fallo del proveedor |
+| schedule-service       | 7     | Cableado de Jobs (WireMock); agotamiento de reintentos                             |
+| notification-service   | 6     | Error SMTP hacia DLQ; JSON inválido hacia DLQ                                      |
 
-**Total: ~216 tests**
+**Total: 523 tests** · Ratio Tests/CC global: **0,48**
+
+La métrica Tests/CC mide cuántos tests existen en relación a la complejidad ciclomática. Ver `test-coverage-report-2026-05-15.md` para el análisis de brecha completo.
 
 **Tests end-to-end** se ejecutan contra el stack completo en vivo (todos los servicios + infra Docker):
 
@@ -847,7 +850,9 @@ Copia `.env.example` a `.env` y rellena todos los valores. Las variables marcada
 ### Prioridad 1 — Fundación (prerequisito para todo)
 
 - [x] Todos los servicios implementados con flujo de adopción completo
-- [x] Tests de integración y unitarios para todos los servicios (143 total)
+- [x] Tests de integración y unitarios para todos los servicios (523 total, ratio Tests/CC 0,48)
+- [x] **Mejora de cobertura de tests** — dos iteraciones: cerradas todas las brechas de cobertura cero en lógica de negocio; Tests/CC ≥ 0,37 en todos los servicios (subido desde 0,13 en schedule-service). Ver `test-coverage-report-2026-05-15.md`.
+- [x] **DIP — `Panache.withTransaction` inline eliminado** — todas las operaciones de escritura viven en beans `*WriteService` dedicados con `@WithTransaction`. Las llamadas estáticas de Panache en capas de servicio/resource están prohibidas; es un invariante arquitectónico aplicado.
 - [x] Value Objects (`Email`, `ActivationToken`)
 - [x] Roles de usuario (`User`, `Organization`, `Admin`)
 - [x] Auditoría de seguridad completada (11 vulnerabilidades encontradas y corregidas, puntuación 5.5 → 8.5/10)
@@ -917,7 +922,10 @@ Las protectoras desconfían de plataformas que las automatizan y las sacan del c
 
 - [ ] **HTTPS** en el gateway
 - [ ] Value Objects para los servicios restantes
-- [ ] Interfaces de repositorio como puertos (DIP) en todos los servicios
+- [ ] Interfaces de repositorio como puertos (DIP) en todos los servicios — las operaciones de escritura ya están extraídas a beans `*WriteService`; quedan las abstracciones de repositorio (interfaces como puertos).
+- [ ] **Gate de cobertura Tests/CC en CI** — añadir un check mínimo de JaCoCo en la matriz de GitHub Actions para que el ratio no pueda regresar por debajo de los baselines establecidos en `test-coverage-report-2026-05-15.md`.
+- [ ] **`AdoptionService` — ampliar tests** — CC=46, 23 tests actuales (ratio 0,50). Los caminos de `verifyCatActive` con CircuitBreaker abierto y `findAlternatives` con lookup fallido no están cubiertos.
+- [ ] **`IpRateLimiter` — ampliar tests** — solo 1 test para CC≈15. Faltan: bucket compartido entre endpoints, ventana de tiempo deslizante, reset tras expirar.
 - [ ] Paginación en el listado de gatos
 - [ ] **`findAlternatives` incluye la organización rechazante** — `IntakeRequestService.findAlternatives` filtra por `o.id() == excludeOrgId`, pero `o.id()` es el id de la entidad `Organization` mientras que `excludeOrgId` es el JWT sub del usuario de organización. La organización rechazante reaparece en `alternatives` cuando las secuencias coinciden por casualidad. El assert del test e2e está relajado pendiente de corrección.
 - [ ] **Eventos de desactivación de usuario/organización** — `UserService.deactivateUser` solo establece `status = Inactive`; no se emite ningún evento Kafka. Las solicitudes de adopción activas quedan huérfanas al desactivarse un adoptante o una organización.

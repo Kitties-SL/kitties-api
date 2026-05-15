@@ -488,21 +488,24 @@ Pull requests trigger only the test matrix (no image push).
 
 Unit tests use plain Mockito (`@ExtendWith(MockitoExtension.class)`), no containers. Integration tests use `@QuarkusTest` + RestAssured with `%test.*` profiles in the main config.
 
-| Service               | Unit | Integration | Notes                                                |
-|-----------------------|------|-------------|------------------------------------------------------|
-| user-service          | 8    | 3           | SmallRye in-memory Kafka                             |
-| auth-service          | 7    | 4           | `@InjectMock` on gRPC client                         |
-| cat-service           | 9    | 5           | JWT test tokens via `quarkus-smallrye-jwt-build`     |
-| storage-service       | 9    | 3           | Real MinIO via `QuarkusTestResourceLifecycleManager` |
-| gateway-service       | 2    | 23          | WireMock 1.6.1 DevService; Mockito para unit tests   |
-| notification-service  | 3    | 2           | MockMailbox + in-memory Kafka + Awaitility           |
-| adoption-service      | 19   | 23          | RBAC + ownership; intake flow + rejection alternatives; deleted-cat guard |
-| form-analysis-service | 8    | 3           | Rules engine + in-memory Kafka                       |
-| organization-service  | 16   | 17          | Plan-based member limits; @TestSecurity RBAC; @InternalOnly by-region |
-| chat-service          | 17   | 16          | Conversations, messages, ban, internal create        |
-| gateway-service       | 2    | 26          | + internal path 404 + chat routing                   |
+| Service               | Tests | Notes                                                                         |
+|-----------------------|------:|-------------------------------------------------------------------------------|
+| adoption-service      | 142   | RBAC + ownership; intake flow; deleted-cat guard; retention purge; GDPR anonymization |
+| user-service          | 58    | Erasure GDPR; activation; password change; domain VOs                         |
+| cat-service           | 50    | Full CRUD + image lifecycle; deleteCat business rules via CatWriteService     |
+| either-mon            | 57    | Either, Try, Validation, ConstraintViolationMapper                            |
+| organization-service  | 52    | Plan-based member limits; @TestSecurity RBAC; @InternalOnly by-region         |
+| chat-service          | 44    | Conversations, messages, ban, internal create; retention purge                |
+| auth-service          | 28    | Token lifecycle; refresh rotation; idempotent logout; ArgumentCaptor checks   |
+| form-analysis-service | 33    | Rules engine (27 cases); Kafka consumer; ReviewRequired; invalid JSON DLQ     |
+| gateway-service       | 29    | WireMock proxy; timeout 504; rate limiter; JWT filter                         |
+| storage-service       | 17    | MIME validation; magic bytes; size boundary; provider failure propagation     |
+| schedule-service      | 7     | Job wiring (WireMock); retry exhaustion                                       |
+| notification-service  | 6     | SMTP error DLQ; invalid JSON DLQ                                              |
 
-**Total: ~216 tests**
+**Total: 523 tests** · Tests/CC global: **0,48**
+
+Test density metric (Tests/CC) measures how many tests exist relative to cyclomatic complexity. See `test-coverage-report-2026-05-15.md` for the full gap analysis.
 
 **End-to-end tests** run against the full live stack (all services + Docker infra):
 
@@ -837,7 +840,9 @@ Copy `.env.example` to `.env` and fill in all values. Variables marked **require
 ### Priority 1 — Foundation (prerequisite for everything)
 
 - [x] All services implemented with full adoption workflow
-- [x] Integration and unit tests for all services (143 total)
+- [x] Integration and unit tests for all services (523 total, Tests/CC ratio 0,48)
+- [x] **Test coverage improvement** — two iterations: closed all zero-coverage gaps in business logic; reached Tests/CC ≥ 0,37 in every service (up from 0,13 in schedule-service). See `test-coverage-report-2026-05-15.md`.
+- [x] **DIP — `Panache.withTransaction` inline eliminated** — all write operations live in dedicated `*WriteService` beans with `@WithTransaction`. `Panache.withSession/withTransaction` static calls in service/resource layers are prohibited; this is now an enforced architectural invariant.
 - [x] Value Objects (`Email`, `ActivationToken`)
 - [x] User roles (`User`, `Organization`, `Admin`)
 - [x] Security audit completed (11 vulnerabilities found and fixed, score 5.5 → 8.5/10)
@@ -911,7 +916,10 @@ These features make the portal self-sustaining without depending solely on shelt
 
 - [ ] **HTTPS** in gateway.
 - [ ] Value Objects for remaining services.
-- [ ] Repository interfaces as ports (DIP) across all services.
+- [ ] Repository interfaces as ports (DIP) across all services — write operations already extracted to `*WriteService` beans; repository abstractions (interfaces as ports) remain. Next: `CatRepository`, `AdoptionRequestRepository` as interfaces injected into services.
+- [ ] **Test/CC coverage gate in CI** — add a JaCoCo minimum-coverage check in the GitHub Actions matrix so the ratio cannot regress below the baselines established in `test-coverage-report-2026-05-15.md`.
+- [ ] **`AdoptionService` — ampliar tests** — CC=46, 23 tests actuales (ratio 0,50). Los caminos de `verifyCatActive` con CircuitBreaker abierto y `findAlternatives` con lookup fallido no están cubiertos con tests unitarios.
+- [ ] **`IpRateLimiter` — ampliar tests** — solo 1 test para CC≈15. Faltan: bucket compartido entre endpoints, ventana de tiempo deslizante, reset tras expirar.
 - [ ] Pagination on cat listing.
 - [ ] **`findAlternatives` includes the rejecting org** — `IntakeRequestService.findAlternatives` filters by `o.id() == excludeOrgId`, but `o.id()` is the `Organization` entity id while `excludeOrgId` is the JWT sub of the org user (two independent sequences). The rejecting org reappears in `alternatives` when the sequences happen to collide. The e2e assert is relaxed pending a fix. Root cause: `organizationId` is not consistently entity-id vs user-sub across `Cat`, `AdoptionRequest`, and `IntakeRequest`. Fix requires aligning the ID convention system-wide before patching the filter. (`feat/fix-intake-alternatives-exclude`)
 - [ ] **User / org deactivation events** — `UserService.deactivateUser` only sets `status = Inactive`; no Kafka event is emitted. Active adoption requests are left orphaned when an adopter or organization is deactivated. Agreed pattern: `user-service` emits `user-deactivated`, `organization-service` emits `organization-deactivated`; `adoption-service` (and others) subscribe and cancel related active entities. (`feat/user-deactivated-event`, `feat/org-deactivated-event`)
