@@ -41,7 +41,7 @@
         "text": "{\n  \"email\": \"{{ _.user_email }}\",\n  \"password\": \"Password1!\"\n}"
       },
       "headers": [{ "name": "Content-Type", "value": "application/json" }],
-      "afterResponseScript": "const response = insomnia.response.json();\ninsomnia.environment.set('access_token', response.accessToken);\ninsomnia.environment.set('refresh_token', response.refreshToken);"
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('access_token', r.accessToken);\n  insomnia.environment.set('refresh_token', r.refreshToken);\n}"
     },
     {
       "_id": "req_refresh",
@@ -55,7 +55,7 @@
         "text": "{\n  \"refreshToken\": \"{{ _.refresh_token }}\"\n}"
       },
       "headers": [{ "name": "Content-Type", "value": "application/json" }],
-      "afterResponseScript": "const response = insomnia.response.json();\ninsomnia.environment.set('access_token', response.accessToken);\ninsomnia.environment.set('refresh_token', response.refreshToken);"
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('access_token', r.accessToken);\n  insomnia.environment.set('refresh_token', r.refreshToken);\n}"
     },
     {
       "_id": "req_logout",
@@ -87,7 +87,8 @@
         "mimeType": "application/json",
         "text": "{\n  \"email\": \"tote@ciscoadiz.org\",\n  \"password\": \"Password1!\",\n  \"name\": \"Tote\",\n  \"surname\": \"Cisco\",\n  \"role\": \"User\"\n}"
       },
-      "headers": [{ "name": "Content-Type", "value": "application/json" }]
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  if (r.email) insomnia.environment.set('user_email', r.email);\n}"
     },
     {
       "_id": "req_register_org",
@@ -193,7 +194,8 @@
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
         { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
-      ]
+      ],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('org_id', String(r.id));\n}"
     },
     {
       "_id": "req_my_org",
@@ -202,7 +204,8 @@
       "parentId": "fld_orgs",
       "method": "GET",
       "url": "{{ _.base_url }}/api/organizations/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('org_id', String(r.id));\n}"
     },
     {
       "_id": "req_get_org",
@@ -294,7 +297,8 @@
         { "name": "name", "value": "" },
         { "name": "page", "value": "0" },
         { "name": "size", "value": "20" }
-      ]
+      ],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = r.content && r.content[0];\n  if (first) insomnia.environment.set('cat_id', String(first.id));\n}"
     },
     {
       "_id": "req_get_cat",
@@ -302,7 +306,8 @@
       "name": "Get Cat",
       "parentId": "fld_cats",
       "method": "GET",
-      "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}"
+      "url": "{{ _.base_url }}/api/cats/{{ _.cat_id }}",
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('cat_id', String(r.id));\n}"
     },
     {
       "_id": "req_my_cats",
@@ -311,7 +316,8 @@
       "parentId": "fld_cats",
       "method": "GET",
       "url": "{{ _.base_url }}/api/cats/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('cat_id', String(first.id));\n}"
     },
     {
       "_id": "req_cat_stats",
@@ -336,7 +342,8 @@
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
         { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
-      ]
+      ],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('cat_id', String(r.id));\n}"
     },
     {
       "_id": "req_update_cat",
@@ -402,7 +409,8 @@
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
         { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
-      ]
+      ],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('intake_id', String(r.id));\n}"
     },
     {
       "_id": "req_my_intakes",
@@ -411,7 +419,8 @@
       "parentId": "fld_intake",
       "method": "GET",
       "url": "{{ _.base_url }}/api/intake-requests/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('intake_id', String(first.id));\n}"
     },
     {
       "_id": "req_org_intakes",
@@ -420,7 +429,8 @@
       "parentId": "fld_intake",
       "method": "GET",
       "url": "{{ _.base_url }}/api/intake-requests/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('intake_id', String(first.id));\n}"
     },
     {
       "_id": "req_org_intake_stats",
@@ -473,7 +483,8 @@
       "headers": [
         { "name": "Content-Type", "value": "application/json" },
         { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
-      ]
+      ],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('adoption_id', String(r.id));\n}"
     },
     {
       "_id": "req_get_adoption",
@@ -482,7 +493,8 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/{{ _.adoption_id }}",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  insomnia.environment.set('adoption_id', String(r.id));\n}"
     },
     {
       "_id": "req_my_adoptions",
@@ -491,7 +503,8 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/my",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('adoption_id', String(first.id));\n}"
     },
     {
       "_id": "req_org_adoptions",
@@ -500,7 +513,8 @@
       "parentId": "fld_adoptions",
       "method": "GET",
       "url": "{{ _.base_url }}/api/adoptions/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('adoption_id', String(first.id));\n}"
     },
     {
       "_id": "req_org_pipeline",
@@ -594,7 +608,8 @@
       "parentId": "fld_chat",
       "method": "GET",
       "url": "{{ _.base_url }}/api/chats/mine",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('conversation_id', String(first.id));\n}"
     },
     {
       "_id": "req_my_conversations_org",
@@ -603,7 +618,8 @@
       "parentId": "fld_chat",
       "method": "GET",
       "url": "{{ _.base_url }}/api/chats/organization",
-      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }]
+      "headers": [{ "name": "Authorization", "value": "Bearer {{ _.access_token }}" }],
+      "afterResponseScript": "if (insomnia.response.status >= 200 && insomnia.response.status < 300) {\n  const r = insomnia.response.json();\n  const first = Array.isArray(r) ? r[0] : (r.content && r.content[0]);\n  if (first) insomnia.environment.set('conversation_id', String(first.id));\n}"
     },
     {
       "_id": "req_list_messages",
