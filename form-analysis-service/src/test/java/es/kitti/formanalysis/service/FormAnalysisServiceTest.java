@@ -154,7 +154,7 @@ class FormAnalysisServiceTest {
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
         sink.clear();
 
-        // Form limpio (igual que cleanForm) con hasScratchingPost=false → 1 Warning
+        // Form limpio con dailyPlayMinutes=10 (< 15) → exactamente 1 Warning (INSUFFICIENT_PLAY_TIME)
         var event = new AdoptionFormSubmittedEvent(
                 5L, 10L, 100L, 200L,
                 true, "Murió de vejez", 2, false, null,
@@ -162,9 +162,9 @@ class FormAnalysisServiceTest {
                 "Apartment", 70, false, false, null,
                 true, true, true, "Quiet",
                 "Los gatos necesitan cazar por instinto",
-                30, "Caña, ratones, túneles",
+                10, "Caña, ratones, túneles",   // ← dailyPlayMinutes=10 < 15 → Warning
                 "Ignorar y redirigir con juguetes",
-                false, true,   // ← hasScratchingPost=false → Warning
+                true, true,
                 "Quiero dar un hogar a un gato",
                 true, true, true, false, null
         );
