@@ -41,9 +41,11 @@ public class LlmFlagConverter {
                     "El LLM detectó cierta evasión moderada en las respuestas"));
         }
 
-        if ("INCONSISTENT".equals(analysis.consistencyCheck())) {
-            flags.add(new FlagResult(FlagSeverity.Warning, "LLM_INCONSISTENCY",
+        switch (analysis.consistencyCheck()) {
+            case "INCONSISTENT" -> flags.add(new FlagResult(FlagSeverity.Warning, "LLM_INCONSISTENCY",
                     "El LLM detectó inconsistencias internas entre las respuestas del solicitante"));
+            case "UNCERTAIN"    -> flags.add(new FlagResult(FlagSeverity.Notice,  "LLM_INCONSISTENCY",
+                    "El LLM no pudo confirmar la consistencia entre las respuestas del solicitante"));
         }
 
         return flags;
