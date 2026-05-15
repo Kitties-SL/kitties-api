@@ -1,6 +1,7 @@
 package es.kitti.cat.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
@@ -40,6 +41,7 @@ class CatServiceTest {
     @Mock CatMapper catMapper;
     @Mock StorageClient storageClient;
     @Mock AdoptionClient adoptionClient;
+    @Mock CatWriteService catWriteService;
 
     @InjectMocks
     CatService catService;
@@ -427,6 +429,56 @@ class CatServiceTest {
         assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
     }
 
-    // deleteCat uses Panache.withSession/withTransaction (static method calls that require a live Vert.x context).
-    // adoptionClient.hasActiveRequestsForCat is verified in CatE2E (orders 23-24).
+    // --- deleteCat ---
+
+    @Test
+    void deleteCat_catNotFound_returnsLeft404() {
+        when(catRepository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = catService.deleteCat(999L, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        verify(adoptionClient, never()).hasActiveRequestsForCat(any(), any());
+    }
+
+    @Test
+    void deleteCat_notOwner_returnsLeft403() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+
+        var result = catService.deleteCat(1L, 99L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(ForbiddenError.class, result.fold(e -> e, __ -> null));
+        verify(adoptionClient, never()).hasActiveRequestsForCat(any(), any());
+    }
+
+    @Test
+    void deleteCat_activeAdoptions_returnsLeft409() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(adoptionClient.hasActiveRequestsForCat(eq(1L), any()))
+                .thenReturn(Uni.createFrom().item(true));
+
+        var result = catService.deleteCat(1L, 10L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
+        assertInstanceOf(ConflictError.class, result.fold(e -> e, __ -> null));
+        verify(catWriteService, never()).markDeleted(any());
+    }
+
+    @Test
+    void deleteCat_success_returnsRight() {
+        when(catRepository.findById(1L)).thenReturn(Uni.createFrom().item(testCat));
+        when(adoptionClient.hasActiveRequestsForCat(eq(1L), any()))
+                .thenReturn(Uni.createFrom().item(false));
+        when(catWriteService.markDeleted(1L)).thenReturn(Uni.createFrom().voidItem());
+
+        var result = catService.deleteCat(1L, 10L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(catWriteService).markDeleted(1L);
+    }
 }
