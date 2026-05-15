@@ -85,6 +85,23 @@ class LlmFlagConverterTest {
     }
 
     @Test
+    void consistencyCheck_UNCERTAIN_generatesNotice() {
+        var result = converter.convert(analysis("NONE", "NONE", "GENUINE", "NONE", "UNCERTAIN"));
+        assertEquals(1, result.size());
+        assertEquals(FlagSeverity.Notice, result.get(0).severity());
+        assertEquals("LLM_INCONSISTENCY", result.get(0).code());
+    }
+
+    @Test
+    void multipleFlagsSimultaneous_allDetected() {
+        var result = converter.convert(analysis("HIGH", "HIGH", "SUPERFICIAL", "NONE", "CONSISTENT"));
+        assertEquals(3, result.size());
+        assertTrue(result.stream().anyMatch(f -> f.code().equals("LLM_PUNISHMENT_RISK")       && f.severity() == FlagSeverity.Warning));
+        assertTrue(result.stream().anyMatch(f -> f.code().equals("LLM_ABANDONMENT_RISK")      && f.severity() == FlagSeverity.Warning));
+        assertTrue(result.stream().anyMatch(f -> f.code().equals("LLM_SUPERFICIAL_MOTIVATION") && f.severity() == FlagSeverity.Warning));
+    }
+
+    @Test
     void unavailable_generatesNoFlags() {
         var result = converter.convert(LlmTextAnalysis.unavailable());
         assertTrue(result.isEmpty());
