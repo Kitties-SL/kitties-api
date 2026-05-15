@@ -10,14 +10,17 @@ import es.kitti.auth.entity.RefreshToken;
 import es.kitti.auth.grpc.UserServiceClient;
 import es.kitti.auth.repository.RefreshTokenRepository;
 import es.kitti.user.grpc.ValidateCredentialsResponse;
+import es.kitti.mon.either.Unit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,6 +76,69 @@ class AuthServiceTest {
     }
 
     @Test
+    void authenticate_persistedRefreshToken_hasCorrectUserData() {
+        var request = new AuthRequest("test@kitti.es", "password123");
+        when(userServiceClient.validateCredentials("test@kitti.es", "password123"))
+                .thenReturn(Uni.createFrom().item(
+                        ValidateCredentialsResponse.newBuilder()
+                                .setValid(true).setUserId(1L)
+                                .setEmail("test@kitti.es").setRole("User")
+                                .build()));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        authService.authenticate(request).await().indefinitely();
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).persist(captor.capture());
+        RefreshToken saved = captor.getValue();
+        assertEquals(1L, saved.userId);
+        assertEquals("test@kitti.es", saved.email);
+        assertEquals("User", saved.role);
+        assertFalse(saved.revoked);
+    }
+
+    @Test
+    void authenticate_persistedRefreshToken_expiresInSevenDays() {
+        var request = new AuthRequest("test@kitti.es", "password123");
+        LocalDateTime minExpiry = LocalDateTime.now().plusDays(6);
+        when(userServiceClient.validateCredentials("test@kitti.es", "password123"))
+                .thenReturn(Uni.createFrom().item(
+                        ValidateCredentialsResponse.newBuilder()
+                                .setValid(true).setUserId(1L)
+                                .setEmail("test@kitti.es").setRole("User")
+                                .build()));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        authService.authenticate(request).await().indefinitely();
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).persist(captor.capture());
+        assertTrue(captor.getValue().expiresAt.isAfter(minExpiry));
+    }
+
+    @Test
+    void authenticate_returnsExpiresIn900() {
+        var request = new AuthRequest("test@kitti.es", "password123");
+        when(userServiceClient.validateCredentials("test@kitti.es", "password123"))
+                .thenReturn(Uni.createFrom().item(
+                        ValidateCredentialsResponse.newBuilder()
+                                .setValid(true).setUserId(1L)
+                                .setEmail("test@kitti.es").setRole("User")
+                                .build()));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.authenticate(request).await().indefinitely();
+
+        assertEquals(900L, result.getOrElse(null).expiresIn());
+    }
+
+    @Test
     void authenticate_invalidCredentials_returnsLeft401() {
         var request = new AuthRequest("wrong@kitti.es", "wrongpass");
 
@@ -104,6 +170,55 @@ class AuthServiceTest {
 
         assertTrue(result.isRight());
         assertEquals("new-access-token", result.getOrElse(null).accessToken());
+    }
+
+    @Test
+    void refresh_revokesOldToken_andPersistsTwice() {
+        var request = new RefreshRequest(validRefreshToken.token);
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        authService.refresh(request).await().indefinitely();
+
+        assertTrue(validRefreshToken.revoked);
+        verify(refreshTokenRepository, times(2)).persist(any(RefreshToken.class));
+    }
+
+    @Test
+    void refresh_newRefreshToken_inheritsUserDataFromOldToken() {
+        var request = new RefreshRequest(validRefreshToken.token);
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        authService.refresh(request).await().indefinitely();
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository, times(2)).persist(captor.capture());
+        RefreshToken newToken = captor.getAllValues().get(1);
+        assertEquals(1L, newToken.userId);
+        assertEquals("test@kitti.es", newToken.email);
+        assertEquals("User", newToken.role);
+        assertFalse(newToken.revoked);
+    }
+
+    @Test
+    void refresh_returnsExpiresIn900() {
+        var request = new RefreshRequest(validRefreshToken.token);
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.refresh(request).await().indefinitely();
+
+        assertEquals(900L, result.getOrElse(null).expiresIn());
     }
 
     @Test
@@ -157,6 +272,32 @@ class AuthServiceTest {
         assertTrue(result.isRight());
         assertTrue(validRefreshToken.revoked);
         verify(refreshTokenRepository).persist(validRefreshToken);
+    }
+
+    @Test
+    void logout_alreadyRevokedToken_returnsRight() {
+        validRefreshToken.revoked = true;
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.logout(validRefreshToken.token).await().indefinitely();
+
+        assertTrue(result.isRight());
+    }
+
+    @Test
+    void logout_expiredToken_returnsRight() {
+        validRefreshToken.expiresAt = LocalDateTime.now().minusDays(1);
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.logout(validRefreshToken.token).await().indefinitely();
+
+        assertTrue(result.isRight());
     }
 
     @Test
