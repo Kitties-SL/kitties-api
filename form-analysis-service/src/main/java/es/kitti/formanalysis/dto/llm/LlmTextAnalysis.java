@@ -13,8 +13,8 @@ public record LlmTextAnalysis(
 ) {
     public static LlmTextAnalysis unavailable() {
         return new LlmTextAnalysis(
-                "NONE", "NONE", "UNCLEAR",
-                "NONE", "UNCERTAIN",
+                "NONE", "NONE", "GENUINE",
+                "NONE", "CONSISTENT",
                 List.of(), "LLM unavailable"
         );
     }
