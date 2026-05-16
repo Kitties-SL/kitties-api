@@ -24,6 +24,12 @@ public class RefreshToken extends PanacheEntity {
     @Column(nullable = false)
     public String role;
 
+    @Column
+    public Long organizationId;
+
+    @Column
+    public String memberRole;
+
     @Column(nullable = false)
     public LocalDateTime expiresAt;
 

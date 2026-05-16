@@ -1,15 +1,27 @@
 package es.kitti.cat.resource;
 
+import es.kitti.cat.entity.Cat;
+import es.kitti.cat.entity.CatSex;
+import es.kitti.cat.repository.CatRepository;
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.quarkus.test.security.jwt.Claim;
 import io.quarkus.test.security.jwt.JwtSecurity;
+import io.quarkus.vertx.core.runtime.context.VertxContextSafetyToggle;
 import io.restassured.http.ContentType;
+import io.smallrye.common.vertx.VertxContext;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.Context;
+import io.vertx.core.Vertx;
 import es.kitti.cat.client.AdoptionClient;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -23,6 +35,27 @@ class CatResourceTest {
     @InjectMock
     @RestClient
     AdoptionClient adoptionClient;
+
+    @Inject
+    Vertx vertx;
+
+    @Inject
+    CatRepository catRepository;
+
+    private Cat persistInContext(Cat cat) {
+        CompletableFuture<Cat> future = new CompletableFuture<>();
+        Context duplicated = VertxContext.getOrCreateDuplicatedContext(vertx);
+        VertxContextSafetyToggle.setContextSafe(duplicated, true);
+        duplicated.runOnContext(__ ->
+                Panache.withTransaction(() -> catRepository.persist(cat))
+                        .subscribe().with(future::complete, future::completeExceptionally)
+        );
+        try {
+            return future.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Test
     void testSearchCatsPublic() {
@@ -93,7 +126,8 @@ class CatResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testCreateCatAsOrganization() {
         given()
@@ -135,7 +169,8 @@ class CatResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testDeleteCatAsOrganizationNotFound() {
         given()
@@ -149,7 +184,8 @@ class CatResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testDeleteCat_noActiveAdoptions_returns204() {
         Long catId = given()
@@ -191,7 +227,8 @@ class CatResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testDeleteCat_hasActiveAdoptions_returns409() {
         Long catId = given()
@@ -227,7 +264,8 @@ class CatResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testFindMine_excludesDeletedCats() {
         Long catId = given()
@@ -260,5 +298,68 @@ class CatResourceTest {
                 .then()
                 .statusCode(200)
                 .body("id", not(hasItem(catId.intValue())));
+    }
+
+    @Test
+    @TestSecurity(user = "2", roles = "Organization")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = "2"),
+            @Claim(key = "email", value = "org2@kitti.es"),
+            @Claim(key = "organizationId", value = "2")
+    })
+    void testUpdateCat_differentOrganization_returns403() {
+        Cat cat = new Cat();
+        cat.name = "Ajeno";
+        cat.sex = CatSex.Male;
+        cat.neutered = false;
+        cat.city = "TestCity";
+        cat.country = "España";
+        cat.organizationId = 1L;
+        Cat saved = persistInContext(cat);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                {
+                    "name": "Renombrado",
+                    "age": 3,
+                    "sex": "Male",
+                    "neutered": false,
+                    "city": "TestCity",
+                    "region": "Tenerife",
+                    "country": "España"
+                }
+                """)
+                .when()
+                .put("/cats/" + saved.id)
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @TestSecurity(user = "2", roles = "Organization")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = "2"),
+            @Claim(key = "email", value = "org2@kitti.es"),
+            @Claim(key = "organizationId", value = "2")
+    })
+    void testDeleteCat_differentOrganization_returns403() {
+        Cat cat = new Cat();
+        cat.name = "AjenoDelete";
+        cat.sex = CatSex.Female;
+        cat.neutered = true;
+        cat.city = "TestCity";
+        cat.country = "España";
+        cat.organizationId = 1L;
+        Cat saved = persistInContext(cat);
+
+        when(adoptionClient.hasActiveRequestsForCat(eq(saved.id), any()))
+                .thenReturn(Uni.createFrom().item(false));
+
+        given()
+                .when()
+                .delete("/cats/" + saved.id)
+                .then()
+                .statusCode(403);
     }
 }

@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
 import es.kitti.user.dto.*;
+import jakarta.ws.rs.PATCH;
 import jakarta.annotation.security.RolesAllowed;
 import es.kitti.user.service.UserService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
@@ -103,6 +104,20 @@ public class UserResource {
                 valid -> userService.activateByToken(valid.token())
                         .onItem().transform(either -> either.fold(
                                 e -> Response.status(e.httpStatus()).entity(ErrorResponse.of(e)).build(),
+                                user -> Response.ok(user).build()
+                        ))
+        );
+    }
+
+    @PATCH
+    @Path("/{id}/role")
+    @RolesAllowed("Organization")
+    public Uni<Response> changeRole(@PathParam("id") Long id, ChangeRoleRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.changeRole(id, valid.role())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                                 user -> Response.ok(user).build()
                         ))
         );

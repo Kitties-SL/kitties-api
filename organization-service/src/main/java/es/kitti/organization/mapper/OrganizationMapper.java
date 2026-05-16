@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.organization.dto.*;
 import es.kitti.organization.entity.Organization;
 import es.kitti.organization.entity.OrganizationMember;
+import es.kitti.organization.entity.OrganizationStatus;
 
 @ApplicationScoped
 public class OrganizationMapper {
@@ -19,6 +20,21 @@ public class OrganizationMapper {
         org.phone = request.phone();
         org.email = request.email();
         org.logoUrl = request.logoUrl();
+        return org;
+    }
+
+    public Organization toEntityFromRegister(RegisterOrganizationRequest request) {
+        Organization org = new Organization();
+        org.name        = request.name();
+        org.description = request.description();
+        org.address     = request.address();
+        org.city        = request.city();
+        org.region      = request.region();
+        org.country     = request.country();
+        org.phone       = request.phone();
+        org.email       = request.email();
+        org.logoUrl     = request.logoUrl();
+        org.status      = OrganizationStatus.Pending;
         return org;
     }
 

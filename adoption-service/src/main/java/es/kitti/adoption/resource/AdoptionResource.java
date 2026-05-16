@@ -61,34 +61,31 @@ public class AdoptionResource {
     @Path("/organization")
     @RolesAllowed("Organization")
     public Uni<List<AdoptionRequestResponse>> findByOrganization() {
-        Long organizationId = Long.parseLong(jwt.getSubject());
-        return adoptionService.findByOrganizationId(organizationId);
+        return adoptionService.findByOrganizationId(orgId());
     }
 
     @GET
     @Path("/organization/pipeline")
     @RolesAllowed("Organization")
     public Uni<AdoptionPipelineStatsResponse> getOrgPipeline() {
-        Long organizationId = Long.parseLong(jwt.getSubject());
-        return adoptionService.getOrgPipeline(organizationId);
+        return adoptionService.getOrgPipeline(orgId());
     }
 
     @GET
     @Path("/organization/cats/{catId}")
     @RolesAllowed("Organization")
     public Uni<List<AdoptionRequestResponse>> findByCatId(@PathParam("catId") Long catId) {
-        Long organizationId = Long.parseLong(jwt.getSubject());
-        return adoptionService.findByCatIdForOrg(catId, organizationId);
+        return adoptionService.findByCatIdForOrg(catId, orgId());
     }
 
     @PATCH
     @Path("/{id}/status")
     @RolesAllowed("Organization")
     public Uni<Response> updateStatus(@PathParam("id") Long id, AdoptionStatusUpdateRequest request) {
-        Long userId = Long.parseLong(jwt.getSubject());
+        Long organizationId = orgId();
         return request.validate().match(
                 this::validationFailed,
-                valid -> adoptionService.updateStatus(id, valid, userId)
+                valid -> adoptionService.updateStatus(id, valid, organizationId)
                         .onItem().transform(either -> either.fold(
                                 err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                                 data -> Response.ok(data).build()
@@ -115,7 +112,7 @@ public class AdoptionResource {
     @Path("/{id}/interview")
     @RolesAllowed("Organization")
     public Uni<Response> scheduleInterview(@PathParam("id") Long id, InterviewCreateRequest request) {
-        Long organizationId = Long.parseLong(jwt.getSubject());
+        Long organizationId = orgId();
         return request.validate().match(
                 this::validationFailed,
                 valid -> adoptionService.scheduleInterview(id, valid, organizationId)
@@ -139,6 +136,12 @@ public class AdoptionResource {
                                 data -> Response.status(Response.Status.CREATED).entity(data).build()
                         ))
         );
+    }
+
+    private Long orgId() {
+        Object claim = jwt.getClaim("organizationId");
+        if (claim instanceof Number n) return n.longValue();
+        return Long.parseLong((String) claim);
     }
 
     private Uni<Response> validationFailed(ValidationError err) {

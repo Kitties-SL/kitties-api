@@ -1,7 +1,6 @@
 package es.kitti.user.dto;
 
 import es.kitti.mon.error.ValidationError;
-import es.kitti.user.entity.UserRole;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -19,7 +18,7 @@ class UserCreateRequestValidationTest {
         String expected = "user@kitti.es";
 
         var result = new UserCreateRequest(input, VALID_PASSWORD, VALID_NAME, VALID_SURNAME,
-                null, null, UserRole.User).validate().match(
+                null, null).validate().match(
                         err -> fail("Expected valid: " + err.violations()),
                         r   -> r);
 
@@ -32,7 +31,7 @@ class UserCreateRequestValidationTest {
         String expected = "email";
 
         var violations = new UserCreateRequest(input, VALID_PASSWORD, VALID_NAME, VALID_SURNAME,
-                null, null, UserRole.User).validate().match(
+                null, null).validate().match(
                         ValidationError::violations,
                         __ -> fail("Expected invalid"));
 
@@ -46,7 +45,7 @@ class UserCreateRequestValidationTest {
         String expected = "password";
 
         var violations = new UserCreateRequest(VALID_EMAIL, input, VALID_NAME, VALID_SURNAME,
-                null, null, UserRole.User).validate().match(
+                null, null).validate().match(
                         ValidationError::violations,
                         __ -> fail("Expected invalid"));
 
@@ -59,7 +58,7 @@ class UserCreateRequestValidationTest {
         int expected = 2;
 
         var violations = new UserCreateRequest("bad", "x", VALID_NAME, VALID_SURNAME,
-                null, null, UserRole.User).validate().match(
+                null, null).validate().match(
                         ValidationError::violations,
                         __ -> fail("Expected invalid"));
 
@@ -71,7 +70,7 @@ class UserCreateRequestValidationTest {
         int expected = 4;
 
         var violations = new UserCreateRequest("bad", "x", "", "",
-                null, null, UserRole.User).validate().match(
+                null, null).validate().match(
                         ValidationError::violations,
                         __ -> fail("Expected invalid"));
 

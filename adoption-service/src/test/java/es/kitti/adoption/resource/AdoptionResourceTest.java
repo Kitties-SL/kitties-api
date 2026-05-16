@@ -167,7 +167,8 @@ class AdoptionResourceTest {
     @TestSecurity(user = "200", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "200"),
-            @Claim(key = "email", value = "org@kitti.es")
+            @Claim(key = "email", value = "org@kitti.es"),
+            @Claim(key = "organizationId", value = "200")
     })
     void testFindByOrganization() {
         given()
@@ -182,7 +183,8 @@ class AdoptionResourceTest {
     @TestSecurity(user = "1", roles = "Organization")
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "1"),
-            @Claim(key = "email", value = "test@kitti.es")
+            @Claim(key = "email", value = "test@kitti.es"),
+            @Claim(key = "organizationId", value = "1")
     })
     void testUpdateStatusNotFound() {
         given()
@@ -355,7 +357,8 @@ class AdoptionResourceTest {
     @TestSecurity(user = "2", roles = {"User", "Organization"})
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "2"),
-            @Claim(key = "email", value = "org@kitti.es")
+            @Claim(key = "email", value = "org@kitti.es"),
+            @Claim(key = "organizationId", value = "2")
     })
     void testUpdateStatus_catDeleted_returns409() {
         AdoptionRequest adoption = new AdoptionRequest();
@@ -379,10 +382,36 @@ class AdoptionResourceTest {
     }
 
     @Test
+    @TestSecurity(user = "99", roles = "Organization")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = "99"),
+            @Claim(key = "email", value = "intruder@kitti.es"),
+            @Claim(key = "organizationId", value = "99")
+    })
+    void testUpdateStatus_differentOrganization_returns403() {
+        AdoptionRequest adoption = new AdoptionRequest();
+        adoption.catId = 10L;
+        adoption.adopterId = 1L;
+        adoption.organizationId = 1L;
+        AdoptionRequest saved = persistInContext(adoption);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                { "status": "Accepted", "reason": null }
+                """)
+                .when()
+                .patch("/adoptions/" + saved.id + "/status")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
     @TestSecurity(user = "2", roles = {"User", "Organization"})
     @JwtSecurity(claims = {
             @Claim(key = "sub", value = "2"),
-            @Claim(key = "email", value = "org@kitti.es")
+            @Claim(key = "email", value = "org@kitti.es"),
+            @Claim(key = "organizationId", value = "2")
     })
     void testUpdateStatus_rejected_catDeleted_returns200() {
         AdoptionRequest adoption = new AdoptionRequest();

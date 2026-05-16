@@ -1,5 +1,7 @@
 package es.kitti.auth.service;
 
+import es.kitti.auth.client.OrganizationInternalClient;
+import es.kitti.auth.client.dto.MembershipResponse;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.UnauthorizedError;
 import io.smallrye.mutiny.Uni;
@@ -33,6 +35,7 @@ class AuthServiceTest {
     @Mock UserServiceClient userServiceClient;
     @Mock RefreshTokenRepository refreshTokenRepository;
     @Mock JwtTokenService jwtTokenService;
+    @Mock OrganizationInternalClient orgClient;
 
     @InjectMocks
     AuthService authService;
@@ -63,7 +66,7 @@ class AuthServiceTest {
                                 .setValid(true).setUserId(1L)
                                 .setEmail("test@kitti.es").setRole("User")
                                 .build()));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("mocked-access-token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("mocked-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -72,7 +75,7 @@ class AuthServiceTest {
         assertTrue(result.isRight());
         assertEquals("mocked-access-token", result.getOrElse(null).accessToken());
         assertNotNull(result.getOrElse(null).refreshToken());
-        verify(jwtTokenService).generateAccessToken(1L, "User");
+        verify(jwtTokenService).generateAccessToken(1L, "User", null, null);
     }
 
     @Test
@@ -84,7 +87,7 @@ class AuthServiceTest {
                                 .setValid(true).setUserId(1L)
                                 .setEmail("test@kitti.es").setRole("User")
                                 .build()));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -109,7 +112,7 @@ class AuthServiceTest {
                                 .setValid(true).setUserId(1L)
                                 .setEmail("test@kitti.es").setRole("User")
                                 .build()));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -129,13 +132,59 @@ class AuthServiceTest {
                                 .setValid(true).setUserId(1L)
                                 .setEmail("test@kitti.es").setRole("User")
                                 .build()));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
         var result = authService.authenticate(request).await().indefinitely();
 
         assertEquals(900L, result.getOrElse(null).expiresIn());
+    }
+
+    @Test
+    void authenticate_organizationUser_callsMembershipAndEnrichesJwt() {
+        var request = new AuthRequest("org@kitti.es", "pass");
+        when(userServiceClient.validateCredentials("org@kitti.es", "pass"))
+                .thenReturn(Uni.createFrom().item(
+                        ValidateCredentialsResponse.newBuilder()
+                                .setValid(true).setUserId(10L)
+                                .setEmail("org@kitti.es").setRole("Organization")
+                                .build()));
+        when(orgClient.getMembership(10L, null))
+                .thenReturn(Uni.createFrom().item(new MembershipResponse(5L, "Admin")));
+        when(jwtTokenService.generateAccessToken(10L, "Organization", 5L, "Admin")).thenReturn("org-token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.authenticate(request).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(jwtTokenService).generateAccessToken(10L, "Organization", 5L, "Admin");
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).persist(captor.capture());
+        assertEquals(5L, captor.getValue().organizationId);
+        assertEquals("Admin", captor.getValue().memberRole);
+    }
+
+    @Test
+    void authenticate_organizationUser_membershipFails_nullClaims() {
+        var request = new AuthRequest("org@kitti.es", "pass");
+        when(userServiceClient.validateCredentials("org@kitti.es", "pass"))
+                .thenReturn(Uni.createFrom().item(
+                        ValidateCredentialsResponse.newBuilder()
+                                .setValid(true).setUserId(10L)
+                                .setEmail("org@kitti.es").setRole("Organization")
+                                .build()));
+        when(orgClient.getMembership(10L, null))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("org-service down")));
+        when(jwtTokenService.generateAccessToken(10L, "Organization", null, null)).thenReturn("token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.authenticate(request).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(jwtTokenService).generateAccessToken(10L, "Organization", null, null);
     }
 
     @Test
@@ -162,7 +211,7 @@ class AuthServiceTest {
 
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-access-token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("new-access-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -177,7 +226,7 @@ class AuthServiceTest {
         var request = new RefreshRequest(validRefreshToken.token);
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("new-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -192,7 +241,7 @@ class AuthServiceTest {
         var request = new RefreshRequest(validRefreshToken.token);
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("new-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
@@ -212,13 +261,37 @@ class AuthServiceTest {
         var request = new RefreshRequest(validRefreshToken.token);
         when(refreshTokenRepository.findByToken(validRefreshToken.token))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
-        when(jwtTokenService.generateAccessToken(1L, "User")).thenReturn("new-token");
+        when(jwtTokenService.generateAccessToken(1L, "User", null, null)).thenReturn("new-token");
         when(refreshTokenRepository.persist(any(RefreshToken.class)))
                 .thenReturn(Uni.createFrom().item(validRefreshToken));
 
         var result = authService.refresh(request).await().indefinitely();
 
         assertEquals(900L, result.getOrElse(null).expiresIn());
+    }
+
+    @Test
+    void refresh_organizationToken_inheritsOrganizationIdAndMemberRole() {
+        validRefreshToken.role = "Organization";
+        validRefreshToken.organizationId = 7L;
+        validRefreshToken.memberRole = "Volunteer";
+        var request = new RefreshRequest(validRefreshToken.token);
+
+        when(refreshTokenRepository.findByToken(validRefreshToken.token))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+        when(jwtTokenService.generateAccessToken(1L, "Organization", 7L, "Volunteer")).thenReturn("org-token");
+        when(refreshTokenRepository.persist(any(RefreshToken.class)))
+                .thenReturn(Uni.createFrom().item(validRefreshToken));
+
+        var result = authService.refresh(request).await().indefinitely();
+
+        assertTrue(result.isRight());
+        verify(jwtTokenService).generateAccessToken(1L, "Organization", 7L, "Volunteer");
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository, times(2)).persist(captor.capture());
+        RefreshToken newToken = captor.getAllValues().get(1);
+        assertEquals(7L, newToken.organizationId);
+        assertEquals("Volunteer", newToken.memberRole);
     }
 
     @Test
