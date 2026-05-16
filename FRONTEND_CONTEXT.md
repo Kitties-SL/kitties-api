@@ -1,6 +1,6 @@
 # Kitties — Documentación de Negocio y API para Frontend
 
-**Versión:** 2.1.0  
+**Versión:** 2.2.0  
 **Fecha:** 2026-05-16  
 **Estado:** API funcional en dev. Swagger UI en `http://localhost:8080/swagger-ui`
 
@@ -201,8 +201,9 @@ Endpoint público que crea la organización y su usuario admin en una sola llama
 **Gestión de miembros (una vez logueado como Organization):**
 
 ```json
-// Invitar miembro: POST /organizations/{id}/members
+// Añadir miembro: POST /organizations/{id}/members
 { "userId": 99, "role": "Staff" }
+// → 201; el miembro queda inmediatamente como Active (no hay paso de aceptación en v1)
 
 // Cambiar rol: PATCH /organizations/{id}/members/99/role
 { "role": "Admin" }
@@ -634,9 +635,10 @@ Available → Unavailable (gato ya adoptado o temporalmente no disponible)
 ### Organization Member Status
 
 ```
-Invited → Active
-     ↘ Removed
+Active → Removed
 ```
+
+> Los miembros se crean directamente como `Active` al añadirlos. El estado `Invited` existe en el modelo pero no se usa en v1 (sin flujo de aceptación).
 
 ---
 
@@ -737,6 +739,8 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 5. **Paginación:** `/cats` devuelve `{ content, page, size, total, totalPages }`. Parámetros: `?page=0&size=20`.
 6. **Errores de validación:** HTTP 422 con `{ status, code: "VALIDATION_FAILED", violations: [{ field, code, params? }] }`. Códigos de field: `REQUIRED`, `INVALID_SIZE`, `INVALID_EMAIL`, `INVALID_FORMAT`, `TOO_SMALL`, `TOO_LARGE`.
 7. **Errores de dominio:** HTTP 400/404/409 con `{ status, code: "ENTIDAD_MOTIVO" }`. El `code` es machine-readable para mostrar mensajes i18n.
+   - `403 CAT_ACCESS_DENIED` — la organización autenticada intenta editar/borrar un gato que pertenece a otra org.
+   - `403 ACCESS_DENIED` — la organización autenticada intenta actualizar el estado o agendar entrevista de una adopción/intake que pertenece a otra org.
 8. **Soft deletes:** usuarios, gatos y miembros nunca se borran físicamente.
 9. **CORS:** configurado para `http://localhost:5173` en dev. Cambiar `CORS_ORIGIN` en producción.
 10. **form-analysis-service** no expone endpoints REST — opera exclusivamente por Kafka. No hay que integrarlo directamente.
@@ -756,4 +760,4 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 
 ---
 
-**Última actualización:** 2026-05-16
+**Última actualización:** 2026-05-16 — v2.2.0
