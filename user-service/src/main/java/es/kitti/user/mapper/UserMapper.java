@@ -21,7 +21,7 @@ public class UserMapper {
         user.surname = request.surname();
         user.birthdate = request.birthdate();
         user.status = UserStatus.Pending;
-        user.role = request.role() != null ? request.role() : UserRole.User;
+        user.role = UserRole.User;
         user.activationToken = UUID.randomUUID().toString();
         user.activationTokenExpiresAt = LocalDateTime.now().plusHours(24);
         return user;
