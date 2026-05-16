@@ -12,11 +12,13 @@ public class JwtTokenService {
     @ConfigProperty(name = "mp.jwt.verify.issuer")
     String issuer;
 
-    public String generateAccessToken(long userId, String role) {
-        return Jwt.issuer(issuer)
+    public String generateAccessToken(long userId, String role, Long organizationId, String memberRole) {
+        var builder = Jwt.issuer(issuer)
                 .subject(String.valueOf(userId))
                 .groups(Set.of(role))
-                .expiresIn(900)
-                .sign();
+                .expiresIn(900);
+        if (organizationId != null) builder.claim("organizationId", organizationId);
+        if (memberRole != null)     builder.claim("memberRole", memberRole);
+        return builder.sign();
     }
 }
