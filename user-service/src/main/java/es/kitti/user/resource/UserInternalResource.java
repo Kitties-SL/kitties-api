@@ -4,6 +4,7 @@ import es.kitti.mon.error.ErrorResponse;
 import es.kitti.user.security.InternalOnly;
 import es.kitti.user.service.ErasureService;
 import es.kitti.user.service.UserService;
+import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import es.kitti.user.entity.UserRole;
@@ -50,10 +51,17 @@ public class UserInternalResource {
     @HEAD
     @Path("/by-email/{email}")
     public Uni<Response> existsByEmail(@PathParam("email") String email) {
+        Log.infof("[existsByEmail] HEAD /users/internal/by-email/%s", email);
         return userService.findByEmail(email)
                 .onItem().transform(either -> either.fold(
-                        err -> Response.status(Response.Status.NOT_FOUND).build(),
-                        __ -> Response.ok().build()
+                        err -> {
+                            Log.infof("[existsByEmail] not found for email=%s", email);
+                            return Response.status(Response.Status.NOT_FOUND).build();
+                        },
+                        __ -> {
+                            Log.infof("[existsByEmail] found for email=%s", email);
+                            return Response.ok().build();
+                        }
                 ));
     }
 
