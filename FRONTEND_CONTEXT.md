@@ -12,8 +12,8 @@
 2. [Roles y Permisos](#roles-y-permisos)
 3. [Autenticación JWT](#autenticación-jwt)
 4. [Flujos Principales](#flujos-principales)
-   - [Flujo A: Registro de Usuario](#flujo-a-registro-y-activación)
-   - [Flujo C: Registro de Organización](#flujo-c-registro-de-organización)
+- [Flujo A: Registro de Usuario](#flujo-a-registro-y-activación)
+- [Flujo C: Registro de Organización](#flujo-c-registro-de-organización)
 5. [Motor de Análisis Automático](#motor-de-análisis-automático)
 6. [Referencia de Endpoints](#referencia-de-endpoints)
 7. [Estados y Transiciones](#estados-y-transiciones)
@@ -68,31 +68,46 @@
 
 ```
 POST /auth/login {email, password}
-  → 200 { accessToken, refreshToken, expiresIn: 900 }
+→ 200 { accessToken, refreshToken, expiresIn: 900 }
 
 Cada request: Header "Authorization: Bearer {accessToken}"
 
 POST /auth/refresh {refreshToken}
-  → 200 { accessToken, refreshToken, expiresIn: 900 }
-     (el refresh anterior queda revocado)
+→ 200 { accessToken, refreshToken, expiresIn: 900 }
+  (el refresh anterior queda revocado)
 
 POST /auth/logout {refreshToken}
-  → 204 No Content
+→ 204 No Content
 ```
 
 ### Claims del JWT
 
+**Usuario adoptante (`User`):**
 ```json
 {
-  "sub": "1",
-  "email": "user@ejemplo.com",
-  "groups": ["User"],
-  "iss": "https://www.kitti.es",
-  "exp": 1234567890
+"sub": "42",
+"groups": ["User"],
+"iss": "https://www.kitti.es",
+"exp": 1234567890
 }
 ```
 
-> `groups` contiene el rol: `["User"]`, `["Organization"]` o `["Admin"]`
+**Administrador de refugio (`Organization`):**
+```json
+{
+"sub": "17",
+"groups": ["Organization"],
+"organizationId": 5,
+"memberRole": "Admin",
+"iss": "https://www.kitti.es",
+"exp": 1234567890
+}
+```
+
+> - `sub` es siempre el `userId` (nunca el `organizationId`)
+> - `organizationId` y `memberRole` solo presentes para rol `Organization`
+> - `memberRole`: `"Admin"` (gestión completa de la org) | `"Staff"` (operaciones)
+> - Los claims están firmados con RS256 — no pueden modificarse sin invalidar la firma
 
 ---
 
@@ -108,10 +123,10 @@ POST /auth/logout {refreshToken}
 ```json
 // POST /users
 {
-  "email": "juan@ejemplo.com",
-  "password": "MySecure123!",
-  "name": "Juan",
-  "surname": "García"
+"email": "juan@ejemplo.com",
+"password": "MySecure123!",
+"name": "Juan",
+"surname": "García"
 }
 ```
 
@@ -127,9 +142,9 @@ POST /auth/logout {refreshToken}
 
 // Respuesta
 {
-  "accessToken": "eyJhbGciOiJSUzI1NiJ9...",
-  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
-  "expiresIn": 900
+"accessToken": "eyJhbGciOiJSUzI1NiJ9...",
+"refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+"expiresIn": 900
 }
 ```
 
@@ -146,20 +161,20 @@ Endpoint público que crea la organización y su usuario admin en una sola llama
 ```json
 // POST /organizations/register
 {
-  "name": "Refugio Gatuno Madrid",
-  "description": "Somos un refugio...",
-  "address": "Calle Principal 123",
-  "city": "Madrid",
-  "region": "Comunidad de Madrid",
-  "country": "España",
-  "phone": "+34 912 345 678",
-  "email": "info@refugio.es",
-  "logoUrl": null,
-  "adminEmail": "admin@refugio.es",
-  "adminPassword": "Secure123!",
-  "adminName": "Ana",
-  "adminSurname": "Gómez",
-  "adminBirthdate": "1985-03-15"
+"name": "Refugio Gatuno Madrid",
+"description": "Somos un refugio...",
+"address": "Calle Principal 123",
+"city": "Madrid",
+"region": "Comunidad de Madrid",
+"country": "España",
+"phone": "+34 912 345 678",
+"email": "info@refugio.es",
+"logoUrl": null,
+"adminEmail": "admin@refugio.es",
+"adminPassword": "Secure123!",
+"adminName": "Ana",
+"adminSurname": "Gómez",
+"adminBirthdate": "1985-03-15"
 }
 ```
 
@@ -204,16 +219,16 @@ Endpoint público que crea la organización y su usuario admin en una sola llama
 ```json
 // POST /cats (rol: Organization)
 {
-  "name": "Misu",
-  "age": 3,
-  "sex": "Female",
-  "description": "Gata tranquila y cariñosa",
-  "neutered": true,
-  "city": "Madrid",
-  "region": "Comunidad de Madrid",
-  "country": "España",
-  "latitude": 40.4168,
-  "longitude": -3.7038
+"name": "Misu",
+"age": 3,
+"sex": "Female",
+"description": "Gata tranquila y cariñosa",
+"neutered": true,
+"city": "Madrid",
+"region": "Comunidad de Madrid",
+"country": "España",
+"latitude": 40.4168,
+"longitude": -3.7038
 }
 // → 201 { id, organizationId, status: "Available", images: [], ... }
 
@@ -230,76 +245,76 @@ La `organizationId` se infiere del JWT — no se envía en el body.
 
 ```
 PASO 1: Buscar gatos disponibles (público)
-  GET /cats?city=Madrid&page=0&size=20
-  → PageResponse { content: [...], page, size, total, totalPages }
+GET /cats?city=Madrid&page=0&size=20
+→ PageResponse { content: [...], page, size, total, totalPages }
 
 PASO 2: Crear solicitud (rol: User)
-  POST /adoptions { catId: 1, organizationId: 42 }
-  → 201, status = Pending
-  → 409 si el gato ya tiene una solicitud activa
+POST /adoptions { catId: 1, organizationId: 42 }
+→ 201, status = Pending
+→ 409 si el gato ya tiene una solicitud activa
 
 PASO 3: Rellenar cuestionario pre-adopción (rol: User)
-  POST /adoptions/{id}/form { 31 campos — ver referencia completa abajo }
-  → 201, status pasa automáticamente a Reviewing
-  → Kafka emite adoption-form-submitted
+POST /adoptions/{id}/form { 31 campos — ver referencia completa abajo }
+→ 201, status pasa automáticamente a Reviewing
+→ Kafka emite adoption-form-submitted
 
 PASO 4: Análisis automático (asíncrono)
-  → Motor de reglas evalúa 14 flags (Critical/Warning/Notice)
-  → LLM analiza 5 campos de texto libre (semántico)
-  → Kafka emite adoption-form-analysed con decisión
+→ Motor de reglas evalúa 14 flags (Critical/Warning/Notice)
+→ LLM analiza 5 campos de texto libre (semántico)
+→ Kafka emite adoption-form-analysed con decisión
 
 PASO 5: Adopción-service procesa decisión
-  → Approved / ReviewRequired → la organización revisa
-  → Rejected → email al usuario con razón, no intervención org
+→ Approved / ReviewRequired → la organización revisa
+→ Rejected → email al usuario con razón, no intervención org
 
 PASO 6: Organización decide (rol: Organization)
-  PATCH /adoptions/{id}/status { "status": "Accepted" }
-  → o "Rejected" con razón
+PATCH /adoptions/{id}/status { "status": "Accepted" }
+→ o "Rejected" con razón
 
 PASO 7: Organización agenda entrevista (opcional)
-  POST /adoptions/{id}/interview
-  { "scheduledAt": "2026-06-01T10:00:00", "notes": "Traer DNI" }
+POST /adoptions/{id}/interview
+{ "scheduledAt": "2026-06-01T10:00:00", "notes": "Traer DNI" }
 
 PASO 8: Usuario firma contrato legal
-  POST /adoptions/{id}/adoption-form { 12 campos — ver referencia abajo }
-  → 201, status = FormCompleted
+POST /adoptions/{id}/adoption-form { 12 campos — ver referencia abajo }
+→ 201, status = FormCompleted
 ```
 
 #### Body completo del cuestionario (PASO 3)
 
 ```json
 {
-  "hasPreviousCatExperience": true,
-  "previousPetsHistory": "Tuve dos gatos, murieron de vejez",
-  "adultsInHousehold": 2,
-  "hasChildren": false,
-  "childrenAges": null,
-  "hasOtherPets": false,
-  "otherPetsDescription": null,
-  "hoursAlonePerDay": 6,
-  "stableHousing": true,
-  "housingInstabilityReason": null,
-  "housingType": "Apartment",
-  "housingSize": 80,
-  "hasOutdoorAccess": false,
-  "isRental": false,
-  "rentalPetsAllowed": null,
-  "hasWindowsWithView": true,
-  "hasVerticalSpace": true,
-  "hasHidingSpots": true,
-  "householdActivityLevel": "Moderate",
-  "whyCatsNeedToPlay": "Para su estimulación mental y salud física",
-  "dailyPlayMinutes": 30,
-  "plannedEnrichment": "Torres, juguetes interactivos, rascadores",
-  "reactionToUnwantedBehavior": "Redirigir con juguetes, nunca castigar",
-  "hasScratchingPost": true,
-  "willingToEnrichEnvironment": true,
-  "motivationToAdopt": "Dar un hogar a un gato que lo necesita",
-  "understandsLongTermCommitment": true,
-  "hasVetBudget": true,
-  "allHouseholdMembersAgree": true,
-  "anyoneHasAllergies": false,
-  "allergiesDetail": null
+"hasPreviousCatExperience": true,
+"previousPetsHistory": "Tuve dos gatos, murieron de vejez",
+"adultsInHousehold": 2,
+"hasChildren": false,
+"childrenAges": null,
+"hasOtherPets": false,
+"otherPetsDescription": null,
+"hoursAlonePerDay": 6,
+"stableHousing": true,
+"housingInstabilityReason": null,
+"housingType": "Apartment",
+"housingSize": 80,
+"hasOutdoorAccess": false,
+"isRental": false,
+"rentalPetsAllowed": null,
+"hasWindowsWithView": true,
+"hasVerticalSpace": true,
+"hasHidingSpots": true,
+"householdActivityLevel": "Moderate",
+"whyCatsNeedToPlay": "Para su estimulación mental y salud física",
+"dailyPlayMinutes": 30,
+"plannedEnrichment": "Torres, juguetes interactivos, rascadores",
+"reactionToUnwantedBehavior": "Redirigir con juguetes, nunca castigar",
+"hasScratchingPost": true,
+"willingToEnrichEnvironment": true,
+"motivationToAdopt": "Dar un hogar a un gato que lo necesita",
+"understandsLongTermCommitment": true,
+"hasVetBudget": true,
+"allHouseholdMembersAgree": true,
+"anyoneHasAllergies": false,
+"allergiesDetail": null
 }
 ```
 
@@ -309,18 +324,18 @@ PASO 8: Usuario firma contrato legal
 
 ```json
 {
-  "fullName": "Juan García García",
-  "idNumber": "12345678A",
-  "phone": "+34 612 345 678",
-  "address": "Calle Principal 123, 4B",
-  "city": "Madrid",
-  "postalCode": "28001",
-  "acceptsVetVisits": true,
-  "acceptsFollowUpContact": true,
-  "acceptsReturnIfNeeded": true,
-  "acceptsTermsAndConditions": true,
-  "consentHealthData": true,
-  "additionalNotes": null
+"fullName": "Juan García García",
+"idNumber": "12345678A",
+"phone": "+34 612 345 678",
+"address": "Calle Principal 123, 4B",
+"city": "Madrid",
+"postalCode": "28001",
+"acceptsVetVisits": true,
+"acceptsFollowUpContact": true,
+"acceptsReturnIfNeeded": true,
+"acceptsTermsAndConditions": true,
+"consentHealthData": true,
+"additionalNotes": null
 }
 ```
 
@@ -332,33 +347,33 @@ Un usuario que no puede seguir con su gato lo cede a una organización.
 
 ```
 PASO 1: Usuario envía solicitud de ingreso (rol: User)
-  POST /intake-requests
-  {
-    "targetOrganizationId": 1,
-    "catName": "Michi",
-    "catAge": 3,
-    "region": "Comunidad de Madrid",
-    "city": "Madrid",
-    "vaccinated": true,
-    "description": "Gato rescatado, muy tranquilo"
-  }
-  → 201, status = Pending
+POST /intake-requests
+{
+ "targetOrganizationId": 1,
+ "catName": "Michi",
+ "catAge": 3,
+ "region": "Comunidad de Madrid",
+ "city": "Madrid",
+ "vaccinated": true,
+ "description": "Gato rescatado, muy tranquilo"
+}
+→ 201, status = Pending
 
 PASO 2: Organización revisa (rol: Organization)
-  GET /intake-requests/organization
-  GET /intake-requests/organization/stats
-  → estadísticas: { pending, approved, rejected }
+GET /intake-requests/organization
+GET /intake-requests/organization/stats
+→ estadísticas: { pending, approved, rejected }
 
 PASO 3a: Aprobar
-  PATCH /intake-requests/{id}/approve → 200, status = Approved
+PATCH /intake-requests/{id}/approve → 200, status = Approved
 
 PASO 3b: Rechazar
-  PATCH /intake-requests/{id}/reject
-  { "reason": "No disponemos de espacio actualmente" }
-  → 200, status = Rejected
+PATCH /intake-requests/{id}/reject
+{ "reason": "No disponemos de espacio actualmente" }
+→ 200, status = Rejected
 
 PASO 4: Usuario puede ver sus solicitudes
-  GET /intake-requests/mine
+GET /intake-requests/mine
 ```
 
 ---
@@ -369,22 +384,22 @@ El chat se crea automáticamente al aprobar un intake. Una vez creado:
 
 ```
 Ver conversaciones (User):
-  GET /chats/mine → [{ id, userId, organizationId, createdAt, lastMessageAt }]
+GET /chats/mine → [{ id, userId, organizationId, createdAt, lastMessageAt }]
 
 Ver conversaciones (Organization):
-  GET /chats/organization
+GET /chats/organization
 
 Leer mensajes:
-  GET /chats/{id}/messages
-  → [{ id, senderId, senderType: "User"|"Organization", content, createdAt }]
+GET /chats/{id}/messages
+→ [{ id, senderId, senderType: "User"|"Organization", content, createdAt }]
 
 Enviar mensaje:
-  POST /chats/{id}/messages { "content": "Hola, tengo una pregunta sobre Luna" }
-  → 201
+POST /chats/{id}/messages { "content": "Hola, tengo una pregunta sobre Luna" }
+→ 201
 
 Bloquear usuario (rol: Organization):
-  POST /chats/{id}/block { "reason": "Comportamiento inapropiado" }
-  DELETE /chats/{id}/block  (desbloquear)
+POST /chats/{id}/block { "reason": "Comportamiento inapropiado" }
+DELETE /chats/{id}/block  (desbloquear)
 ```
 
 ---
@@ -576,7 +591,7 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 
 ```
 Pending → Active → Inactive
-                 ↘ Banned (Admin)
+              ↘ Banned (Admin)
 ```
 
 ### Organization Status
@@ -593,34 +608,34 @@ Active  → Suspended (Admin)
 
 ```
 Pending
-  ↓ (POST /form)
+↓ (POST /form)
 Reviewing ← análisis en curso
-  ↓ (Kafka: adoption-form-analysed)
-  ├── Rejected  (crítico o 3+ warnings → sin intervención org)
-  │
-  └── Accepted  (org aprueba) → FormCompleted (usuario firma) → Completed
-       ↘ Rejected  (org rechaza manualmente)
+↓ (Kafka: adoption-form-analysed)
+├── Rejected  (crítico o 3+ warnings → sin intervención org)
+│
+└── Accepted  (org aprueba) → FormCompleted (usuario firma) → Completed
+    ↘ Rejected  (org rechaza manualmente)
 ```
 
 ### Intake Status
 
 ```
 Pending → Approved
-        ↘ Rejected
+     ↘ Rejected
 ```
 
 ### Cat Status
 
 ```
 Available → Unavailable (gato ya adoptado o temporalmente no disponible)
-          ↘ Deleted  (lógico, no físico)
+       ↘ Deleted  (lógico, no físico)
 ```
 
 ### Organization Member Status
 
 ```
 Invited → Active
-        ↘ Removed
+     ↘ Removed
 ```
 
 ---
@@ -640,11 +655,11 @@ Invited → Active
 
 ```json
 {
-  "adoptionRequestId": 1, "adopterId": 5, "catId": 1, "organizationId": 42,
-  "hasPreviousCatExperience": true, "reactionToUnwantedBehavior": "Redirigir...",
-  "motivationToAdopt": "Dar un hogar...",
-  "dailyPlayMinutes": 30,
-  "...": "31 campos del cuestionario"
+"adoptionRequestId": 1, "adopterId": 5, "catId": 1, "organizationId": 42,
+"hasPreviousCatExperience": true, "reactionToUnwantedBehavior": "Redirigir...",
+"motivationToAdopt": "Dar un hogar...",
+"dailyPlayMinutes": 30,
+"...": "31 campos del cuestionario"
 }
 ```
 
@@ -654,13 +669,13 @@ Invited → Active
 
 ```json
 {
-  "adoptionRequestId": 1,
-  "decision": "Approved",
-  "rejectionReason": null,
-  "adopterId": 5,
-  "criticalFlags": 0,
-  "warningFlags": 0,
-  "noticeFlags": 2
+"adoptionRequestId": 1,
+"decision": "Approved",
+"rejectionReason": null,
+"adopterId": 5,
+"criticalFlags": 0,
+"warningFlags": 0,
+"noticeFlags": 2
 }
 ```
 
