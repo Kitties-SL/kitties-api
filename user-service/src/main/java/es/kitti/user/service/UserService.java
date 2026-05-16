@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import es.kitti.mon.error.UnauthorizedError;
 import es.kitti.user.client.AdoptionInternalClient;
@@ -21,6 +22,7 @@ import es.kitti.user.dto.UserCreateRequest;
 import es.kitti.user.dto.UserResponse;
 import es.kitti.user.dto.UserUpdateRequest;
 import es.kitti.user.entity.User;
+import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.user.event.UserRegisteredEvent;
 import es.kitti.user.mapper.UserMapper;
@@ -125,6 +127,20 @@ public class UserService {
                     user.status = UserStatus.Active;
                     return userRepository.persist(user)
                             .onItem().transform(saved -> Either.right(userMapper.toResponse(saved)));
+                });
+    }
+
+    @WithTransaction
+    public Uni<Either<DomainError, UserResponse>> changeRole(Long targetUserId, UserRole role) {
+        if (role == UserRole.Admin)
+            return Uni.createFrom().item(Either.left(new ForbiddenError("ROLE_PROMOTION_FORBIDDEN")));
+        return userRepository.findById(targetUserId)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
+                    user.role = role;
+                    return userRepository.persist(user)
+                            .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
                 });
     }
 
