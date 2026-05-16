@@ -1,19 +1,26 @@
 package es.kitti.organization.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
+import es.kitti.organization.client.UserServiceClient;
+import es.kitti.organization.client.dto.CreateUserRequest;
+import es.kitti.organization.dto.RegisterOrganizationRequest;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.WebApplicationException;
 import es.kitti.organization.dto.CreateOrganizationRequest;
 import es.kitti.organization.dto.OrganizationResponse;
 import es.kitti.organization.dto.UpdateOrganizationRequest;
 import es.kitti.organization.entity.Organization;
 import es.kitti.organization.mapper.OrganizationMapper;
 import es.kitti.organization.repository.OrganizationRepository;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 @ApplicationScoped
 public class OrganizationService {
@@ -21,6 +28,9 @@ public class OrganizationService {
     @Inject OrganizationRepository organizationRepository;
     @Inject OrganizationMemberService memberService;
     @Inject OrganizationMapper mapper;
+    @Inject OrganizationWriteService writeService;
+    @RestClient UserServiceClient userServiceClient;
+    @ConfigProperty(name = "kitties.internal.secret") String internalSecret;
 
     @WithTransaction
     public Uni<OrganizationResponse> create(CreateOrganizationRequest request, Long creatorUserId) {
@@ -42,6 +52,39 @@ public class OrganizationService {
                                                 ? Either.left(new NotFoundError("ORGANIZATION_NOT_FOUND"))
                                                 : Either.<DomainError, OrganizationResponse>right(mapper.toResponse(org)))
                 ));
+    }
+
+    public Uni<Either<DomainError, OrganizationResponse>> register(RegisterOrganizationRequest request) {
+        return userServiceClient.checkEmailExists(request.adminEmail(), internalSecret)
+                .onFailure().retry().atMost(2)
+                .onItem().transformToUni(checkResponse -> {
+                    if (checkResponse.getStatus() == 200)
+                        return Uni.createFrom().<Either<DomainError, OrganizationResponse>>item(
+                                Either.left(new ConflictError("ADMIN_EMAIL_ALREADY_EXISTS")));
+                    return writeService.createOrg(request)
+                            .onItem().transformToUni(org -> {
+                                var userReq = new CreateUserRequest(
+                                        request.adminEmail(), request.adminPassword(),
+                                        request.adminName(), request.adminSurname(), request.adminBirthdate());
+                                return userServiceClient.createUser(userReq)
+                                        .onFailure().retry().atMost(2)
+                                        .onItem().transformToUni(created ->
+                                                writeService.addAdminMember(org.id, created.id())
+                                                        .onItem().transformToUni(__ ->
+                                                                userServiceClient.promoteToOrganization(created.id(), internalSecret)
+                                                                        .onItem().transformToUni(___ ->
+                                                                                writeService.activateOrg(org.id)
+                                                                                        .onItem().transform(activated ->
+                                                                                                Either.<DomainError, OrganizationResponse>right(
+                                                                                                        mapper.toResponse(activated))))))
+                                        .onFailure().recoverWithItem(__ ->
+                                                Either.<DomainError, OrganizationResponse>left(
+                                                        new ConflictError("USER_SERVICE_UNAVAILABLE")));
+                            });
+                })
+                .onFailure().recoverWithItem(__ ->
+                        Either.<DomainError, OrganizationResponse>left(
+                                new ConflictError("USER_SERVICE_UNAVAILABLE")));
     }
 
     @WithSession

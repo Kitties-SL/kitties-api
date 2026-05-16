@@ -4,6 +4,7 @@ import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -23,6 +24,20 @@ public class OrganizationResource {
     @Inject OrganizationService organizationService;
     @Inject OrganizationMemberService memberService;
     @Inject JsonWebToken jwt;
+
+    @POST
+    @Path("/register")
+    @PermitAll
+    public Uni<Response> register(RegisterOrganizationRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> organizationService.register(valid)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                org -> Response.status(Response.Status.CREATED).entity(org).build()
+                        ))
+        );
+    }
 
     @POST
     @RolesAllowed({"Organization", "Admin"})
