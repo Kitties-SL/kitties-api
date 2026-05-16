@@ -56,10 +56,10 @@ public class CatResource {
     @RolesAllowed("Organization")
     @Consumes(MediaType.APPLICATION_JSON)
     public Uni<Response> createCat(CatCreateRequest request) {
-        Long callerId = Long.parseLong(jwt.getSubject());
+        Long orgId = orgId();
         return request.validate().match(
                 this::validationFailed,
-                valid -> catService.createCat(valid, callerId)
+                valid -> catService.createCat(valid, orgId)
                         .onItem().transform(cat -> Response.status(Response.Status.CREATED).entity(cat).build())
         );
     }
@@ -69,10 +69,10 @@ public class CatResource {
     @RolesAllowed("Organization")
     @Consumes(MediaType.APPLICATION_JSON)
     public Uni<Response> updateCat(@PathParam("id") Long id, CatUpdateRequest request) {
-        Long callerId = Long.parseLong(jwt.getSubject());
+        Long orgId = orgId();
         return request.validate().match(
                 this::validationFailed,
-                valid -> catService.updateCat(id, valid, callerId)
+                valid -> catService.updateCat(id, valid, orgId)
                         .onItem().transform(either -> either.fold(
                                 err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                                 cat -> Response.ok(cat).build()
@@ -84,24 +84,21 @@ public class CatResource {
     @Path("/mine")
     @RolesAllowed("Organization")
     public Uni<List<CatSummaryResponse>> findMine() {
-        Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.findMine(callerId);
+        return catService.findMine(orgId());
     }
 
     @GET
     @Path("/mine/stats")
     @RolesAllowed("Organization")
     public Uni<CatInventoryStatsResponse> getInventoryStats() {
-        Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.getInventoryStats(callerId);
+        return catService.getInventoryStats(orgId());
     }
 
     @DELETE
     @Path("/{id}")
     @RolesAllowed("Organization")
     public Uni<Response> deleteCat(@PathParam("id") Long id) {
-        Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.deleteCat(id, callerId)
+        return catService.deleteCat(id, orgId())
                 .onItem().transform(either -> either.fold(
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         v   -> Response.noContent().build()
@@ -113,8 +110,7 @@ public class CatResource {
     @RolesAllowed("Organization")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Uni<Response> uploadImage(@PathParam("id") Long id, @RestForm("file") FileUpload file) {
-        Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.uploadImage(id, file, callerId)
+        return catService.uploadImage(id, file, orgId())
                 .onItem().transform(either -> either.fold(
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         cat -> Response.ok(cat).build()
@@ -125,12 +121,15 @@ public class CatResource {
     @Path("/{catId}/images/{imageId}")
     @RolesAllowed("Organization")
     public Uni<Response> deleteImage(@PathParam("catId") Long catId, @PathParam("imageId") Long imageId) {
-        Long callerId = Long.parseLong(jwt.getSubject());
-        return catService.deleteImage(catId, imageId, callerId)
+        return catService.deleteImage(catId, imageId, orgId())
                 .onItem().transform(either -> either.fold(
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         v   -> Response.noContent().build()
                 ));
+    }
+
+    private Long orgId() {
+        return ((Number) jwt.getClaim("organizationId")).longValue();
     }
 
     private Uni<Response> validationFailed(ValidationError err) {
