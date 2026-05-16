@@ -1,5 +1,6 @@
 package es.kitti.formanalysis.config;
 
+import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.entity.AnalysisDecision;
 import es.kitti.formanalysis.entity.FlagSeverity;
 import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
@@ -10,6 +11,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         AdoptionFormAnalysedEvent.class,
         AdoptionFormSubmittedEvent.class,
         AnalysisDecision.class,
-        FlagSeverity.class
+        FlagSeverity.class,
+        LlmTextAnalysis.class
 })
 public class NativeConfig {}

@@ -1,8 +1,8 @@
 # Kitties — Documentación de Negocio y API para Frontend
 
-**Versión:** 1.0.0  
-**Fecha:** 2026-04-25  
-**Estado:** API en desarrollo con Swagger UI consolidado en `http://localhost:8080/swagger-ui`
+**Versión:** 2.0.0  
+**Fecha:** 2026-05-15  
+**Estado:** API funcional en dev. Swagger UI en `http://localhost:8080/swagger-ui`
 
 ---
 
@@ -12,9 +12,9 @@
 2. [Roles y Permisos](#roles-y-permisos)
 3. [Autenticación JWT](#autenticación-jwt)
 4. [Flujos Principales](#flujos-principales)
-5. [Referencia de Endpoints](#referencia-de-endpoints)
-6. [Estados y Transiciones](#estados-y-transiciones)
-7. [Motor de Análisis Automático](#motor-de-análisis-automático)
+5. [Motor de Análisis Automático](#motor-de-análisis-automático)
+6. [Referencia de Endpoints](#referencia-de-endpoints)
+7. [Estados y Transiciones](#estados-y-transiciones)
 8. [Eventos Asíncronos (Kafka)](#eventos-asíncronos-kafka)
 9. [Configuración y Entorno](#configuración-y-entorno)
 
@@ -22,25 +22,22 @@
 
 ## Visión General del Negocio
 
-**Kitties** es una plataforma de adopción de gatos que conecta a:
+**Kitties** conecta adoptantes con refugios de gatos (protectoras/organizaciones).
 
-- **Usuarios (Adoptantes):** Individuos que buscan adoptar gatos
-- **Organizaciones (Refugios):** Entidades que publican gatos para adopción y gestiona el proceso
-- **Sistema:** Facilita búsqueda, filtrado y un flujo de adopción automatizado con análisis inteligente
-
-### Problemática que Resuelve
-
-- Refugios necesitan una plataforma para gestionar gatos y solicitudes de adopción
-- Adoptantes necesitan encontrar gatos disponibles cerca de ellos
-- Ambos necesitan garantías: el adoptante completa formularios de evaluación, el refugio revisa automáticamente con IA
+- **Usuarios (Adoptantes):** buscan y solicitan adoptar gatos
+- **Organizaciones (Refugios):** publican gatos, gestionan solicitudes y reciben gatos cedidos
+- **Sistema:** analiza automáticamente candidatos con reglas de negocio + LLM semántico
 
 ### Características Principales
 
-1. **Catálogo de gatos público:** búsqueda por ciudad, nombre, edad
+1. **Catálogo público paginado:** búsqueda por ciudad y nombre
 2. **Proceso de adopción multietapa:** solicitud → cuestionario → análisis automático → decisión → firma legal
-3. **Análisis automático de candidatos:** 14 reglas de negocio detectan factores de riesgo
-4. **Gestión de organizaciones:** membresía, roles, límites por plan
-5. **Autenticación JWT:** sesiones cortas (15 min), renovación vía refresh token (7 días)
+3. **Análisis automático con IA:** 14 reglas de negocio + análisis LLM de texto libre (5 campos)
+4. **Intake de gatos:** usuarios pueden ceder sus gatos a organizaciones
+5. **Chat integrado:** mensajería entre adoptante y organización por adopción
+6. **Gestión de organizaciones:** membresía, roles, límites por plan
+7. **GDPR:** exportación y borrado de datos personales
+8. **Autenticación JWT:** access token 15 min + refresh token 7 días
 
 ---
 
@@ -48,727 +45,661 @@
 
 | Rol | Descripción | Permisos |
 |-----|-------------|----------|
-| **User** | Adoptante individual | • Registro y activación<br>• Ver catálogo público<br>• Crear solicitud adopción<br>• Rellenar cuestionarios y forms<br>• Ver mis solicitudes de adopción |
-| **Organization** | Refugio / organización | • Crear y gestionar organización<br>• Invitar miembros (si plan lo permite)<br>• Publicar y editar gatos<br>• Subir imágenes de gatos<br>• Ver y procesar solicitudes de adopción<br>• Agendar entrevistas<br>• Aceptar/rechazar solicitudes |
-| **Admin** | Administrador del sistema | • Todos los permisos de Organization<br>• Gestionar usuarios globalmente<br>• Auditoría y reportes |
-| **Anónimo** | No autenticado | • Ver catálogo de gatos<br>• Ver detalle de gatos<br>• Registrarse |
+| **Anónimo** | No autenticado | Ver catálogo, ver detalle gato, registrarse |
+| **User** | Adoptante | Todo lo anterior + crear adopción, rellenar cuestionarios, ver mis solicitudes, chat con org, ceder gatos (intake), GDPR |
+| **Organization** | Refugio | Publicar y gestionar gatos, ver y procesar solicitudes, agendar entrevistas, aceptar/rechazar solicitudes e intakes, chat con adoptantes, bloquear usuarios |
+| **Admin** | Administrador | Todo lo anterior + gestión global de usuarios, legal-hold GDPR |
 
-### Límites por Plan de Organización
+### Planes de Organización
 
-| Plan | Max Miembros | Descripción |
-|------|--------------|-------------|
-| **Free** | 1 | Una sola persona (founder) |
-| **Basic** | 5 | Pequeño refugio |
-| **Pro** | ∞ | Organización grande sin límites |
+| Plan | Max Miembros |
+|------|-------------|
+| **Free** | 1 (solo el fundador) |
+| **Basic** | 5 |
+| **Pro** | Sin límite |
 
 ---
 
 ## Autenticación JWT
 
-### Flujo General
+### Flujo
 
 ```
-User → POST /auth/login {email, password}
-       ↓
-       200 OK {accessToken, refreshToken, expiresIn=900}
-       ↓
-User almacena tokens
-       ↓
-Para cada request: Header "Authorization: Bearer {accessToken}"
-```
+POST /auth/login {email, password}
+  → 200 { accessToken, refreshToken, expiresIn: 900 }
 
-### Características del Token
+Cada request: Header "Authorization: Bearer {accessToken}"
 
-- **Issuer:** `https://www.kitti.es`
-- **Duración AccessToken:** 900 segundos (15 min)
-- **Duración RefreshToken:** 7 días
-- **Algoritmo:** RS256 (RSA public/private key)
-- **Claims:**
-  - `sub`: User ID (Long)
-  - `email`: User email (String)
-  - `groups`: ["User"|"Organization"|"Admin"] — array con rol(es)
-
-### Renovación y Revocación
-
-```
 POST /auth/refresh {refreshToken}
-     → 200 OK {accessToken, refreshToken, expiresIn=900}
-       (el token anterior se revoca automáticamente)
+  → 200 { accessToken, refreshToken, expiresIn: 900 }
+     (el refresh anterior queda revocado)
 
 POST /auth/logout {refreshToken}
-     → 204 No Content
-       (revoca el refresh token, invalida todas las sesiones)
+  → 204 No Content
 ```
 
-### Headers Requeridos
+### Claims del JWT
 
+```json
+{
+  "sub": "1",
+  "email": "user@ejemplo.com",
+  "groups": ["User"],
+  "iss": "https://www.kitti.es",
+  "exp": 1234567890
+}
 ```
-Authorization: Bearer {accessToken}
-Content-Type: application/json (en requests con body)
-```
+
+> `groups` contiene el rol: `["User"]`, `["Organization"]` o `["Admin"]`
 
 ---
 
 ## Flujos Principales
 
-### Flujo A: Registro y Activación (User)
+### Flujo A: Registro y Activación
 
-**Objetivo:** Un usuario se registra, recibe email de activación, y confirma su cuenta.
+1. `POST /users` → 201, status=`Pending`
+2. Sistema envía email con token → frontend redirige a `/activate?token=...`
+3. `POST /users/activate { token }` → 200, status=`Active`
+4. Ya puede hacer login
 
-**Pasos:**
+```json
+// POST /users
+{
+  "email": "juan@ejemplo.com",
+  "password": "MySecure123!",
+  "name": "Juan",
+  "surname": "García",
+  "role": "User"
+}
+```
 
-1. **POST `/users`** (sin auth)
-   ```json
-   {
-     "email": "juan@ejemplo.com",
-     "password": "MySecure123!",
-     "name": "Juan",
-     "surname": "García",
-     "birthdate": "1990-05-15"
-   }
-   ```
-   → 201 Created, status = `Pending` (no acceso todavía)
-
-2. **Sistema envía email** con token de activación a juan@ejemplo.com
-   ```
-   Sujeto: Activa tu cuenta en Kitties
-   Cuerpo: http://localhost:5173/activate?token={activationToken}
-   ```
-
-3. **Frontend redirige a página de activación** y llama:
-   ```
-   POST /users/activate
-   {
-     "token": "{activationToken}"
-   }
-   ```
-   → 200 OK, status = `Active`
-
-4. **Usuario ahora puede hacer login** y obtener JWT
+> **Rol Organization:** usar `"role": "Organization"` para crear una cuenta de refugio.
 
 ---
 
 ### Flujo B: Login y Gestión de Sesión
 
-**Objetivo:** Autenticar usuario y mantener sesión activa.
+```json
+// POST /auth/login
+{ "email": "juan@ejemplo.com", "password": "MySecure123!" }
 
-**Pasos:**
+// Respuesta
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiJ9...",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+  "expiresIn": 900
+}
+```
 
-1. **POST `/auth/login`** (sin auth)
-   ```json
-   {
-     "email": "juan@ejemplo.com",
-     "password": "MySecure123!"
-   }
-   ```
-   Respuesta:
-   ```json
-   {
-     "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-     "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
-     "expiresIn": 900
-   }
-   ```
-
-2. **Frontend almacena ambos tokens** (localStorage o sessionStorage)
-
-3. **Para cada request:** incluir header `Authorization: Bearer {accessToken}`
-
-4. **Cuando accessToken expira (900s):** llamar
-   ```
-   POST /auth/refresh
-   {
-     "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
-   }
-   ```
-   → 200 OK con nuevos tokens
-
-5. **Al cerrar sesión:**
-   ```
-   POST /auth/logout
-   {
-     "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
-   }
-   ```
-   → 204 No Content (refresh token revocado)
+- Almacenar ambos tokens (localStorage / sessionStorage)
+- Renovar `accessToken` ≈ 1 min antes de que expire (900s = 15 min)
+- En logout: `POST /auth/logout { refreshToken }` → 204
 
 ---
 
-### Flujo C: Crear Organización (Organization Role)
+### Flujo C: Crear Organización
 
-**Objetivo:** Usuario con rol `Organization` crea un refugio y gestiona miembros.
+Solo usuarios con rol `Organization`. Al crear, el creador queda como miembro `Admin`.
 
-**Pasos:**
+```json
+// POST /organizations
+{
+  "name": "Refugio Gatuno Madrid",
+  "description": "Somos un refugio...",
+  "address": "Calle Principal 123",
+  "city": "Madrid",
+  "region": "Comunidad de Madrid",
+  "country": "España",
+  "phone": "+34 912 345 678",
+  "email": "info@refugio.es"
+}
+// → 201 { id, name, status: "Active", plan: "Free", maxMembers: 1, ... }
+```
 
-1. **POST `/organizations`** (con token, rol=Organization)
-   ```json
-   {
-     "name": "Refugio Gatuno Madrid",
-     "description": "Somos un refugio de gatos en Madrid...",
-     "address": "Calle Principal 123",
-     "city": "Madrid",
-     "region": "Comunidad de Madrid",
-     "country": "España",
-     "phone": "+34 912 345 678",
-     "email": "info@refugio-gatuno.es"
-   }
-   ```
-   → 201 Created
-   ```json
-   {
-     "id": 42,
-     "name": "Refugio Gatuno Madrid",
-     "status": "Active",
-     "plan": "Free",
-     "maxMembers": 1,
-     ...
-   }
-   ```
-   El creador es automáticamente miembro con role=`Admin`
+**Gestión de miembros:**
 
-2. **Invitar miembros** (solo si plan lo permite):
-   ```
-   POST /organizations/42/members
-   {
-     "userId": 99,
-     "role": "Staff"
-   }
-   ```
-   → 201 Created (miembro invitado, status=Invited)
+```json
+// Invitar miembro: POST /organizations/{id}/members
+{ "userId": 99, "role": "Staff" }
 
-3. **Cambiar rol de miembro:**
-   ```
-   PATCH /organizations/42/members/99/role
-   {
-     "role": "Admin"
-   }
-   ```
-   → 200 OK
+// Cambiar rol: PATCH /organizations/{id}/members/99/role
+{ "role": "Admin" }
 
-4. **Remover miembro:**
-   ```
-   DELETE /organizations/42/members/99
-   ```
-   → 204 No Content (soft delete, status=Removed)
+// Eliminar: DELETE /organizations/{id}/members/99 → 204
+```
+
+> **MemberRole:** `Admin` | `Staff`
 
 ---
 
 ### Flujo D: Publicar Gato con Imágenes
 
-**Objetivo:** Organización publica un gato disponible para adopción.
+```json
+// POST /cats (rol: Organization)
+{
+  "name": "Misu",
+  "age": 3,
+  "sex": "Female",
+  "description": "Gata tranquila y cariñosa",
+  "neutered": true,
+  "city": "Madrid",
+  "region": "Comunidad de Madrid",
+  "country": "España",
+  "latitude": 40.4168,
+  "longitude": -3.7038
+}
+// → 201 { id, organizationId, status: "Available", images: [], ... }
 
-**Pasos:**
+// Subir imágenes: POST /cats/{id}/images
+// Body: multipart/form-data, campo "file"
+// Formatos: JPEG, PNG, WebP — máximo 5 MB por imagen
+```
 
-1. **POST `/cats`** (con token, rol=Organization)
-   ```json
-   {
-     "name": "Misu",
-     "age": 3,
-     "sex": "Female",
-     "description": "Gata tranquila y cariñosa, muy sociable",
-     "neutered": true,
-     "city": "Madrid",
-     "region": "Comunidad de Madrid",
-     "country": "España",
-     "latitude": 40.4168,
-     "longitude": -3.7038
-   }
-   ```
-   → 201 Created (status = `Available`)
-   ```json
-   {
-     "id": 1,
-     "organizationId": 42,
-     "status": "Available",
-     "images": [],
-     ...
-   }
-   ```
-
-2. **Subir imagen (multipart/form-data):**
-   ```
-   POST /cats/1/images
-   Header: Authorization: Bearer {token}
-   Body: form-data
-     - file: [binary image file, ≤5MB, JPEG or PNG]
-   ```
-   → 200 OK
-   ```json
-   {
-     "id": 1,
-     "images": [
-       {
-         "id": 1001,
-         "url": "http://localhost:8080/api/storage/files/uuid-1.jpg",
-         "order": 0
-       }
-     ]
-   }
-   ```
-
-3. **Subir segunda imagen** (misma operación)
-
-4. **Ver gato en catálogo público:**
-   ```
-   GET /cats/1
-   ```
-   → 200 OK (sin auth necesario)
+La `organizationId` se infiere del JWT — no se envía en el body.
 
 ---
 
-### Flujo E: Proceso de Adopción Completo (8 Pasos)
-
-**Objetivo:** Usuario solicita adoptar un gato, completa evaluación, sistema analiza, organización decide, firma legal.
+### Flujo E: Proceso de Adopción Completo
 
 ```
-PASO 1: Usuario ve gato público
-  GET /cats?city=Madrid
-  ↓ selecciona Misu (id=1)
+PASO 1: Buscar gatos disponibles (público)
+  GET /cats?city=Madrid&page=0&size=20
+  → PageResponse { content: [...], page, size, total, totalPages }
 
-PASO 2: Usuario crea solicitud de adopción
-  POST /adoptions
-  {
-    "catId": 1,
-    "organizationId": 42
-  }
-  ← 201 Created, status = Pending
+PASO 2: Crear solicitud (rol: User)
+  POST /adoptions { catId: 1, organizationId: 42 }
+  → 201, status = Pending
+  → 409 si el gato ya tiene una solicitud activa
 
-PASO 3: Sistema verifica que no hay solicitud activa para ese gato
-  (si hay otra en Pending/Reviewing/Accepted → 409 Conflict)
+PASO 3: Rellenar cuestionario pre-adopción (rol: User)
+  POST /adoptions/{id}/form { 31 campos — ver referencia completa abajo }
+  → 201, status pasa automáticamente a Reviewing
+  → Kafka emite adoption-form-submitted
 
-PASO 4: Usuario rellena cuestionario pre-adopción (32 campos)
-  POST /adoptions/{adoptionId}/form
-  {
-    "hasPreviousCatExperience": true,
-    "adultsInHousehold": 2,
-    "hasChildren": false,
-    "hasOtherPets": false,
-    "hoursAlonePerDay": 6,
-    "stableHousing": true,
-    "housingType": "Apartment",
-    "housingSize": 80,
-    "hasOutdoorAccess": false,
-    "isRental": false,
-    "hasWindowsWithView": true,
-    "hasVerticalSpace": true,
-    "hasHidingSpots": true,
-    "householdActivityLevel": "Moderate",
-    "whyCatsNeedToPlay": "Para mantenerse en forma y estimular mentalmente",
-    "dailyPlayMinutes": 30,
-    "plannedEnrichment": "Torres de escalada, juguetes interactivos",
-    "reactionToUnwantedBehavior": "Paciencia, redireccionamiento, nunca castigo físico",
-    "hasScratchingPost": true,
-    "willingToEnrichEnvironment": true,
-    "motivationToAdopt": "Quiero brindar hogar a un gato necesitado",
-    "understandsLongTermCommitment": true,
-    "hasVetBudget": true,
-    "allHouseholdMembersAgree": true,
-    "anyoneHasAllergies": false
-  }
-  ← 201 Created
-  ← Status automáticamente pasa a: Reviewing
+PASO 4: Análisis automático (asíncrono)
+  → Motor de reglas evalúa 14 flags (Critical/Warning/Notice)
+  → LLM analiza 5 campos de texto libre (semántico)
+  → Kafka emite adoption-form-analysed con decisión
 
-PASO 5: Sistema analiza automáticamente el formulario
-  - Motor de reglas evalúa 14 flags (Critical/Warning/Notice)
-  - Calcula decisión: Approved / ReviewRequired / Rejected
-  - Si rechazado: organización no debe gastar tiempo en entrevista
+PASO 5: Adopción-service procesa decisión
+  → Approved / ReviewRequired → la organización revisa
+  → Rejected → email al usuario con razón, no intervención org
 
-PASO 6: Organización decide (rechazar o aceptar)
-  - Si rechazado automáticamente: email al usuario + status=Rejected
-  - Si aprobado o con review: organización recibe notificación
-  
-  Organización acepta:
-  PATCH /adoptions/{id}/status
-  {
-    "status": "Accepted"
-  }
-  ← 200 OK, ahora usuario puede agenda entrevista
+PASO 6: Organización decide (rol: Organization)
+  PATCH /adoptions/{id}/status { "status": "Accepted" }
+  → o "Rejected" con razón
 
-PASO 7: Organización agenda entrevista
+PASO 7: Organización agenda entrevista (opcional)
   POST /adoptions/{id}/interview
-  {
-    "scheduledAt": "2026-05-10T14:00:00Z",
-    "notes": "Traer documentos de identidad"
-  }
-  ← 201 Created
+  { "scheduledAt": "2026-06-01T10:00:00", "notes": "Traer DNI" }
 
-PASO 8: Usuario firma formulario legal de adopción
-  POST /adoptions/{id}/adoption-form
+PASO 8: Usuario firma contrato legal
+  POST /adoptions/{id}/adoption-form { 12 campos — ver referencia abajo }
+  → 201, status = FormCompleted
+```
+
+#### Body completo del cuestionario (PASO 3)
+
+```json
+{
+  "hasPreviousCatExperience": true,
+  "previousPetsHistory": "Tuve dos gatos, murieron de vejez",
+  "adultsInHousehold": 2,
+  "hasChildren": false,
+  "childrenAges": null,
+  "hasOtherPets": false,
+  "otherPetsDescription": null,
+  "hoursAlonePerDay": 6,
+  "stableHousing": true,
+  "housingInstabilityReason": null,
+  "housingType": "Apartment",
+  "housingSize": 80,
+  "hasOutdoorAccess": false,
+  "isRental": false,
+  "rentalPetsAllowed": null,
+  "hasWindowsWithView": true,
+  "hasVerticalSpace": true,
+  "hasHidingSpots": true,
+  "householdActivityLevel": "Moderate",
+  "whyCatsNeedToPlay": "Para su estimulación mental y salud física",
+  "dailyPlayMinutes": 30,
+  "plannedEnrichment": "Torres, juguetes interactivos, rascadores",
+  "reactionToUnwantedBehavior": "Redirigir con juguetes, nunca castigar",
+  "hasScratchingPost": true,
+  "willingToEnrichEnvironment": true,
+  "motivationToAdopt": "Dar un hogar a un gato que lo necesita",
+  "understandsLongTermCommitment": true,
+  "hasVetBudget": true,
+  "allHouseholdMembersAgree": true,
+  "anyoneHasAllergies": false,
+  "allergiesDetail": null
+}
+```
+
+> **Enums:** `housingType` → `Apartment | House | Studio | Other`; `householdActivityLevel` → `Quiet | Moderate | VeryActive`
+
+#### Body del contrato legal (PASO 8)
+
+```json
+{
+  "fullName": "Juan García García",
+  "idNumber": "12345678A",
+  "phone": "+34 612 345 678",
+  "address": "Calle Principal 123, 4B",
+  "city": "Madrid",
+  "postalCode": "28001",
+  "acceptsVetVisits": true,
+  "acceptsFollowUpContact": true,
+  "acceptsReturnIfNeeded": true,
+  "acceptsTermsAndConditions": true,
+  "consentHealthData": true,
+  "additionalNotes": null
+}
+```
+
+---
+
+### Flujo F: Intake de Gatos (Ceder a Protectora)
+
+Un usuario que no puede seguir con su gato lo cede a una organización.
+
+```
+PASO 1: Usuario envía solicitud de ingreso (rol: User)
+  POST /intake-requests
   {
-    "fullName": "Juan García García",
-    "idNumber": "12345678A",
-    "phone": "+34 612 345 678",
-    "address": "Calle Principal 123, Apt 4B",
+    "targetOrganizationId": 1,
+    "catName": "Michi",
+    "catAge": 3,
+    "region": "Comunidad de Madrid",
     "city": "Madrid",
-    "postalCode": "28001",
-    "acceptsVetVisits": true,
-    "acceptsFollowUpContact": true,
-    "acceptsReturnIfNeeded": true,
-    "acceptsTermsAndConditions": true,
-    "additionalNotes": "Tenemos veterinario de confianza"
+    "vaccinated": true,
+    "description": "Gato rescatado, muy tranquilo"
   }
-  ← 201 Created, status = FormCompleted
-  ← Contrato firmado digitalmente
+  → 201, status = Pending
+
+PASO 2: Organización revisa (rol: Organization)
+  GET /intake-requests/organization
+  GET /intake-requests/organization/stats
+  → estadísticas: { pending, approved, rejected }
+
+PASO 3a: Aprobar
+  PATCH /intake-requests/{id}/approve → 200, status = Approved
+
+PASO 3b: Rechazar
+  PATCH /intake-requests/{id}/reject
+  { "reason": "No disponemos de espacio actualmente" }
+  → 200, status = Rejected
+
+PASO 4: Usuario puede ver sus solicitudes
+  GET /intake-requests/mine
 ```
 
 ---
 
-### Flujo F: Motor de Análisis Automático
+### Flujo G: Chat entre Adoptante y Organización
 
-**Objetivo:** El sistema evalúa automáticamente cada cuestionario y acepta/rechaza candidatos.
-
-**Reglas de Negocio (14 flags):**
-
-#### CRITICAL (1 flag → Rechazo automático)
-
-| Flag | Condición |
-|------|-----------|
-| `PHYSICAL_PUNISHMENT` | Campo `reactionToUnwantedBehavior` contiene: pegar, golpe, castigo físico, bofetada, palo, hit, smack, beat |
-| `ABANDONMENT_HISTORY` | Campo `previousPetsHistory` contiene: abandone, tire, solte, deje en la calle |
-| `RENTAL_NO_PERMISSION` | `isRental=true` AND `rentalPetsAllowed` != true |
-| `ALLERGY_CONFIRMED` | `anyoneHasAllergies=true` |
-
-#### WARNING (3+ flags → Rechazo; 1-2 → ReviewRequired)
-
-| Flag | Condición |
-|------|-----------|
-| `INSUFFICIENT_PLAY_TIME` | `dailyPlayMinutes < 15` |
-| `TOO_MANY_HOURS_ALONE` | `hoursAlonePerDay > 10` AND `hasOtherPets=false` |
-| `NO_ENRICHMENT_SPACE` | `hasVerticalSpace=false` AND `hasHidingSpots=false` |
-| `YOUNG_CHILDREN_NO_EXPERIENCE` | `hasChildren=true` AND `hasPreviousCatExperience!=true` AND `childrenAges` contiene 0-3 |
-| `UNSTABLE_HOUSING` | `stableHousing=false` |
-| `SUPERFICIAL_MOTIVATION` | `motivationToAdopt` contiene: es bonito, es mono, de regalo, para los niños, me parece gracioso, capricho |
-
-#### NOTICE (Informativos, no afectan decisión)
-
-| Flag | Condición |
-|------|-----------|
-| `NO_WINDOW_VIEW` | `hasWindowsWithView=false` |
-| `SMALL_HOUSING` | `housingSize < 40` |
-| `NO_PREVIOUS_EXPERIENCE` | `hasPreviousCatExperience!=true` |
-| `NO_SCRATCHING_POST` | `hasScratchingPost!=true` |
-
-**Lógica de Decisión:**
+El chat se crea automáticamente al aprobar un intake. Una vez creado:
 
 ```
-if (criticalFlags >= 1) → REJECTED
-else if (warningFlags >= 3) → REJECTED
-else if (warningFlags >= 1) → REVIEW_REQUIRED
-else → APPROVED
-```
+Ver conversaciones (User):
+  GET /chats/mine → [{ id, userId, organizationId, createdAt, lastMessageAt }]
 
-**Resultado:** Email automático al usuario (rechazado, requiere revisión, aprobado)
+Ver conversaciones (Organization):
+  GET /chats/organization
 
----
+Leer mensajes:
+  GET /chats/{id}/messages
+  → [{ id, senderId, senderType: "User"|"Organization", content, createdAt }]
 
-## Referencia de Endpoints
+Enviar mensaje:
+  POST /chats/{id}/messages { "content": "Hola, tengo una pregunta sobre Luna" }
+  → 201
 
-Acceder a `http://localhost:8080/swagger-ui` para documentación interactiva.
-
-### User Service (Puerto 8081)
-
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/users` | ✗ | Registro de nuevo usuario |
-| POST | `/users/activate` | ✗ | Activar con token de email |
-| GET | `/users/{email}` | ✓ | Ver mi perfil (self) |
-| GET | `/users/active` | ✓ | Listar todos los usuarios activos |
-| PUT | `/users/{email}` | ✓ | Actualizar perfil |
-| PUT | `/users/{email}/deactivate` | ✓ | Desactivar cuenta (self) |
-| PUT | `/users/{email}/activate` | ✓ | Activar usuario (admin/self) |
-
-### Auth Service (Puerto 8082)
-
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/auth/login` | ✗ | Obtener access + refresh token |
-| POST | `/auth/refresh` | ✗ | Renovar access token |
-| POST | `/auth/logout` | ✗ | Revocar refresh token |
-
-### Cat Service (Puerto 8084)
-
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| GET | `/cats` | ✗ | Buscar gatos (`?city=Madrid&name=Misu`) |
-| GET | `/cats/{id}` | ✗ | Detalle de gato |
-| POST | `/cats` | ✓ | Crear gato (Organization) |
-| PUT | `/cats/{id}` | ✓ | Editar gato (owner) |
-| DELETE | `/cats/{id}` | ✓ | Borrar gato (owner) |
-| POST | `/cats/{id}/images` | ✓ | Subir imagen (multipart) |
-| DELETE | `/cats/{catId}/images/{imageId}` | ✓ | Borrar imagen |
-
-### Adoption Service (Puerto 8086)
-
-| Método | Ruta | Auth | Role | Descripción |
-|--------|------|------|------|-------------|
-| POST | `/adoptions` | ✓ | User | Crear solicitud |
-| GET | `/adoptions/my` | ✓ | User | Mis solicitudes |
-| GET | `/adoptions/organization` | ✓ | Org | Solicitudes para mi org |
-| GET | `/adoptions/{id}` | ✓ | — | Detalle (participantes) |
-| PATCH | `/adoptions/{id}/status` | ✓ | Org | Cambiar status |
-| POST | `/adoptions/{id}/form` | ✓ | User | Enviar cuestionario pre-adopción |
-| POST | `/adoptions/{id}/interview` | ✓ | Org | Agendar entrevista |
-| POST | `/adoptions/{id}/adoption-form` | ✓ | User | Firmar formulario legal |
-
-### Organization Service (Puerto 8088)
-
-| Método | Ruta | Auth | Role | Descripción |
-|--------|------|------|------|-------------|
-| POST | `/organizations` | ✓ | Org/Admin | Crear organización |
-| GET | `/organizations/mine` | ✓ | — | Mi organización |
-| GET | `/organizations/{id}` | ✓ | — | Detalle (solo miembros) |
-| PUT | `/organizations/{id}` | ✓ | Org Admin | Editar |
-| GET | `/organizations/{id}/members` | ✓ | Org Admin | Listar miembros |
-| POST | `/organizations/{id}/members` | ✓ | Org Admin | Invitar miembro |
-| PATCH | `/organizations/{id}/members/{userId}/role` | ✓ | Org Admin | Cambiar rol |
-| DELETE | `/organizations/{id}/members/{userId}` | ✓ | Org Admin | Remover miembro |
-
-### Storage Service (Puerto 8083)
-
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | `/storage/upload` | ✓ | Subir archivo (multipart, ≤5MB, JPEG/PNG) |
-| DELETE | `/storage/{key}` | — | Borrar archivo |
-| GET | `/storage/files/{key}` | ✗ | Descargar/servir archivo |
-
----
-
-## Estados y Transiciones
-
-### User Status Diagram
-
-```
-[Pending] ← user creado, email no confirmado
-    ↓
-[Active] ← token de activación confirmado (puede hacer login)
-    ↓
-[Inactive] ← usuario desactiva su cuenta (soft delete)
-    ↓
-[Banned] ← admin banea usuario
-```
-
-### Adoption Request Status Diagram
-
-```
-[Pending] ← solicitud creada
-    ↓ (usuario rellena cuestionario)
-[Reviewing] ← análisis automático en curso / completado
-    ↓ (sistema decide)
-    ├─→ [Rejected] ← flags críticos o 3+ warnings
-    │    └─→ email a usuario con razón
-    │
-    └─→ [Accepted] ← aprobado o requiere revisión (org decide)
-         ↓ (usuario rellena formulario legal)
-         [FormCompleted] ← contrato firmado
-         ↓ (flujo de pago / trámites administrativos)
-         [PaymentPending] → [PaymentFailed] o [Completed]
+Bloquear usuario (rol: Organization):
+  POST /chats/{id}/block { "reason": "Comportamiento inapropiado" }
+  DELETE /chats/{id}/block  (desbloquear)
 ```
 
 ---
 
 ## Motor de Análisis Automático
 
-El `form-analysis-service` escucha en Kafka cuando se envía un formulario pre-adopción y ejecuta las 14 reglas automáticamente. Resultado se publica de vuelta y:
+El `form-analysis-service` procesa el cuestionario en dos capas complementarias:
 
-- El adoption-service cambia status automáticamente
-- El notification-service envía email al adoptante
-- La organización ve el resultado en su dashboard
+### Capa 1: Reglas de Negocio (14 flags)
 
-**Inputs al motor:** Todos los 32 campos del `AdoptionRequestForm`  
-**Outputs:** `decision` (Approved/ReviewRequired/Rejected), lista de flags, razón si rechazo
+#### CRITICAL — 1 flag → Rechazo inmediato
+
+| Flag | Condición |
+|------|-----------|
+| `PHYSICAL_PUNISHMENT` | `reactionToUnwantedBehavior` contiene: pegar, golpe, castigo físico, bofetada, palo, hit, smack, beat |
+| `ABANDONMENT_HISTORY` | `previousPetsHistory` contiene: abandoné, tiré, solté, dejé en la calle |
+| `RENTAL_NO_PERMISSION` | `isRental=true` AND `rentalPetsAllowed` no es `true` |
+| `ALLERGY_CONFIRMED` | `anyoneHasAllergies=true` |
+
+#### WARNING — 3+ flags → Rechazo; 1-2 flags → Revisión requerida
+
+| Flag | Condición |
+|------|-----------|
+| `INSUFFICIENT_PLAY_TIME` | `dailyPlayMinutes < 15` |
+| `TOO_MANY_HOURS_ALONE` | `hoursAlonePerDay > 10` AND `hasOtherPets=false` |
+| `NO_ENRICHMENT_SPACE` | `hasVerticalSpace=false` AND `hasHidingSpots=false` |
+| `YOUNG_CHILDREN_NO_EXPERIENCE` | `hasChildren=true` AND `hasPreviousCatExperience=false` AND `childrenAges` contiene 0-3 |
+| `UNSTABLE_HOUSING` | `stableHousing=false` |
+| `SUPERFICIAL_MOTIVATION` | `motivationToAdopt` contiene: es bonito, de regalo, para los niños, capricho, me parece gracioso |
+
+#### NOTICE — Informativos, no afectan decisión
+
+| Flag | Condición |
+|------|-----------|
+| `NO_WINDOW_VIEW` | `hasWindowsWithView=false` |
+| `SMALL_HOUSING` | `housingSize < 40` |
+| `NO_PREVIOUS_EXPERIENCE` | `hasPreviousCatExperience=false` |
+| `NO_SCRATCHING_POST` | `hasScratchingPost=false` |
+
+---
+
+### Capa 2: Análisis Semántico LLM
+
+Analiza los 5 campos de texto libre buscando señales de alerta que las palabras clave no detectarían (parafraseos, eufemismos, evasión):
+
+- `previousPetsHistory`
+- `reactionToUnwantedBehavior`
+- `motivationToAdopt`
+- `whyCatsNeedToPlay`
+- `plannedEnrichment`
+
+**Flags generados por el LLM (nunca Critical — el LLM solo puede añadir Warning/Notice):**
+
+| Flag | Severidad | Descripción |
+|------|-----------|-------------|
+| `LLM_PUNISHMENT_RISK` HIGH | Warning | Indicios claros de castigo físico en el texto |
+| `LLM_PUNISHMENT_RISK` LOW | Notice | Señal ambigua relacionada con castigo |
+| `LLM_ABANDONMENT_RISK` HIGH | Warning | Indicios claros de abandono previo |
+| `LLM_ABANDONMENT_RISK` LOW | Notice | Señal ambigua de abandono |
+| `LLM_SUPERFICIAL_MOTIVATION` | Warning | Motivación evaluada como superficial o impulsiva |
+| `LLM_UNCLEAR_MOTIVATION` | Notice | El LLM no puede determinar la motivación |
+| `LLM_EVASIVENESS` HIGH | Warning | Evasión clara de preguntas concretas |
+| `LLM_EVASIVENESS` MODERATE | Notice | Evasión moderada detectada |
+| `LLM_INCONSISTENCY` | Warning | Inconsistencias internas entre respuestas |
+
+> Si el LLM no está disponible (timeout, error de red): fallback silencioso — solo se usan las reglas de negocio. No hay degradación visible en la experiencia.
+
+---
+
+### Lógica de Decisión Final
+
+```
+flags = rulesFlags + llmFlags
+
+if criticalFlags >= 1   → REJECTED
+if warningFlags >= 3    → REJECTED
+if warningFlags >= 1    → REVIEW_REQUIRED
+else                    → APPROVED
+```
+
+El resultado incluye el `reasoning` del LLM (texto explicativo para el revisor humano).
+
+---
+
+## Referencia de Endpoints
+
+Todos los endpoints se exponen a través del gateway en `http://localhost:8080/api/`.
+
+### Auth
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/auth/login` | ✗ | Login → `{ accessToken, refreshToken, expiresIn }` |
+| POST | `/auth/refresh` | ✗ | Renovar tokens |
+| POST | `/auth/logout` | ✗ | Revocar refresh token |
+
+### Users
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| POST | `/users` | ✗ | — | Registro |
+| POST | `/users/activate` | ✗ | — | Activar con token de email |
+| GET | `/users/{email}` | ✓ | Self | Ver perfil |
+| PUT | `/users/{email}` | ✓ | Self | Actualizar perfil |
+| PUT | `/users/{email}/deactivate` | ✓ | Self | Desactivar cuenta |
+| PUT | `/users/{email}/activate` | ✓ | Self/Admin | Reactivar cuenta |
+| GET | `/users/me/export` | ✓ | User | Exportar mis datos (GDPR) |
+| POST | `/users/me/erasure-request` | ✓ | User | Solicitar borrado de datos (GDPR) |
+
+### Organizations
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| POST | `/organizations` | ✓ | Organization | Crear org (creator → miembro Admin) |
+| GET | `/organizations/mine` | ✓ | — | Mi organización |
+| GET | `/organizations/{id}` | ✓ | — | Detalle (solo miembros) |
+| PUT | `/organizations/{id}` | ✓ | — | Editar |
+| GET | `/organizations/{id}/members` | ✓ | — | Listar miembros |
+| POST | `/organizations/{id}/members` | ✓ | — | Invitar miembro (`role: Admin\|Staff`) |
+| PATCH | `/organizations/{id}/members/{userId}/role` | ✓ | — | Cambiar rol |
+| DELETE | `/organizations/{id}/members/{userId}` | ✓ | — | Eliminar miembro |
+
+### Cats
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| GET | `/cats` | ✗ | — | Búsqueda paginada `?city=&name=&page=0&size=20` → `PageResponse<CatSummaryResponse>` |
+| GET | `/cats/{id}` | ✗ | — | Detalle completo con imágenes |
+| GET | `/cats/mine` | ✓ | Organization | Mis gatos (inventario) |
+| GET | `/cats/mine/stats` | ✓ | Organization | Estadísticas: `{ available, unavailable, deleted, total }` |
+| POST | `/cats` | ✓ | Organization | Crear gato |
+| PUT | `/cats/{id}` | ✓ | Organization | Editar gato |
+| DELETE | `/cats/{id}` | ✓ | Organization | Borrar gato (lógico) |
+| POST | `/cats/{id}/images` | ✓ | Organization | Subir imagen (multipart, ≤5MB, JPEG/PNG/WebP) |
+| DELETE | `/cats/{catId}/images/{imageId}` | ✓ | Organization | Borrar imagen |
+
+### Intake Requests
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| POST | `/intake-requests` | ✓ | User | Ceder gato a org |
+| GET | `/intake-requests/mine` | ✓ | User | Mis solicitudes de ingreso |
+| GET | `/intake-requests/organization` | ✓ | Organization | Solicitudes recibidas |
+| GET | `/intake-requests/organization/stats` | ✓ | Organization | Estadísticas por estado |
+| PATCH | `/intake-requests/{id}/approve` | ✓ | Organization | Aprobar |
+| PATCH | `/intake-requests/{id}/reject` | ✓ | Organization | Rechazar con razón |
+
+### Adoptions
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| POST | `/adoptions` | ✓ | User | Crear solicitud de adopción |
+| GET | `/adoptions/{id}` | ✓ | — | Detalle |
+| GET | `/adoptions/my` | ✓ | User | Mis solicitudes |
+| GET | `/adoptions/organization` | ✓ | Organization | Solicitudes para mi org |
+| GET | `/adoptions/organization/pipeline` | ✓ | Organization | Estadísticas por estado |
+| GET | `/adoptions/organization/cats/{catId}` | ✓ | Organization | Solicitudes para un gato concreto |
+| PATCH | `/adoptions/{id}/status` | ✓ | Organization | Cambiar estado (`Accepted\|Rejected`) |
+| POST | `/adoptions/{id}/form` | ✓ | User | Enviar cuestionario (31 campos) |
+| POST | `/adoptions/{id}/interview` | ✓ | Organization | Agendar entrevista |
+| POST | `/adoptions/{id}/adoption-form` | ✓ | User | Firmar contrato legal (12 campos) |
+
+### Chat
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| GET | `/chats/mine` | ✓ | User | Mis conversaciones |
+| GET | `/chats/organization` | ✓ | Organization | Conversaciones de la org |
+| GET | `/chats/{id}/messages` | ✓ | — | Mensajes de una conversación |
+| POST | `/chats/{id}/messages` | ✓ | — | Enviar mensaje |
+| POST | `/chats/{id}/block` | ✓ | Organization | Bloquear usuario en conversación |
+| DELETE | `/chats/{id}/block` | ✓ | Organization | Desbloquear |
+
+### Storage
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/storage/upload` | ✓ | Subir archivo (multipart, campo `file`) |
+| DELETE | `/storage/{key}` | ✓ | Borrar archivo |
+| GET | `/storage/files/{key}` | ✗ | Servir archivo públicamente |
+
+---
+
+## Estados y Transiciones
+
+### User Status
+
+```
+Pending → Active → Inactive
+                 ↘ Banned (Admin)
+```
+
+### Adoption Status
+
+```
+Pending
+  ↓ (POST /form)
+Reviewing ← análisis en curso
+  ↓ (Kafka: adoption-form-analysed)
+  ├── Rejected  (crítico o 3+ warnings → sin intervención org)
+  │
+  └── Accepted  (org aprueba) → FormCompleted (usuario firma) → Completed
+       ↘ Rejected  (org rechaza manualmente)
+```
+
+### Intake Status
+
+```
+Pending → Approved
+        ↘ Rejected
+```
+
+### Cat Status
+
+```
+Available → Unavailable (gato ya adoptado o temporalmente no disponible)
+          ↘ Deleted  (lógico, no físico)
+```
+
+### Organization Member Status
+
+```
+Invited → Active
+        ↘ Removed
+```
 
 ---
 
 ## Eventos Asíncronos (Kafka)
 
-### Topic: `user-registered`
+### `user-registered` (user-service → notification-service)
 
-**Producido por:** user-service  
-**Consumido por:** notification-service
-
-**Evento:**
 ```json
-{
-  "userId": 1,
-  "email": "juan@ejemplo.com",
-  "name": "Juan",
-  "activationToken": "550e8400-e29b-41d4-a716-446655440000"
-}
+{ "userId": 1, "email": "juan@ejemplo.com", "name": "Juan", "activationToken": "uuid" }
 ```
-
-**Acción:** Enviar email de activación con link `{frontend_url}/activate?token={token}`
+→ notification-service envía email de activación
 
 ---
 
-### Topic: `adoption-form-submitted`
+### `adoption-form-submitted` (adoption-service → form-analysis-service)
 
-**Producido por:** adoption-service  
-**Consumido por:** form-analysis-service
-
-**Evento:**
 ```json
 {
-  "adoptionRequestId": 1,
-  "adopterId": 5,
-  "adopterEmail": "juan@ejemplo.com",
-  "organizationId": 42,
-  "catId": 1,
-  "hasPreviousCatExperience": true,
+  "adoptionRequestId": 1, "adopterId": 5, "catId": 1, "organizationId": 42,
+  "hasPreviousCatExperience": true, "reactionToUnwantedBehavior": "Redirigir...",
+  "motivationToAdopt": "Dar un hogar...",
   "dailyPlayMinutes": 30,
-  ... (todos los 32 campos)
+  "...": "31 campos del cuestionario"
 }
 ```
 
-**Acción:** Evaluar reglas, persistir análisis, publicar resultado
-
 ---
 
-### Topic: `adoption-form-analysed`
+### `adoption-form-analysed` (form-analysis-service → adoption-service)
 
-**Producido por:** form-analysis-service  
-**Consumido por:** adoption-service, notification-service
-
-**Evento:**
 ```json
 {
   "adoptionRequestId": 1,
   "decision": "Approved",
   "rejectionReason": null,
+  "adopterId": 5,
   "criticalFlags": 0,
   "warningFlags": 0,
-  "noticeFlags": 2,
-  "adopterEmail": "juan@ejemplo.com"
+  "noticeFlags": 2
 }
 ```
 
-**Acciones:**
-- adoption-service: cambia status según decisión
-- notification-service: envía email (Approved/ReviewRequired/Rejected) con detalles
+→ adoption-service actualiza status automáticamente  
+→ notification-service envía email al adoptante con resultado
 
 ---
 
 ## Configuración y Entorno
 
-### Swagger UI Consolidado
+### Puertos
 
-URL única para ver toda la documentación:  
-**`http://localhost:8080/swagger-ui`** → dropdown con 6 servicios
+| Servicio | HTTP | Notas |
+|----------|------|-------|
+| gateway-service | 8080 | Punto de entrada único para el frontend |
+| user-service | 8081 | |
+| auth-service | 8082 | |
+| storage-service | 8083 | |
+| cat-service | 8084 | |
+| notification-service | 8085 | Sin endpoints públicos |
+| adoption-service | 8086 | |
+| form-analysis-service | 8087 | Sin endpoints REST públicos (solo Kafka) |
+| organization-service | 8088 | |
+| chat-service | 8089 | |
+| schedule-service | 8090 | Solo `/q/health` |
 
-Las rutas OpenAPI internas (`/api/openapi/{servicio}`) son proxeadas automáticamente por el gateway.
+> El frontend solo habla con el **gateway (8080)**. Los puertos de los servicios son solo para desarrollo/debug.
 
 ### Variables de Entorno Clave
 
 ```env
-# PostgreSQL
 DB_USER=kitties
 DB_PASSWORD=kitties
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=kitties
 
-# JWT
 JWT_PRIVATE_KEY_LOCATION=privateKey.pem
 JWT_PUBLIC_KEY_LOCATION=publicKey.pem
 
-# MinIO / S3
 MINIO_ROOT_USER=kitties
 MINIO_ROOT_PASSWORD=change_me_min16chars
-MINIO_DEFAULT_BUCKETS=kitties
 
-# Kafka
 KAFKA_HOST=localhost
 KAFKA_PORT=9092
 
-# Frontend URL (CORS)
 CORS_ORIGIN=http://localhost:5173
-```
-
-### Puertos
-
-| Servicio | Puerto |
-|----------|--------|
-| Gateway | 8080 |
-| User Service | 8081 |
-| Auth Service | 8082 |
-| Storage Service | 8083 |
-| Cat Service | 8084 |
-| Notification Service | 8085 |
-| Adoption Service | 8086 |
-| Form Analysis Service | 8087 |
-| Organization Service | 8088 |
-
----
-
-## Testing e Integración
-
-### Ejemplo: Flujo Completo (cURL)
-
-```bash
-# 1. Registrarse
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "juan@ejemplo.com",
-    "password": "MySecure123!",
-    "name": "Juan",
-    "surname": "García"
-  }'
-
-# (Email recibido con token: 550e8400-e29b-41d4-a716-446655440000)
-
-# 2. Activarse
-curl -X POST http://localhost:8080/api/users/activate \
-  -H "Content-Type: application/json" \
-  -d '{"token": "550e8400-e29b-41d4-a716-446655440000"}'
-
-# 3. Login
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "juan@ejemplo.com",
-    "password": "MySecure123!"
-  }' | jq '.accessToken'
-
-# (Respuesta: {accessToken: "eyJ...", refreshToken: "uuid", expiresIn: 900})
-
-# 4. Ver gatos disponibles
-curl http://localhost:8080/api/cats?city=Madrid
-
-# 5. Adoptar un gato (con token)
-curl -X POST http://localhost:8080/api/adoptions \
-  -H "Authorization: Bearer {accessToken}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "catId": 1,
-    "organizationId": 42
-  }'
+NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 ```
 
 ---
 
 ## Notas para el Desarrollo Frontend
 
-1. **Siempre renovar token 1-2 min antes de expirar** (900s = 15 min)
-2. **Rate limiting:** 10 req/min en login, 20 req/min en refresh, 5 req/min en upload
-3. **Multipart upload:** usar `FormData` en JavaScript, no JSON
-4. **Imágenes:** máximo 5MB, solo JPEG/PNG
-5. **Errores de validación:** respuesta 400 con detalles de campos inválidos
-6. **CORS:** configurado para `http://localhost:5173`, cambiar en prod
-7. **Campos nullable:** revisar documentación Swagger para qué campos son opcionales
-8. **Soft deletes:** usuarios/miembros nunca se borran, se marcan como `Inactive`/`Removed`
+1. **Renovar token** ≈ 1-2 min antes de expirar (900s = 15 min). Interceptar 401 y llamar a `/auth/refresh`.
+2. **Rate limiting:** ~10 req/min en login, ~20 en refresh, ~5 en upload de imágenes.
+3. **Multipart upload:** usar `FormData` con campo `file`, no JSON. El `Content-Type` lo gestiona el browser.
+4. **Imágenes:** máximo 5 MB, formatos JPEG / PNG / WebP.
+5. **Paginación:** `/cats` devuelve `{ content, page, size, total, totalPages }`. Parámetros: `?page=0&size=20`.
+6. **Errores de validación:** HTTP 422 con `{ status, code: "VALIDATION_FAILED", violations: [{ field, code, params? }] }`. Códigos de field: `REQUIRED`, `INVALID_SIZE`, `INVALID_EMAIL`, `INVALID_FORMAT`, `TOO_SMALL`, `TOO_LARGE`.
+7. **Errores de dominio:** HTTP 400/404/409 con `{ status, code: "ENTIDAD_MOTIVO" }`. El `code` es machine-readable para mostrar mensajes i18n.
+8. **Soft deletes:** usuarios, gatos y miembros nunca se borran físicamente.
+9. **CORS:** configurado para `http://localhost:5173` en dev. Cambiar `CORS_ORIGIN` en producción.
+10. **form-analysis-service** no expone endpoints REST — opera exclusivamente por Kafka. No hay que integrarlo directamente.
+11. **Chat v1 es REST polling** (no WebSocket todavía). Implementar polling manual cada N segundos para mensajes nuevos.
 
 ---
 
-## Roadmap Futuro
+## Roadmap Pendiente
 
-- [ ] Pagos integrados (adopciones con costo)
-- [ ] Notificaciones push (socket.io o SSE)
+- [ ] WebSocket real-time para chat (actualmente REST polling)
+- [ ] Auto-crear chat al aprobar intake (pendiente de integración en adoption-service)
+- [ ] Pagos integrados
+- [ ] Notificaciones push (SSE o WebSocket)
 - [ ] Geolocalización avanzada (radio de búsqueda)
-- [ ] Sistema de reseñas (feedback post-adopción)
-- [ ] Reportes PDF (contrato firmado)
-- [ ] Integración con redes sociales (login social)
+- [ ] Reportes PDF del contrato firmado
 
 ---
 
-**Documento generado:** 2026-04-25  
-**Próxima actualización:** Según cambios en API o negocio
+**Última actualización:** 2026-05-15
