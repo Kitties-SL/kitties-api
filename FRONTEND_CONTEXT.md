@@ -1,7 +1,7 @@
 # Kitties — Documentación de Negocio y API para Frontend
 
-**Versión:** 2.0.0  
-**Fecha:** 2026-05-15  
+**Versión:** 2.1.0  
+**Fecha:** 2026-05-16  
 **Estado:** API funcional en dev. Swagger UI en `http://localhost:8080/swagger-ui`
 
 ---
@@ -12,6 +12,8 @@
 2. [Roles y Permisos](#roles-y-permisos)
 3. [Autenticación JWT](#autenticación-jwt)
 4. [Flujos Principales](#flujos-principales)
+   - [Flujo A: Registro de Usuario](#flujo-a-registro-y-activación)
+   - [Flujo C: Registro de Organización](#flujo-c-registro-de-organización)
 5. [Motor de Análisis Automático](#motor-de-análisis-automático)
 6. [Referencia de Endpoints](#referencia-de-endpoints)
 7. [Estados y Transiciones](#estados-y-transiciones)
@@ -109,12 +111,11 @@ POST /auth/logout {refreshToken}
   "email": "juan@ejemplo.com",
   "password": "MySecure123!",
   "name": "Juan",
-  "surname": "García",
-  "role": "User"
+  "surname": "García"
 }
 ```
 
-> **Rol Organization:** usar `"role": "Organization"` para crear una cuenta de refugio.
+> El campo `role` ya no se acepta en el registro — el backend siempre asigna `User`. Para registrar un refugio, usar el **Flujo C: Registro de Organización**.
 
 ---
 
@@ -138,12 +139,12 @@ POST /auth/logout {refreshToken}
 
 ---
 
-### Flujo C: Crear Organización
+### Flujo C: Registro de Organización
 
-Solo usuarios con rol `Organization`. Al crear, el creador queda como miembro `Admin`.
+Endpoint público que crea la organización y su usuario admin en una sola llamada. No requiere autenticación previa.
 
 ```json
-// POST /organizations
+// POST /organizations/register
 {
   "name": "Refugio Gatuno Madrid",
   "description": "Somos un refugio...",
@@ -152,12 +153,37 @@ Solo usuarios con rol `Organization`. Al crear, el creador queda como miembro `A
   "region": "Comunidad de Madrid",
   "country": "España",
   "phone": "+34 912 345 678",
-  "email": "info@refugio.es"
+  "email": "info@refugio.es",
+  "logoUrl": null,
+  "adminEmail": "admin@refugio.es",
+  "adminPassword": "Secure123!",
+  "adminName": "Ana",
+  "adminSurname": "Gómez",
+  "adminBirthdate": "1985-03-15"
 }
-// → 201 { id, name, status: "Active", plan: "Free", maxMembers: 1, ... }
 ```
 
-**Gestión de miembros:**
+**Respuestas:**
+
+| Código | Situación |
+|--------|-----------|
+| `201` | Org creada, admin creado con rol `Organization`, email de activación enviado |
+| `409 ADMIN_EMAIL_ALREADY_EXISTS` | El email del admin ya está en uso — usar otro |
+| `503 USER_SERVICE_UNAVAILABLE` | Error temporal — reintentar en unos minutos |
+| `422` | Datos inválidos (`name`, `adminEmail`, `adminPassword` ≥ 8 chars, `adminName`, `adminSurname` son obligatorios) |
+
+> Tras el `201`, el admin recibe un **email de activación**. Debe activar la cuenta antes de poder hacer login. Usar el Flujo A con el token recibido.
+
+**Lo que hace el backend (informativo):**
+```
+1. Comprueba que adminEmail no existe → 409 si ya existe (nada creado)
+2. Crea organización (status=Pending)
+3. Crea usuario admin (rol=Organization, status=Pending)
+4. Vincula usuario como miembro Admin de la org
+5. Org pasa a status=Active → 201
+```
+
+**Gestión de miembros (una vez logueado como Organization):**
 
 ```json
 // Invitar miembro: POST /organizations/{id}/members
@@ -459,12 +485,13 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 
 | Método | Ruta | Auth | Role | Descripción |
 |--------|------|------|------|-------------|
-| POST | `/users` | ✗ | — | Registro |
+| POST | `/users` | ✗ | — | Registro (siempre rol `User`; sin campo `role`) |
 | POST | `/users/activate` | ✗ | — | Activar con token de email |
 | GET | `/users/{email}` | ✓ | Self | Ver perfil |
 | PUT | `/users/{email}` | ✓ | Self | Actualizar perfil |
 | PUT | `/users/{email}/deactivate` | ✓ | Self | Desactivar cuenta |
 | PUT | `/users/{email}/activate` | ✓ | Self/Admin | Reactivar cuenta |
+| PATCH | `/users/{id}/role` | ✓ | Organization | Promover usuario a rol `Organization` |
 | GET | `/users/me/export` | ✓ | User | Exportar mis datos (GDPR) |
 | POST | `/users/me/erasure-request` | ✓ | User | Solicitar borrado de datos (GDPR) |
 
@@ -472,7 +499,8 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 
 | Método | Ruta | Auth | Role | Descripción |
 |--------|------|------|------|-------------|
-| POST | `/organizations` | ✓ | Organization | Crear org (creator → miembro Admin) |
+| POST | `/organizations/register` | ✗ | — | Registro completo: org + admin (ver Flujo C) |
+| POST | `/organizations` | ✓ | Organization | Crear org adicional (creator → miembro Admin) |
 | GET | `/organizations/mine` | ✓ | — | Mi organización |
 | GET | `/organizations/{id}` | ✓ | — | Detalle (solo miembros) |
 | PUT | `/organizations/{id}` | ✓ | — | Editar |
@@ -550,6 +578,16 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 Pending → Active → Inactive
                  ↘ Banned (Admin)
 ```
+
+### Organization Status
+
+```
+Pending → Active    (flujo de registro completado con éxito)
+Pending → (purga)   (registro fallido a mitad; job de limpieza lo elimina)
+Active  → Suspended (Admin)
+```
+
+> El estado `Pending` es transitorio (segundos durante el registro). El frontend siempre recibirá la org en `Active` en el 201.
 
 ### Adoption Status
 
@@ -688,6 +726,7 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 9. **CORS:** configurado para `http://localhost:5173` en dev. Cambiar `CORS_ORIGIN` en producción.
 10. **form-analysis-service** no expone endpoints REST — opera exclusivamente por Kafka. No hay que integrarlo directamente.
 11. **Chat v1 es REST polling** (no WebSocket todavía). Implementar polling manual cada N segundos para mensajes nuevos.
+12. **Registro de organizaciones:** usar `POST /organizations/register` (público, sin JWT). El campo `role` en `POST /users` ya no se acepta — el backend siempre asigna `User`.
 
 ---
 
@@ -702,4 +741,4 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 
 ---
 
-**Última actualización:** 2026-05-15
+**Última actualización:** 2026-05-16
