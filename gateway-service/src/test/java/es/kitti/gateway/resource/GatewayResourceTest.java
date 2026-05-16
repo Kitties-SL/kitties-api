@@ -467,4 +467,21 @@ class GatewayResourceTest {
 
         assertThat(System.currentTimeMillis() - start).isLessThan(7000L);
     }
+
+    @Test
+    void testOrganizationRegisterPublicRouted() {
+        wiremock.register(post(urlEqualTo("/organizations/register"))
+                .willReturn(aResponse()
+                        .withStatus(201)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"id\":1,\"name\":\"Protectora Test\"}")));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"name\":\"Protectora Test\",\"adminEmail\":\"admin@test.es\",\"adminPassword\":\"Secure123!\"}")
+                .when()
+                .post("/api/organizations/register")
+                .then()
+                .statusCode(201);
+    }
 }
