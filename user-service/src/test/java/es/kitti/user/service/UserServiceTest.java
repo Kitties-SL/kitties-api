@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import es.kitti.mon.error.UnauthorizedError;
 import io.smallrye.mutiny.Uni;
@@ -78,7 +79,7 @@ class UserServiceTest {
     @Test
     void createUser_success() {
         var request = new UserCreateRequest(
-                "test@kitti.es", "password123", "Test", "User", null, null, UserRole.User);
+                "test@kitti.es", "password123", "Test", "User", null, null);
 
         when(userRepository.existsByEmail(request.email())).thenReturn(Uni.createFrom().item(false));
         when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
@@ -95,7 +96,7 @@ class UserServiceTest {
     @Test
     void createUser_duplicateEmail_returnsLeft409() {
         var request = new UserCreateRequest(
-                "duplicate@kitti.es", "password123", "Test", "User", null, null, UserRole.User);
+                "duplicate@kitti.es", "password123", "Test", "User", null, null);
 
         when(userRepository.existsByEmail(request.email())).thenReturn(Uni.createFrom().item(true));
 
@@ -321,6 +322,47 @@ class UserServiceTest {
 
         assertEquals(1, result.size());
         assertEquals("test@kitti.es", result.get(0).email());
+    }
+
+    // --- changeRole ---
+
+    @Test
+    void changeRole_success_promotesToOrganization() {
+        var orgResponse = new UserResponse(
+                1L, "test@kitti.es", "Test", "User",
+                UserStatus.Active, UserRole.Organization, null,
+                LocalDateTime.now(), LocalDateTime.now());
+
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+        when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
+        when(userMapper.toResponse(testUser)).thenReturn(orgResponse);
+
+        var result = userService.changeRole(1L, UserRole.Organization).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(UserRole.Organization, result.getOrElse(null).role());
+        assertEquals(UserRole.Organization, testUser.role);
+    }
+
+    @Test
+    void changeRole_userNotFound_returnsLeft404() {
+        when(userRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.changeRole(99L, UserRole.Organization).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void changeRole_toAdmin_returnsLeft403() {
+        var result = userService.changeRole(1L, UserRole.Admin).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+        verifyNoInteractions(userRepository);
     }
 
     // --- exportMyData ---
