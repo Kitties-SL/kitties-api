@@ -47,6 +47,66 @@ class OrganizationInternalResourceTest {
     }
 
     @Test
+    void getMembership_missingToken_returns401() {
+        given()
+                .when()
+                .get("/organizations/internal/membership/1")
+                .then()
+                .statusCode(401);
+    }
+
+    @Test
+    void getMembership_wrongToken_returns401() {
+        given()
+                .header("X-Internal-Token", "wrong-token")
+                .when()
+                .get("/organizations/internal/membership/1")
+                .then()
+                .statusCode(401);
+    }
+
+    @Test
+    void getMembership_userWithoutMember_returns404() {
+        given()
+                .header("X-Internal-Token", INTERNAL_TOKEN)
+                .when()
+                .get("/organizations/internal/membership/999999")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    @TestSecurity(user = "888", roles = "Organization")
+    @JwtSecurity(claims = {@Claim(key = "sub", value = "888")})
+    void getMembership_userWithActiveMember_returns200() {
+        Integer orgId = given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                            "name": "Protectora Membership Test",
+                            "city": "Tenerife",
+                            "region": "Canarias",
+                            "phone": "+34922000000",
+                            "email": "membership@kitti.es"
+                        }
+                        """)
+                .when()
+                .post("/organizations")
+                .then()
+                .statusCode(201)
+                .extract().jsonPath().getInt("id");
+
+        given()
+                .header("X-Internal-Token", INTERNAL_TOKEN)
+                .when()
+                .get("/organizations/internal/membership/888")
+                .then()
+                .statusCode(200)
+                .body("organizationId", equalTo(orgId))
+                .body("memberRole", equalTo("Admin"));
+    }
+
+    @Test
     @TestSecurity(user = "100", roles = "Organization")
     @JwtSecurity(claims = {@Claim(key = "sub", value = "100")})
     void byRegion_validToken_returnsMatchingOrgs() {
