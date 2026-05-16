@@ -139,7 +139,9 @@ public class AdoptionResource {
     }
 
     private Long orgId() {
-        return ((Number) jwt.getClaim("organizationId")).longValue();
+        Object claim = jwt.getClaim("organizationId");
+        if (claim instanceof Number n) return n.longValue();
+        return Long.parseLong((String) claim);
     }
 
     private Uni<Response> validationFailed(ValidationError err) {
