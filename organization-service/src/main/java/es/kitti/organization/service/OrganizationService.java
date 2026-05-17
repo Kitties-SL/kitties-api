@@ -1,6 +1,7 @@
 package es.kitti.organization.service;
 
 import es.kitti.mon.either.Either;
+import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
@@ -9,9 +10,12 @@ import es.kitti.organization.client.dto.CreateUserRequest;
 import es.kitti.organization.dto.RegisterOrganizationRequest;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import io.vertx.core.Context;
+import io.vertx.core.Vertx;
 import jakarta.ws.rs.WebApplicationException;
 import es.kitti.organization.dto.CreateOrganizationRequest;
 import es.kitti.organization.dto.OrganizationResponse;
@@ -55,36 +59,69 @@ public class OrganizationService {
     }
 
     public Uni<Either<DomainError, OrganizationResponse>> register(RegisterOrganizationRequest request) {
-        return userServiceClient.checkEmailExists(request.adminEmail(), internalSecret)
+        // Capture the EventLoop so we can hop back to it after the REST client callback (HR000068).
+        Context eventLoopCtx = Vertx.currentContext();
+        return checkAdminEmailAvailable(request.adminEmail(), eventLoopCtx)
+                .onItem().transformToUni(check -> check.fold(
+                        // R in Either.left(err) has no inference target → witness it here
+                        err -> Uni.createFrom().<Either<DomainError, OrganizationResponse>>item(Either.left(err)),
+                        __  -> createOrgWithAdmin(request)
+                ));
+    }
+
+    // Right(Unit) → admin email is free in user-service.
+    // Left(ConflictError) → either already taken, or user-service unreachable after retries.
+    private Uni<Either<DomainError, Unit>> checkAdminEmailAvailable(String email, Context eventLoopCtx) {
+        return userServiceClient.checkEmailExists(email, internalSecret)
+                // 404 means "email free" — recover the failure as a 404 Response value so the chain keeps flowing.
+                .onFailure(OrganizationService::isHttpNotFound)
+                .recoverWithItem(t -> ((WebApplicationException) t).getResponse())
+                // The REST client error callback runs on an executor thread; hop back to the captured
+                // EventLoop so Hibernate Reactive downstream finds its session context (HR000068).
+                .emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()))
                 .onFailure().retry().atMost(2)
-                .onItem().transformToUni(checkResponse -> {
-                    if (checkResponse.getStatus() == 200)
-                        return Uni.createFrom().<Either<DomainError, OrganizationResponse>>item(
-                                Either.left(new ConflictError("ADMIN_EMAIL_ALREADY_EXISTS")));
-                    return writeService.createOrg(request)
-                            .onItem().transformToUni(org -> {
-                                var userReq = new CreateUserRequest(
-                                        request.adminEmail(), request.adminPassword(),
-                                        request.adminName(), request.adminSurname(), request.adminBirthdate());
-                                return userServiceClient.createUser(userReq)
-                                        .onFailure().retry().atMost(2)
-                                        .onItem().transformToUni(created ->
-                                                writeService.addAdminMember(org.id, created.id())
-                                                        .onItem().transformToUni(__ ->
-                                                                userServiceClient.promoteToOrganization(created.id(), internalSecret)
-                                                                        .onItem().transformToUni(___ ->
-                                                                                writeService.activateOrg(org.id)
-                                                                                        .onItem().transform(activated ->
-                                                                                                Either.<DomainError, OrganizationResponse>right(
-                                                                                                        mapper.toResponse(activated))))))
-                                        .onFailure().recoverWithItem(__ ->
-                                                Either.<DomainError, OrganizationResponse>left(
-                                                        new ConflictError("USER_SERVICE_UNAVAILABLE")));
-                            });
+                .onItem().<Either<DomainError, Unit>>transform(resp -> {
+                    Log.infof("[register] checkEmailExists status=%d for email=%s", resp.getStatus(), email);
+                    return resp.getStatus() == 200
+                            ? Either.left(new ConflictError("ADMIN_EMAIL_ALREADY_EXISTS"))
+                            : Either.unit();
                 })
-                .onFailure().recoverWithItem(__ ->
-                        Either.<DomainError, OrganizationResponse>left(
-                                new ConflictError("USER_SERVICE_UNAVAILABLE")));
+                .onFailure().recoverWithItem(e -> {
+                    Log.errorf(e, "[register] checkEmailExists failed for email=%s", email);
+                    return Either.left(new ConflictError("USER_SERVICE_UNAVAILABLE"));
+                });
+    }
+
+    private Uni<Either<DomainError, OrganizationResponse>> createOrgWithAdmin(RegisterOrganizationRequest request) {
+        return writeService.createOrg(request)
+                .onItem().transformToUni(org -> provisionAdminUser(request, org.id))
+                .onFailure().recoverWithItem(e -> {
+                    Log.errorf(e, "[register] createUser/promote/activate failed for email=%s", request.adminEmail());
+                    return Either.left(new ConflictError("USER_SERVICE_UNAVAILABLE"));
+                });
+    }
+
+    private Uni<Either<DomainError, OrganizationResponse>> provisionAdminUser(RegisterOrganizationRequest request, Long orgId) {
+        CreateUserRequest userReq = new CreateUserRequest(
+                request.adminEmail(), request.adminPassword(),
+                request.adminName(), request.adminSurname(), request.adminBirthdate());
+        return userServiceClient.createUser(userReq)
+                .onFailure().retry().atMost(2)
+                .onItem().transformToUni(created -> {
+                    Log.infof("[register] createUser ok, userId=%d", created.id());
+                    return linkAndActivate(orgId, created.id());
+                });
+    }
+
+    private Uni<Either<DomainError, OrganizationResponse>> linkAndActivate(Long orgId, Long userId) {
+        return writeService.addAdminMember(orgId, userId)
+                .onItem().transformToUni(__  -> userServiceClient.promoteToOrganization(userId, internalSecret))
+                .onItem().transformToUni(___ -> writeService.activateOrg(orgId))
+                .onItem().transform(activated -> Either.<DomainError, OrganizationResponse>right(mapper.toResponse(activated)));
+    }
+
+    private static boolean isHttpNotFound(Throwable t) {
+        return t instanceof WebApplicationException wae && wae.getResponse().getStatus() == 404;
     }
 
     @WithSession

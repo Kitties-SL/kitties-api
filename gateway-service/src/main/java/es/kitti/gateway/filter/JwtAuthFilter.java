@@ -19,6 +19,7 @@ public class JwtAuthFilter {
             "POST:/api/auth/logout",
             "POST:/api/users",
             "POST:/api/users/activate",
+            "POST:/api/organizations/register",
             "GET:/doc",
             "GET:/swagger-ui"
     );

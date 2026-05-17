@@ -6,6 +6,7 @@ import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
+import jakarta.json.JsonNumber;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -140,8 +141,10 @@ public class AdoptionResource {
 
     private Long orgId() {
         Object claim = jwt.getClaim("organizationId");
+        if (claim == null) return null;
         if (claim instanceof Number n) return n.longValue();
-        return Long.parseLong((String) claim);
+        if (claim instanceof JsonNumber jn) return jn.longValue();
+        return Long.parseLong(claim.toString());
     }
 
     private Uni<Response> validationFailed(ValidationError err) {
