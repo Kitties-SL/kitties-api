@@ -211,6 +211,7 @@ public class AdoptionService {
             return adoptionWriteService.applyFormAnalysisResult(
                     event.adoptionRequestId(), event.decision(), event.rejectionReason());
         } catch (Exception e) {
+            Log.errorf(e, "Error procesando adoption-form-analysed: %s", message);
             return Uni.createFrom().voidItem();
         }
     }

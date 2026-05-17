@@ -148,7 +148,7 @@ public class AdoptionWriteService {
         return adoptionRequestRepository.findById(adoptionRequestId)
                 .onItem().transformToUni(adoption -> {
                     if (adoption == null) return Uni.createFrom().voidItem();
-                    if ("REJECTED".equals(decision)) {
+                    if ("Rejected".equals(decision)) {
                         adoption.status = AdoptionStatus.Rejected;
                         adoption.rejectionReason = rejectionReason;
                     }
