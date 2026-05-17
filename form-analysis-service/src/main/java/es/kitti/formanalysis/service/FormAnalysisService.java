@@ -110,20 +110,21 @@ public class FormAnalysisService {
                     }).toList();
 
                     return persistenceService.persist(analysis, formFlags)
-                            .onItem().invoke(saved -> {
-                                adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
-                                        event.adoptionRequestId(),
-                                        decision.name(),
-                                        rejectionReason,
-                                        event.adopterId(),
-                                        (int) criticalCount,
-                                        (int) warningCount,
-                                        (int) noticeCount
-                                ));
+                            .onItem().transformToUni(saved -> {
                                 Log.infof("Form analysis completed for request %d: %s",
                                         event.adoptionRequestId(), decision);
-                            })
-                            .replaceWithVoid();
+                                return Uni.createFrom().completionStage(
+                                        adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
+                                                event.adoptionRequestId(),
+                                                decision.name(),
+                                                rejectionReason,
+                                                event.adopterId(),
+                                                (int) criticalCount,
+                                                (int) warningCount,
+                                                (int) noticeCount
+                                        ))
+                                );
+                            });
                 });
     }
 
