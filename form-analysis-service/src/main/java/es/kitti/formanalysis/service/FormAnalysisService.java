@@ -17,7 +17,7 @@ import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import io.quarkus.arc.Arc;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -47,6 +47,9 @@ public class FormAnalysisService {
     @Inject
     FormAnalysisPersistenceService persistenceService;
 
+    @Inject
+    Vertx vertx;
+
     @Incoming("adoption-form-submitted")
     public Uni<Void> onFormSubmitted(String message) {
         AdoptionFormSubmittedEvent event;
@@ -62,7 +65,7 @@ public class FormAnalysisService {
         List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
         String prompt = llmPromptBuilder.build(event);
 
-        return Uni.createFrom().item(() -> {
+        return vertx.executeBlocking(() -> {
                     var rc = Arc.container().requestContext();
                     rc.activate();
                     try {
@@ -71,7 +74,6 @@ public class FormAnalysisService {
                         rc.deactivate();
                     }
                 })
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().recoverWithItem(e -> {
                     Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
                     return null;
