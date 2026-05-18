@@ -126,7 +126,7 @@ public class AdoptionService {
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err   -> Uni.createFrom().item(Either.left(err)),
-                        catId -> verifyCatActive(catId)
+                        this::verifyCatActive
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err -> Uni.createFrom().item(Either.left(err)),
@@ -146,7 +146,7 @@ public class AdoptionService {
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err   -> Uni.createFrom().item(Either.left(err)),
-                        catId -> verifyCatActive(catId)
+                        this::verifyCatActive
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err -> Uni.createFrom().item(Either.left(err)),
@@ -166,7 +166,7 @@ public class AdoptionService {
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err   -> Uni.createFrom().item(Either.left(err)),
-                        catId -> verifyCatActive(catId)
+                        this::verifyCatActive
                 ))
                 .onItem().transformToUni(either -> either.fold(
                         err -> Uni.createFrom().item(Either.left(err)),
