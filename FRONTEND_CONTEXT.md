@@ -489,7 +489,7 @@ Las organizaciones pueden acceder al detalle completo del análisis de cualquier
 
 ```
 GET /form-analysis/request/{adoptionRequestId}
-Authorization: Bearer <token OrgMember>
+Authorization: Bearer <token Organization>
 
 200 OK
 {
@@ -601,7 +601,7 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 
 | Método | Ruta | Auth | Role | Descripción |
 |--------|------|------|------|-------------|
-| GET | `/form-analysis/request/{adoptionRequestId}` | ✓ | OrgMember | Detalle del análisis automático + flags individuales |
+| GET | `/form-analysis/request/{adoptionRequestId}` | ✓ | Organization | Detalle del análisis automático + flags individuales |
 
 ### Chat
 
@@ -737,7 +737,7 @@ Active → Removed
 | cat-service | 8084 | |
 | notification-service | 8085 | Sin endpoints públicos |
 | adoption-service | 8086 | |
-| form-analysis-service | 8087 | `GET /form-analysis/request/{id}` (rol OrgMember) |
+| form-analysis-service | 8087 | `GET /form-analysis/request/{id}` (rol Organization) |
 | organization-service | 8088 | |
 | chat-service | 8089 | |
 | schedule-service | 8090 | Solo `/q/health` |
@@ -781,7 +781,7 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
    - `403 ACCESS_DENIED` — la organización autenticada intenta actualizar el estado o agendar entrevista de una adopción/intake que pertenece a otra org.
 8. **Soft deletes:** usuarios, gatos y miembros nunca se borran físicamente.
 9. **CORS:** configurado para `http://localhost:5173` en dev. Cambiar `CORS_ORIGIN` en producción.
-10. **form-analysis-service** expone `GET /form-analysis/request/{adoptionRequestId}` (rol `OrgMember`) para que las organizaciones consulten el detalle del análisis automático. Si se recibe 404, el análisis aún está en curso — reintentar con backoff.
+10. **form-analysis-service** expone `GET /form-analysis/request/{adoptionRequestId}` (rol `Organization`) para que las organizaciones consulten el detalle del análisis automático. Si se recibe 404, el análisis aún está en curso — reintentar con backoff.
 11. **Chat v1 es REST polling** (no WebSocket todavía). Implementar polling manual cada N segundos para mensajes nuevos.
 12. **Registro de organizaciones:** usar `POST /organizations/register` (público, sin JWT). El campo `role` en `POST /users` ya no se acepta — el backend siempre asigna `User`.
 

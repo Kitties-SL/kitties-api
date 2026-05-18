@@ -27,7 +27,7 @@ public class FormAnalysisResource {
 
     @GET
     @Path("/request/{adoptionRequestId}")
-    @RolesAllowed("OrgMember")
+    @RolesAllowed("Organization")
     public Uni<Response> findByAdoptionRequestId(@PathParam("adoptionRequestId") Long adoptionRequestId) {
         Long orgId = orgId();
         if (orgId == null)
