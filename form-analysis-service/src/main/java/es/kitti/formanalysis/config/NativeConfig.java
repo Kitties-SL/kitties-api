@@ -1,5 +1,7 @@
 package es.kitti.formanalysis.config;
 
+import es.kitti.formanalysis.dto.FormAnalysisDetailResponse;
+import es.kitti.formanalysis.dto.FormFlagResponse;
 import es.kitti.formanalysis.client.NimChatRequest;
 import es.kitti.formanalysis.client.NimChatResponse;
 import es.kitti.formanalysis.client.NimChoice;
@@ -18,6 +20,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         AnalysisDecision.class,
         FlagSeverity.class,
         LlmTextAnalysis.class,
+        FormAnalysisDetailResponse.class,
+        FormFlagResponse.class,
         NimChatRequest.class,
         NimChatResponse.class,
         NimChoice.class,
