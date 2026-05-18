@@ -36,6 +36,9 @@ public class ProxyService {
     @ConfigProperty(name = "quarkus.rest-client.chat-service.url")
     String chatServiceUrl;
 
+    @ConfigProperty(name = "quarkus.rest-client.form-analysis-service.url")
+    String formAnalysisServiceUrl;
+
     public Uni<Response> proxy(String method, String path,
                                byte[] body, String authHeader,
                                String contentType) {
@@ -93,6 +96,7 @@ public class ProxyService {
         if (path.startsWith("/api/intake-requests")) return adoptionServiceUrl;
         if (path.startsWith("/api/organizations")) return organizationServiceUrl;
         if (path.startsWith("/api/chats")) return chatServiceUrl;
+        if (path.startsWith("/api/form-analysis")) return formAnalysisServiceUrl;
         return null;
     }
 }
