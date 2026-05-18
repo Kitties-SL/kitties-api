@@ -127,7 +127,8 @@ public class FormAnalysisService {
                             })
                             .onFailure().invoke(e ->
                                     Log.errorf(e, "Form analysis pipeline failed for request %d", event.adoptionRequestId())
-                            );
+                            )
+                            .onFailure().recoverWithNull();
                 });
     }
 
