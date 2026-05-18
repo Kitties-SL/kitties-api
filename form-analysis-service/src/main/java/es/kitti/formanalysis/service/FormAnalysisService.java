@@ -82,6 +82,7 @@ public class FormAnalysisService {
 
                     FormAnalysis analysis = new FormAnalysis();
                     analysis.adoptionRequestId = event.adoptionRequestId();
+                    analysis.organizationId = event.organizationId();
                     analysis.decision = decision;
                     analysis.rejectionReason = rejectionReason;
                     analysis.criticalFlags = (int) criticalCount;
