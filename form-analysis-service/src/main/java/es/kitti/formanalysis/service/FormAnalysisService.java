@@ -59,10 +59,17 @@ public class FormAnalysisService {
         List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
         String prompt = llmPromptBuilder.build(event);
 
+        Log.debugf("Calling LLM for request %d", event.adoptionRequestId());
         return llmClient.analyzeTextFields(prompt)
                 .onFailure().recoverWithItem(e -> {
-                    Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
+                    Log.warnf("LLM failed for request %d (%s): %s",
+                            event.adoptionRequestId(), e.getClass().getSimpleName(), e.getMessage());
                     return null;
+                })
+                .onItem().transform(raw -> {
+                    Log.debugf("LLM responded for request %d: %d chars",
+                            event.adoptionRequestId(), raw != null ? raw.length() : 0);
+                    return raw;
                 })
                 .onItem().transform(this::parseLlmResponse)
                 .onItem().transform(r -> r != null ? r : LlmTextAnalysis.unavailable())
@@ -98,6 +105,8 @@ public class FormAnalysisService {
                         return flag;
                     }).toList();
 
+                    Log.debugf("Persisting analysis for request %d: decision=%s critical=%d warning=%d",
+                            event.adoptionRequestId(), decision, criticalCount, warningCount);
                     return persistenceService.persist(analysis, formFlags)
                             .onItem().transformToUni(saved -> {
                                 Log.infof("Form analysis completed for request %d: %s",
