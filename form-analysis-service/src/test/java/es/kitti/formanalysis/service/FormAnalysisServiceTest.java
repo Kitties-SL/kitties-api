@@ -45,10 +45,10 @@ class FormAnalysisServiceTest {
     FormAnalysisPersistenceService persistenceService;
 
     @InjectMock
-    FormAnalysisAiService formAnalysisAiService;
+    LlmTextAnalysisClient llmClient;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
         sink.clear();
 
@@ -58,13 +58,9 @@ class FormAnalysisServiceTest {
         when(persistenceService.persist(any(FormAnalysis.class), any()))
                 .thenReturn(Uni.createFrom().item(savedAnalysis));
 
-        try {
-            String unavailableJson = objectMapper.writeValueAsString(LlmTextAnalysis.unavailable());
-            when(formAnalysisAiService.analyzeTextFields(any()))
-                    .thenReturn(unavailableJson);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        String unavailableJson = objectMapper.writeValueAsString(LlmTextAnalysis.unavailable());
+        when(llmClient.analyzeTextFields(any()))
+                .thenReturn(Uni.createFrom().item(unavailableJson));
     }
 
     @Test
@@ -222,8 +218,8 @@ class FormAnalysisServiceTest {
 
     @Test
     void llmUnavailable_fallbackSilencioso_approvedFormSigueSiendoApproved() throws Exception {
-        when(formAnalysisAiService.analyzeTextFields(any()))
-                .thenThrow(new RuntimeException("NVIDIA timeout"));
+        when(llmClient.analyzeTextFields(any()))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("NVIDIA timeout")));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
@@ -256,7 +252,8 @@ class FormAnalysisServiceTest {
 
     @Test
     void llmMalformedJson_fallbackSilencioso_approvedFormSigueSiendoApproved() throws Exception {
-        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn("not-valid-json{{{");
+        when(llmClient.analyzeTextFields(any()))
+                .thenReturn(Uni.createFrom().item("not-valid-json{{{"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
@@ -290,10 +287,10 @@ class FormAnalysisServiceTest {
     @Test
     void llmWarning_cleanRulesForm_emitsReviewRequired() throws Exception {
         // LLM detecta HIGH punishmentRisk → 1 Warning (LLM_PUNISHMENT_RISK); rules limpias → ReviewRequired
-        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn(
+        when(llmClient.analyzeTextFields(any())).thenReturn(Uni.createFrom().item(
                 "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"NONE\",\"motivationQuality\":\"GENUINE\"," +
                 "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
-                "\"subterfugeSignals\":[],\"reasoning\":\"Posible riesgo de castigo físico en el texto\"}");
+                "\"subterfugeSignals\":[],\"reasoning\":\"Posible riesgo de castigo físico en el texto\"}"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
@@ -359,10 +356,10 @@ class FormAnalysisServiceTest {
     @Test
     void llmThreeWarnings_cleanRulesForm_emitsRejected() throws Exception {
         // LLM detecta HIGH en 3 campos → 3 Warnings → Rejected (aunque ninguno es Critical)
-        when(formAnalysisAiService.analyzeTextFields(any())).thenReturn(
+        when(llmClient.analyzeTextFields(any())).thenReturn(Uni.createFrom().item(
                 "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"HIGH\",\"motivationQuality\":\"SUPERFICIAL\"," +
                 "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
-                "\"subterfugeSignals\":[],\"reasoning\":\"Múltiples señales de alerta detectadas\"}");
+                "\"subterfugeSignals\":[],\"reasoning\":\"Múltiples señales de alerta detectadas\"}"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
