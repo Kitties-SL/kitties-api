@@ -98,11 +98,7 @@ public class UserService {
                         return Uni.createFrom().item(Either.left(new NotFoundError("USER_NOT_FOUND")));
                     userMapper.updateEntity(user, request);
                     return userRepository.persist(user)
-                            .onItem().transform(saved -> {
-                                userRegisteredEmitter.send(new UserRegisteredEvent(
-                                        saved.id, saved.email, saved.name, saved.activationToken));
-                                return Either.right(userMapper.toResponse(saved));
-                            });
+                            .onItem().transform(saved -> Either.right(userMapper.toResponse(saved)));
                 });
     }
 
