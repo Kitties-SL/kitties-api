@@ -19,6 +19,7 @@ import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
@@ -36,6 +37,9 @@ class FormAnalysisServiceTest {
 
     @Inject
     ObjectMapper objectMapper;
+
+    @Inject
+    FormAnalysisService service;
 
     @InjectMock
     FormAnalysisPersistenceService persistenceService;
@@ -318,6 +322,38 @@ class FormAnalysisServiceTest {
             assertEquals(0, payload.criticalFlags());
             assertEquals(1, payload.warningFlags());
         });
+    }
+
+    // RED TEST — falla hasta que FormAnalysisService añada onFailure().recoverWith*()
+    // Confirma el diagnóstico: un fallo de persistencia propaga la excepción al caller
+    // (SmallRye la recibe como Uni fallido, la enruta al DLQ silenciosamente y no queda rastro).
+    // El contrato deseado: log del error + Uni completa normalmente → pipeline sigue vivo.
+    @Test
+    void persistenceFailed_uniDebeCompletarNormalmenteTrasLoguearElError() throws Exception {
+        when(persistenceService.persist(any(FormAnalysis.class), any()))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("DB connection lost")));
+
+        var event = new AdoptionFormSubmittedEvent(
+                99L, 10L, 100L, 200L,
+                true, "Murió de vejez", 2, false, null,
+                false, null, 8, true, null,
+                "Apartment", 70, false, false, null,
+                true, true, true, "Quiet",
+                "Los gatos necesitan cazar por instinto",
+                30, "Caña, ratones, túneles",
+                "Ignorar y redirigir con juguetes",
+                true, true,
+                "Quiero dar un hogar a un gato",
+                true, true, true, false, null
+        );
+        String json = objectMapper.writeValueAsString(event);
+
+        // Actualmente lanza RuntimeException porque el fallo de persist se propaga sin handler.
+        // Tras el fix (onFailure().recoverWith*()) debe completar sin excepción.
+        assertDoesNotThrow(
+                () -> service.onFormSubmitted(json).await().atMost(Duration.ofSeconds(5)),
+                "El fallo de persistencia debe loguearse y recuperarse, no propagarse al caller"
+        );
     }
 
     @Test
