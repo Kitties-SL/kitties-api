@@ -16,9 +16,6 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
-import io.quarkus.arc.Arc;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
-
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -29,7 +26,7 @@ public class FormAnalysisService {
     FormAnalysisRules formAnalysisRules;
 
     @Inject
-    FormAnalysisAiService formAnalysisAiService;
+    LlmTextAnalysisClient llmClient;
 
     @Inject
     LlmPromptBuilder llmPromptBuilder;
@@ -62,16 +59,7 @@ public class FormAnalysisService {
         List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
         String prompt = llmPromptBuilder.build(event);
 
-        return Uni.createFrom().item(() -> {
-                    var rc = Arc.container().requestContext();
-                    rc.activate();
-                    try {
-                        return formAnalysisAiService.analyzeTextFields(prompt);
-                    } finally {
-                        rc.deactivate();
-                    }
-                })
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+        return llmClient.analyzeTextFields(prompt)
                 .onFailure().recoverWithItem(e -> {
                     Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
                     return null;
@@ -110,20 +98,25 @@ public class FormAnalysisService {
                     }).toList();
 
                     return persistenceService.persist(analysis, formFlags)
-                            .onItem().invoke(saved -> {
-                                adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
-                                        event.adoptionRequestId(),
-                                        decision.name(),
-                                        rejectionReason,
-                                        event.adopterId(),
-                                        (int) criticalCount,
-                                        (int) warningCount,
-                                        (int) noticeCount
-                                ));
+                            .onItem().transformToUni(saved -> {
                                 Log.infof("Form analysis completed for request %d: %s",
                                         event.adoptionRequestId(), decision);
+                                return Uni.createFrom().completionStage(
+                                        adoptionFormAnalysedEmitter.send(new AdoptionFormAnalysedEvent(
+                                                event.adoptionRequestId(),
+                                                decision.name(),
+                                                rejectionReason,
+                                                event.adopterId(),
+                                                (int) criticalCount,
+                                                (int) warningCount,
+                                                (int) noticeCount
+                                        ))
+                                );
                             })
-                            .replaceWithVoid();
+                            .onFailure().invoke(e ->
+                                    Log.errorf(e, "Form analysis pipeline failed for request %d", event.adoptionRequestId())
+                            )
+                            .onFailure().recoverWithNull();
                 });
     }
 

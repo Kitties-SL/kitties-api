@@ -1,5 +1,10 @@
 package es.kitti.formanalysis.config;
 
+import es.kitti.formanalysis.client.NimChatRequest;
+import es.kitti.formanalysis.client.NimChatResponse;
+import es.kitti.formanalysis.client.NimChoice;
+import es.kitti.formanalysis.client.NimMessage;
+import es.kitti.formanalysis.client.NimResponseFormat;
 import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.entity.AnalysisDecision;
 import es.kitti.formanalysis.entity.FlagSeverity;
@@ -12,6 +17,11 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         AdoptionFormSubmittedEvent.class,
         AnalysisDecision.class,
         FlagSeverity.class,
-        LlmTextAnalysis.class
+        LlmTextAnalysis.class,
+        NimChatRequest.class,
+        NimChatResponse.class,
+        NimChoice.class,
+        NimMessage.class,
+        NimResponseFormat.class
 })
 public class NativeConfig {}
