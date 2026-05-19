@@ -248,30 +248,102 @@ class AuthFlowE2E {
     }
 
     @Test
-    void rollbackPassword_unknownToken_returns404() {
+    void resetPassword_invalidJwt_returns401() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("token", "non-existent-rollback-token"))
+            .body(Map.of("token", "not.a.valid.jwt", "newPassword", "freshpass789"))
         .when()
-            .post("/api/users/password/rollback")
+            .post("/api/users/password/reset")
         .then()
-            .statusCode(404)
-            .body("code", org.hamcrest.Matchers.equalTo("ROLLBACK_TOKEN_INVALID"));
+            .statusCode(401)
+            .body("code", org.hamcrest.Matchers.equalTo("INVALID_RESET_TOKEN"));
     }
 
     @Test
-    void rollbackPassword_isPublic_acceptsRequestWithoutAuth() {
-        // Sin Authorization header: el endpoint es público (basta con el token en el body)
-        // → no 401, sino 422 por validación del body
+    void resetPassword_isPublic_validatesBodyWithoutAuth() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("token", ""))
+            .body(Map.of("token", "", "newPassword", ""))
         .when()
-            .post("/api/users/password/rollback")
+            .post("/api/users/password/reset")
         .then()
             .statusCode(422)
             .body("violations.find { it.field == 'token' }.code",
+                  org.hamcrest.Matchers.equalTo("REQUIRED"))
+            .body("violations.find { it.field == 'newPassword' }.code",
                   org.hamcrest.Matchers.equalTo("REQUIRED"));
+    }
+
+    @Test
+    void resetPassword_followsEmailLink_establishesNewPasswordAndInvalidatesPrior() {
+        // Dedicated user for full reset-flow: activate, change, then reset via emailed JWT
+        String resetEmail = "reset_" + UUID.randomUUID() + "@e2e.test";
+        String afterChange = "ChangedPass3#";
+        String afterReset  = "ResetPass4$";
+
+        given().contentType(ContentType.JSON)
+            .body(Map.of("email", resetEmail, "password", PASSWORD,
+                "name", "Reset", "surname", "Flow", "role", "User"))
+            .post("/api/users").then().statusCode(201);
+        String activationBody  = MailHogClient.waitForEmail(resetEmail);
+        String activationToken = MailHogClient.extractActivationToken(activationBody);
+        given().contentType(ContentType.JSON)
+            .body(Map.of("token", activationToken))
+            .post("/api/users/activate").then().statusCode(200);
+
+        String access = given().contentType(ContentType.JSON)
+            .body(Map.of("email", resetEmail, "password", PASSWORD))
+            .post("/api/auth/login").then().statusCode(200)
+            .extract().jsonPath().getString("accessToken");
+
+        given()
+            .header("Authorization", "Bearer " + access)
+            .contentType(ContentType.JSON)
+            .body(Map.of("currentPassword", PASSWORD, "newPassword", afterChange))
+        .when()
+            .post("/api/users/me/password")
+        .then()
+            .statusCode(204);
+
+        String changedBody = MailHogClient.waitForEmailContaining(resetEmail, "password-reset?token=");
+        String resetJwt    = MailHogClient.extractPasswordResetToken(changedBody);
+
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("token", resetJwt, "newPassword", afterReset))
+        .when()
+            .post("/api/users/password/reset")
+        .then()
+            .statusCode(204);
+
+        // afterChange ya no vale (el reset la reemplazó)
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", resetEmail, "password", afterChange))
+        .when()
+            .post("/api/auth/login")
+        .then()
+            .statusCode(401);
+
+        // afterReset es la actual
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("email", resetEmail, "password", afterReset))
+        .when()
+            .post("/api/auth/login")
+        .then()
+            .statusCode(200)
+            .body("accessToken", notNullValue());
+
+        // El JWT del email es de un solo uso (jti rotado a null tras éxito)
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("token", resetJwt, "newPassword", "AnotherPass5%"))
+        .when()
+            .post("/api/users/password/reset")
+        .then()
+            .statusCode(409)
+            .body("code", org.hamcrest.Matchers.equalTo("RESET_TOKEN_USED_OR_SUPERSEDED"));
     }
 
     @Test
