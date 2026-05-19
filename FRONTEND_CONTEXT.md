@@ -1,7 +1,7 @@
 # Kitties — Documentación de Negocio y API para Frontend
 
-**Versión:** 2.2.0  
-**Fecha:** 2026-05-16  
+**Versión:** 2.3.0  
+**Fecha:** 2026-05-18  
 **Estado:** API funcional en dev. Swagger UI en `http://localhost:8080/swagger-ui`
 
 ---
@@ -483,6 +483,38 @@ else                    → APPROVED
 
 El resultado incluye el `reasoning` del LLM (texto explicativo para el revisor humano).
 
+### Consultar el resultado del análisis (rol: Organization)
+
+Las organizaciones pueden acceder al detalle completo del análisis de cualquier solicitud de adopción que les pertenezca:
+
+```
+GET /form-analysis/request/{adoptionRequestId}
+Authorization: Bearer <token Organization>
+
+200 OK
+{
+  "id": 1,
+  "adoptionRequestId": 51,
+  "organizationId": 3,
+  "decision": "ReviewRequired",
+  "rejectionReason": null,
+  "criticalFlags": 0,
+  "warningFlags": 1,
+  "noticeFlags": 2,
+  "llmReasoning": "El solicitante describe experiencia previa sólida...",
+  "createdAt": "2026-05-18T14:32:00",
+  "flags": [
+    { "id": 1, "severity": "Warning", "code": "UNSTABLE_HOUSING", "description": "La vivienda no es estable o hay mudanza prevista" },
+    { "id": 2, "severity": "Notice",  "code": "NO_WINDOW_VIEW",   "description": "Sin ventanas con vistas accesibles para el gato" }
+  ]
+}
+
+404 FORM_ANALYSIS_NOT_FOUND  → el análisis aún no ha terminado (pipeline Kafka en curso)
+403 FORM_ANALYSIS_FORBIDDEN  → la solicitud pertenece a otra organización
+```
+
+> El 404 es transitorio: el análisis tarda segundos desde que el usuario envía el cuestionario. Reintentar con backoff si se recibe 404 justo tras el envío del formulario.
+
 ---
 
 ## Referencia de Endpoints
@@ -564,6 +596,12 @@ Todos los endpoints se exponen a través del gateway en `http://localhost:8080/a
 | POST | `/adoptions/{id}/form` | ✓ | User | Enviar cuestionario (31 campos) |
 | POST | `/adoptions/{id}/interview` | ✓ | Organization | Agendar entrevista |
 | POST | `/adoptions/{id}/adoption-form` | ✓ | User | Firmar contrato legal (12 campos) |
+
+### Form Analysis
+
+| Método | Ruta | Auth | Role | Descripción |
+|--------|------|------|------|-------------|
+| GET | `/form-analysis/request/{adoptionRequestId}` | ✓ | Organization | Detalle del análisis automático + flags individuales |
 
 ### Chat
 
@@ -699,7 +737,7 @@ Active → Removed
 | cat-service | 8084 | |
 | notification-service | 8085 | Sin endpoints públicos |
 | adoption-service | 8086 | |
-| form-analysis-service | 8087 | Sin endpoints REST públicos (solo Kafka) |
+| form-analysis-service | 8087 | `GET /form-analysis/request/{id}` (rol Organization) |
 | organization-service | 8088 | |
 | chat-service | 8089 | |
 | schedule-service | 8090 | Solo `/q/health` |
@@ -743,7 +781,7 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
    - `403 ACCESS_DENIED` — la organización autenticada intenta actualizar el estado o agendar entrevista de una adopción/intake que pertenece a otra org.
 8. **Soft deletes:** usuarios, gatos y miembros nunca se borran físicamente.
 9. **CORS:** configurado para `http://localhost:5173` en dev. Cambiar `CORS_ORIGIN` en producción.
-10. **form-analysis-service** no expone endpoints REST — opera exclusivamente por Kafka. No hay que integrarlo directamente.
+10. **form-analysis-service** expone `GET /form-analysis/request/{adoptionRequestId}` (rol `Organization`) para que las organizaciones consulten el detalle del análisis automático. Si se recibe 404, el análisis aún está en curso — reintentar con backoff.
 11. **Chat v1 es REST polling** (no WebSocket todavía). Implementar polling manual cada N segundos para mensajes nuevos.
 12. **Registro de organizaciones:** usar `POST /organizations/register` (público, sin JWT). El campo `role` en `POST /users` ya no se acepta — el backend siempre asigna `User`.
 
@@ -760,4 +798,4 @@ NVIDIA_API_KEY=<clave de NVIDIA NIM para el análisis LLM>
 
 ---
 
-**Última actualización:** 2026-05-16 — v2.2.0
+**Última actualización:** 2026-05-18 — v2.3.0

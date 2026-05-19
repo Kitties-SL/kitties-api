@@ -31,6 +31,9 @@ public class FormAnalysis extends PanacheEntity {
     @Column(columnDefinition = "TEXT")
     public String llmReasoning;
 
+    @Column
+    public Long organizationId;
+
     @Column(nullable = false, updatable = false)
     public LocalDateTime createdAt;
 

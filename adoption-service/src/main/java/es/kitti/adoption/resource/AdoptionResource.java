@@ -51,6 +51,20 @@ public class AdoptionResource {
     }
 
     @GET
+    @Path("/{id}/form")
+    @RolesAllowed("Organization")
+    public Uni<Response> findFormById(@PathParam("id") Long id) {
+        Long orgId = orgId();
+        if (orgId == null)
+            return Uni.createFrom().item(Response.status(403).entity(ErrorResponse.of(new es.kitti.mon.error.ForbiddenError("MISSING_ORG_CLAIM"))).build());
+        return adoptionService.findFormByIdForOrg(id, orgId)
+                .onItem().transform(either -> either.fold(
+                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        form -> Response.ok(form).build()
+                ));
+    }
+
+    @GET
     @Path("/my")
     @RolesAllowed("User")
     public Uni<List<AdoptionRequestResponse>> findMyAdoptions() {

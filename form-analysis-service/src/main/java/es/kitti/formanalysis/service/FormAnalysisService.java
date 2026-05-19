@@ -12,12 +12,12 @@ import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.rules.FlagResult;
 import es.kitti.formanalysis.rules.FormAnalysisRules;
 import es.kitti.formanalysis.rules.LlmFlagConverter;
+import es.kitti.formanalysis.rules.StructuralSignal;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 @ApplicationScoped
 public class FormAnalysisService {
@@ -56,19 +56,25 @@ public class FormAnalysisService {
 
         Log.infof("Analysing form for adoption request: %d", event.adoptionRequestId());
 
-        List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
-        String prompt = llmPromptBuilder.build(event);
+        List<StructuralSignal> structuralSignals = formAnalysisRules.evaluate(event);
+        String prompt = llmPromptBuilder.build(event, structuralSignals);
 
+        Log.debugf("Calling LLM for request %d", (long) event.adoptionRequestId());
         return llmClient.analyzeTextFields(prompt)
                 .onFailure().recoverWithItem(e -> {
-                    Log.warnf("LLM unavailable for request %d: %s", event.adoptionRequestId(), e.getMessage());
+                    Log.warnf("LLM failed for request %d (%s): %s",
+                            event.adoptionRequestId(), e.getClass().getSimpleName(), e.getMessage());
                     return null;
+                })
+                .onItem().transform(raw -> {
+                    Log.debugf("LLM responded for request %d: %d chars",
+                            (long) event.adoptionRequestId(), (long) (raw != null ? raw.length() : 0));
+                    return raw;
                 })
                 .onItem().transform(this::parseLlmResponse)
                 .onItem().transform(r -> r != null ? r : LlmTextAnalysis.unavailable())
                 .onItem().transformToUni(llmResult -> {
-                    List<FlagResult> llmFlags = llmFlagConverter.convert(llmResult);
-                    List<FlagResult> allFlags = Stream.concat(rulesFlags.stream(), llmFlags.stream()).toList();
+                    List<FlagResult> allFlags = llmFlagConverter.convert(llmResult);
 
                     long criticalCount = allFlags.stream()
                             .filter(f -> f.severity() == FlagSeverity.Critical).count();
@@ -82,6 +88,7 @@ public class FormAnalysisService {
 
                     FormAnalysis analysis = new FormAnalysis();
                     analysis.adoptionRequestId = event.adoptionRequestId();
+                    analysis.organizationId = event.organizationId();
                     analysis.decision = decision;
                     analysis.rejectionReason = rejectionReason;
                     analysis.criticalFlags = (int) criticalCount;
@@ -97,6 +104,8 @@ public class FormAnalysisService {
                         return flag;
                     }).toList();
 
+                    Log.debugf("Persisting analysis for request %d: decision=%s critical=%d warning=%d",
+                            (long) event.adoptionRequestId(), decision, criticalCount, warningCount);
                     return persistenceService.persist(analysis, formFlags)
                             .onItem().transformToUni(saved -> {
                                 Log.infof("Form analysis completed for request %d: %s",
