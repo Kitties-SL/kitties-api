@@ -1,9 +1,9 @@
 package es.kitti.adoption.intake.mapper;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestResponse;
 import es.kitti.adoption.intake.entity.IntakeRequest;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class IntakeMapper {

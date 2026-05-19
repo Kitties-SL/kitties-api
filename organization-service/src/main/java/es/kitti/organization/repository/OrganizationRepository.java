@@ -1,10 +1,10 @@
 package es.kitti.organization.repository;
 
+import es.kitti.organization.entity.Organization;
+import es.kitti.organization.entity.OrganizationStatus;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.organization.entity.Organization;
-import es.kitti.organization.entity.OrganizationStatus;
 
 import java.util.List;
 

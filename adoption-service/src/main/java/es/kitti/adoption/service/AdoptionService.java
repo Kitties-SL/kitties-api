@@ -1,26 +1,30 @@
 package es.kitti.adoption.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.logging.Log;
+import es.kitti.adoption.client.CatClient;
+import es.kitti.adoption.dto.*;
+import es.kitti.adoption.entity.AdoptionRequest;
+import es.kitti.adoption.entity.AdoptionStatus;
+import es.kitti.adoption.event.AdoptionFormAnalysedEvent;
+import es.kitti.adoption.mapper.AdoptionMapper;
+import es.kitti.adoption.repository.*;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
-import es.kitti.mon.error.*;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.adoption.client.CatClient;
-import es.kitti.adoption.dto.*;
-import java.util.stream.Collectors;
-import es.kitti.adoption.entity.*;
-import es.kitti.adoption.event.AdoptionFormAnalysedEvent;
-import es.kitti.adoption.mapper.AdoptionMapper;
-import es.kitti.adoption.repository.*;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AdoptionService {

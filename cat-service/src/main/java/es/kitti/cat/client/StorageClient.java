@@ -1,9 +1,9 @@
 package es.kitti.cat.client;
 
+import es.kitti.cat.client.dto.StorageResponse;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import es.kitti.cat.client.dto.StorageResponse;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.jboss.resteasy.reactive.RestForm;

@@ -1,18 +1,21 @@
 package es.kitti.formanalysis.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.logging.Log;
-import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
-import es.kitti.formanalysis.entity.*;
+import es.kitti.formanalysis.entity.AnalysisDecision;
+import es.kitti.formanalysis.entity.FlagSeverity;
+import es.kitti.formanalysis.entity.FormAnalysis;
+import es.kitti.formanalysis.entity.FormFlag;
 import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.rules.FlagResult;
 import es.kitti.formanalysis.rules.FormAnalysisRules;
 import es.kitti.formanalysis.rules.LlmFlagConverter;
 import es.kitti.formanalysis.rules.StructuralSignal;
+import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;

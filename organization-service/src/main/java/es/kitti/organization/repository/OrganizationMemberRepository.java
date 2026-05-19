@@ -1,12 +1,12 @@
 package es.kitti.organization.repository;
 
+import es.kitti.organization.entity.MemberRole;
+import es.kitti.organization.entity.MemberStatus;
+import es.kitti.organization.entity.OrganizationMember;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.organization.entity.MemberRole;
-import es.kitti.organization.entity.MemberStatus;
-import es.kitti.organization.entity.OrganizationMember;
 
 import java.util.List;
 import java.util.Optional;

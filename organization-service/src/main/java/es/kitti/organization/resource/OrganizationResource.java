@@ -2,6 +2,9 @@ package es.kitti.organization.resource;
 
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
+import es.kitti.organization.dto.*;
+import es.kitti.organization.service.OrganizationMemberService;
+import es.kitti.organization.service.OrganizationService;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
@@ -10,9 +13,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import es.kitti.organization.dto.*;
-import es.kitti.organization.service.OrganizationMemberService;
-import es.kitti.organization.service.OrganizationService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Path("/organizations")

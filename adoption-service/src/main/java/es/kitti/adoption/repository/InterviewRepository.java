@@ -1,9 +1,9 @@
 package es.kitti.adoption.repository;
 
+import es.kitti.adoption.entity.Interview;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.adoption.entity.Interview;
 
 import java.util.List;
 

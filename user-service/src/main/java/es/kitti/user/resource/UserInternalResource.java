@@ -1,20 +1,14 @@
 package es.kitti.user.resource;
 
 import es.kitti.mon.error.ErrorResponse;
+import es.kitti.user.entity.UserRole;
 import es.kitti.user.security.InternalOnly;
 import es.kitti.user.service.ErasureService;
 import es.kitti.user.service.UserService;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
-import es.kitti.user.entity.UserRole;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HEAD;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 

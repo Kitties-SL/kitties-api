@@ -1,12 +1,12 @@
 package es.kitti.adoption.intake.resource;
 
+import es.kitti.adoption.test.KafkaTestResource;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.quarkus.test.security.jwt.Claim;
 import io.quarkus.test.security.jwt.JwtSecurity;
 import io.restassured.http.ContentType;
-import es.kitti.adoption.test.KafkaTestResource;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;

@@ -2,17 +2,15 @@ package es.kitti.auth.service;
 
 import es.kitti.auth.client.OrganizationInternalClient;
 import es.kitti.auth.client.dto.MembershipResponse;
-import es.kitti.mon.error.DomainError;
-import es.kitti.mon.error.UnauthorizedError;
-import io.smallrye.mutiny.Uni;
 import es.kitti.auth.dto.AuthRequest;
-import es.kitti.auth.dto.AuthResponse;
 import es.kitti.auth.dto.RefreshRequest;
 import es.kitti.auth.entity.RefreshToken;
 import es.kitti.auth.grpc.UserServiceClient;
 import es.kitti.auth.repository.RefreshTokenRepository;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.UnauthorizedError;
 import es.kitti.user.grpc.ValidateCredentialsResponse;
-import es.kitti.mon.either.Unit;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +20,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;

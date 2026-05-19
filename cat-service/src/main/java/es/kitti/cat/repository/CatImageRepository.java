@@ -1,10 +1,10 @@
 package es.kitti.cat.repository;
 
+import es.kitti.cat.entity.CatImage;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.cat.entity.CatImage;
 
 @ApplicationScoped
 public class CatImageRepository implements PanacheRepository<CatImage> {

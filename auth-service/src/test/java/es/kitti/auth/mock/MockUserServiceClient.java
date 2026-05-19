@@ -1,11 +1,10 @@
 package es.kitti.auth.mock;
 
-import io.quarkus.grpc.GrpcClient;
+import es.kitti.user.grpc.ValidateCredentialsResponse;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Alternative;
-import es.kitti.user.grpc.ValidateCredentialsResponse;
 
 
 @Alternative

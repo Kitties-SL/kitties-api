@@ -1,5 +1,14 @@
 package es.kitti.chat.service;
 
+import es.kitti.chat.dto.*;
+import es.kitti.chat.entity.BlockedParticipant;
+import es.kitti.chat.entity.Conversation;
+import es.kitti.chat.entity.Message;
+import es.kitti.chat.entity.SenderType;
+import es.kitti.chat.mapper.ChatMapper;
+import es.kitti.chat.repository.BlockedParticipantRepository;
+import es.kitti.chat.repository.ConversationRepository;
+import es.kitti.chat.repository.MessageRepository;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
@@ -11,15 +20,6 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.chat.dto.*;
-import es.kitti.chat.entity.BlockedParticipant;
-import es.kitti.chat.entity.Conversation;
-import es.kitti.chat.entity.Message;
-import es.kitti.chat.entity.SenderType;
-import es.kitti.chat.mapper.ChatMapper;
-import es.kitti.chat.repository.BlockedParticipantRepository;
-import es.kitti.chat.repository.ConversationRepository;
-import es.kitti.chat.repository.MessageRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;

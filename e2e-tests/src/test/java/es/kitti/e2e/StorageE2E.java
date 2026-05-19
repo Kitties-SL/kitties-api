@@ -1,8 +1,8 @@
 package es.kitti.e2e;
 
-import io.restassured.http.ContentType;
 import es.kitti.e2e.support.E2EConfig;
 import es.kitti.e2e.support.MailHogClient;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.*;
 
 import java.util.Map;

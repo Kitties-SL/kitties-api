@@ -2,10 +2,9 @@ package es.kitti.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.restassured.RestAssured;
-import io.restassured.http.ContentType;
 import es.kitti.e2e.support.E2EConfig;
 import es.kitti.e2e.support.MailHogClient;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +12,6 @@ import java.util.Base64;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.equalTo;
 
 class SecurityE2E {

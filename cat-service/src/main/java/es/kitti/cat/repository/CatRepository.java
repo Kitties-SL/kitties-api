@@ -1,12 +1,11 @@
 package es.kitti.cat.repository;
 
+import es.kitti.cat.entity.Cat;
+import es.kitti.cat.entity.CatStatus;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-
-import es.kitti.cat.entity.Cat;
-import es.kitti.cat.entity.CatStatus;
 
 import java.util.List;
 

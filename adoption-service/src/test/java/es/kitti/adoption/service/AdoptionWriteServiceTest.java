@@ -1,16 +1,19 @@
 package es.kitti.adoption.service;
 
+import es.kitti.adoption.dto.*;
+import es.kitti.adoption.entity.*;
+import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
+import es.kitti.adoption.mapper.AdoptionMapper;
+import es.kitti.adoption.repository.AdoptionFormRepository;
+import es.kitti.adoption.repository.AdoptionRequestFormRepository;
+import es.kitti.adoption.repository.AdoptionRequestRepository;
+import es.kitti.adoption.repository.InterviewRepository;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
 import io.smallrye.mutiny.Uni;
-import es.kitti.adoption.dto.*;
-import es.kitti.adoption.entity.*;
-import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
-import es.kitti.adoption.mapper.AdoptionMapper;
-import es.kitti.adoption.repository.*;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

@@ -2,6 +2,12 @@ package es.kitti.auth.service;
 
 import es.kitti.auth.client.OrganizationInternalClient;
 import es.kitti.auth.client.dto.MembershipResponse;
+import es.kitti.auth.dto.AuthRequest;
+import es.kitti.auth.dto.AuthResponse;
+import es.kitti.auth.dto.RefreshRequest;
+import es.kitti.auth.entity.RefreshToken;
+import es.kitti.auth.grpc.UserServiceClient;
+import es.kitti.auth.repository.RefreshTokenRepository;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.DomainError;
@@ -10,12 +16,6 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.auth.dto.AuthRequest;
-import es.kitti.auth.dto.AuthResponse;
-import es.kitti.auth.dto.RefreshRequest;
-import es.kitti.auth.entity.RefreshToken;
-import es.kitti.auth.grpc.UserServiceClient;
-import es.kitti.auth.repository.RefreshTokenRepository;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 

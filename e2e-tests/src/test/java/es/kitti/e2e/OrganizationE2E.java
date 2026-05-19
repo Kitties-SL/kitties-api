@@ -2,10 +2,10 @@ package es.kitti.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.restassured.http.ContentType;
-import io.restassured.response.Response;
 import es.kitti.e2e.support.E2EConfig;
 import es.kitti.e2e.support.MailHogClient;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.*;
 
 import java.util.Base64;

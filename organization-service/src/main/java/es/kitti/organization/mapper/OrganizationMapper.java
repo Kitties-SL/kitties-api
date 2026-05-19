@@ -1,10 +1,13 @@
 package es.kitti.organization.mapper;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.organization.dto.*;
+import es.kitti.organization.dto.CreateOrganizationRequest;
+import es.kitti.organization.dto.MemberResponse;
+import es.kitti.organization.dto.OrganizationResponse;
+import es.kitti.organization.dto.RegisterOrganizationRequest;
 import es.kitti.organization.entity.Organization;
 import es.kitti.organization.entity.OrganizationMember;
 import es.kitti.organization.entity.OrganizationStatus;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class OrganizationMapper {

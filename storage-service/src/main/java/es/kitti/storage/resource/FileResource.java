@@ -3,13 +3,14 @@ package es.kitti.storage.resource;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.core.Response;
-import es.kitti.storage.provider.StorageProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Path("/storage/files")
 @PermitAll

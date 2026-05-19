@@ -1,10 +1,10 @@
 package es.kitti.cat.mapper;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.cat.dto.*;
 import es.kitti.cat.entity.Cat;
 import es.kitti.cat.entity.CatImage;
 import es.kitti.cat.entity.CatSex;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 

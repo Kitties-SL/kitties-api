@@ -1,12 +1,12 @@
 package es.kitti.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.notification.event.UserRegisteredEvent;
 import io.quarkus.mailer.MockMailbox;
 import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
-import es.kitti.notification.event.UserRegisteredEvent;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

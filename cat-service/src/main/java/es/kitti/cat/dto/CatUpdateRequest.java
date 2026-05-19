@@ -1,11 +1,11 @@
 package es.kitti.cat.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import es.kitti.mon.either.Validation;
 import es.kitti.cat.domain.CatAge;
 import es.kitti.cat.domain.City;
 import es.kitti.cat.domain.Country;
 import es.kitti.cat.domain.Name;
+import es.kitti.mon.either.Validation;
 
 public record CatUpdateRequest(
         @JsonProperty("name")        String name,

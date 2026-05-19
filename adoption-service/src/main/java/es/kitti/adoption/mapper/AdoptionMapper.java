@@ -1,10 +1,10 @@
 package es.kitti.adoption.mapper;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
 import es.kitti.adoption.security.IdNumberEncryptionService;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 @ApplicationScoped
 public class AdoptionMapper {

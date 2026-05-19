@@ -1,9 +1,9 @@
 package es.kitti.adoption.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import es.kitti.mon.either.Validation;
 import es.kitti.adoption.entity.ActivityLevel;
 import es.kitti.adoption.entity.HousingType;
+import es.kitti.mon.either.Validation;
 
 public record AdoptionRequestFormCreateRequest(
         @JsonProperty("hasPreviousCatExperience") Boolean hasPreviousCatExperience,

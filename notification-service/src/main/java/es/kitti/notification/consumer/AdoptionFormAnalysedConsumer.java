@@ -1,6 +1,9 @@
 package es.kitti.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.notification.client.UserServiceClient;
+import es.kitti.notification.client.UserServiceClient.UserSummary;
+import es.kitti.notification.event.AdoptionFormAnalysedEvent;
 import io.quarkus.logging.Log;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
@@ -9,9 +12,6 @@ import io.quarkus.qute.Template;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.notification.client.UserServiceClient;
-import es.kitti.notification.client.UserServiceClient.UserSummary;
-import es.kitti.notification.event.AdoptionFormAnalysedEvent;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.rest.client.inject.RestClient;

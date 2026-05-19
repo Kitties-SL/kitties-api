@@ -2,10 +2,10 @@ package es.kitti.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.restassured.http.ContentType;
-import io.restassured.response.Response;
 import es.kitti.e2e.support.E2EConfig;
 import es.kitti.e2e.support.MailHogClient;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.*;
 
 import java.time.LocalDateTime;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AdoptionJourneyE2E {

@@ -1,9 +1,9 @@
 package es.kitti.formanalysis.rules;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.dto.llm.StructuralAssessment;
 import es.kitti.formanalysis.entity.FlagSeverity;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.List;

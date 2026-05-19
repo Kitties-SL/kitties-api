@@ -1,13 +1,8 @@
 package es.kitti.adoption.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import es.kitti.adoption.domain.*;
 import es.kitti.mon.either.Validation;
-import es.kitti.adoption.domain.Address;
-import es.kitti.adoption.domain.City;
-import es.kitti.adoption.domain.IdNumber;
-import es.kitti.adoption.domain.Name;
-import es.kitti.adoption.domain.Phone;
-import es.kitti.adoption.domain.PostalCode;
 
 public record AdoptionFormCreateRequest(
         @JsonProperty("fullName")                  String fullName,

@@ -1,5 +1,6 @@
 package es.kitti.cat.resource;
 
+import es.kitti.cat.client.AdoptionClient;
 import es.kitti.cat.entity.Cat;
 import es.kitti.cat.entity.CatSex;
 import es.kitti.cat.repository.CatRepository;
@@ -15,7 +16,6 @@ import io.smallrye.common.vertx.VertxContext;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
-import es.kitti.cat.client.AdoptionClient;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.Test;

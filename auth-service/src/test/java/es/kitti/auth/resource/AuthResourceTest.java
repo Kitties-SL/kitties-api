@@ -1,17 +1,17 @@
 package es.kitti.auth.resource;
 
+import es.kitti.auth.grpc.UserServiceClient;
+import es.kitti.user.grpc.ValidateCredentialsResponse;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.smallrye.mutiny.Uni;
-import es.kitti.auth.grpc.UserServiceClient;
-import es.kitti.user.grpc.ValidateCredentialsResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.notNullValue;
 
 @QuarkusTest
 class AuthResourceTest {

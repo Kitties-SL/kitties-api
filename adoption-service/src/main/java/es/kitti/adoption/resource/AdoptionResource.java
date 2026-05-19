@@ -1,5 +1,7 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.adoption.dto.*;
+import es.kitti.adoption.service.AdoptionService;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -10,8 +12,6 @@ import jakarta.json.JsonNumber;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import es.kitti.adoption.dto.*;
-import es.kitti.adoption.service.AdoptionService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;

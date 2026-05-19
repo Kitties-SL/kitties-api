@@ -1,15 +1,6 @@
 package es.kitti.chat.service;
 
-import es.kitti.mon.error.ConflictError;
-import es.kitti.mon.error.DomainError;
-import es.kitti.mon.error.ForbiddenError;
-import es.kitti.mon.error.NotFoundError;
-import io.smallrye.mutiny.Uni;
-import es.kitti.chat.dto.BlockUserRequest;
-import es.kitti.chat.dto.ConversationResponse;
-import es.kitti.chat.dto.CreateConversationRequest;
-import es.kitti.chat.dto.MessageResponse;
-import es.kitti.chat.dto.SendMessageRequest;
+import es.kitti.chat.dto.*;
 import es.kitti.chat.entity.BlockedParticipant;
 import es.kitti.chat.entity.Conversation;
 import es.kitti.chat.entity.Message;
@@ -18,6 +9,11 @@ import es.kitti.chat.mapper.ChatMapper;
 import es.kitti.chat.repository.BlockedParticipantRepository;
 import es.kitti.chat.repository.ConversationRepository;
 import es.kitti.chat.repository.MessageRepository;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

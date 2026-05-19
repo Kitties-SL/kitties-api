@@ -1,10 +1,10 @@
 package es.kitti.auth.repository;
 
+import es.kitti.auth.entity.RefreshToken;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.auth.entity.RefreshToken;
 
 import java.time.LocalDateTime;
 

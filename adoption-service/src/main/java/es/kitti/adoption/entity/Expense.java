@@ -2,7 +2,6 @@ package es.kitti.adoption.entity;
 
 import io.quarkus.hibernate.reactive.panache.PanacheEntity;
 import jakarta.persistence.*;
-import es.kitti.adoption.entity.ExpenseRecipient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

@@ -1,12 +1,12 @@
 package es.kitti.user.grpc;
 
 
+import es.kitti.user.repository.UserRepository;
 import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.grpc.GrpcService;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
-import es.kitti.user.repository.UserRepository;
 
 @GrpcService
 public class UserGrpcService implements UserService {
