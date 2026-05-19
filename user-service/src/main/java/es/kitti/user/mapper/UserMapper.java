@@ -1,12 +1,12 @@
 package es.kitti.user.mapper;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.user.dto.UserCreateRequest;
 import es.kitti.user.dto.UserResponse;
 import es.kitti.user.dto.UserUpdateRequest;
 import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

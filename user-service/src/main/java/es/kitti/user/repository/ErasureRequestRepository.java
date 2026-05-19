@@ -1,9 +1,9 @@
 package es.kitti.user.repository;
 
+import es.kitti.user.entity.ErasureRequest;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.user.entity.ErasureRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;

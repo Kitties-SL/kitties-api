@@ -1,9 +1,9 @@
 package es.kitti.chat.repository;
 
+import es.kitti.chat.entity.BlockedParticipant;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.chat.entity.BlockedParticipant;
 
 @ApplicationScoped
 public class BlockedParticipantRepository implements PanacheRepository<BlockedParticipant> {

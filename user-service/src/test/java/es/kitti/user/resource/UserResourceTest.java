@@ -1,5 +1,7 @@
 package es.kitti.user.resource;
 
+import es.kitti.user.event.UserRegisteredEvent;
+import es.kitti.user.test.InMemoryConnectorLifecycleManager;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -9,13 +11,11 @@ import io.restassured.http.ContentType;
 import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySink;
 import jakarta.inject.Inject;
-import es.kitti.user.event.UserRegisteredEvent;
-import es.kitti.user.test.InMemoryConnectorLifecycleManager;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @QuarkusTest

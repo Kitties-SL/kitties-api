@@ -1,12 +1,12 @@
 package es.kitti.chat.resource;
 
-import es.kitti.mon.error.ErrorResponse;
-import es.kitti.mon.error.ValidationError;
 import es.kitti.chat.dto.BlockUserRequest;
 import es.kitti.chat.dto.ConversationResponse;
 import es.kitti.chat.dto.SendMessageRequest;
 import es.kitti.chat.entity.SenderType;
 import es.kitti.chat.service.ChatService;
+import es.kitti.mon.error.ErrorResponse;
+import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;

@@ -1,15 +1,15 @@
 package es.kitti.user.service;
 
-import es.kitti.user.client.AdoptionInternalClient;
-import es.kitti.user.client.AuthInternalClient;
-import es.kitti.user.client.ChatInternalClient;
-import es.kitti.user.entity.ErasureRequest;
-import es.kitti.user.entity.UserStatus;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
+import es.kitti.user.client.AdoptionInternalClient;
+import es.kitti.user.client.AuthInternalClient;
+import es.kitti.user.client.ChatInternalClient;
+import es.kitti.user.entity.ErasureRequest;
+import es.kitti.user.entity.UserStatus;
 import es.kitti.user.repository.ErasureRequestRepository;
 import es.kitti.user.repository.UserRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;

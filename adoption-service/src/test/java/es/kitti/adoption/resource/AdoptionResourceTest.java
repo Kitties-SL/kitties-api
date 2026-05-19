@@ -1,7 +1,9 @@
 package es.kitti.adoption.resource;
 
+import es.kitti.adoption.client.CatClient;
 import es.kitti.adoption.entity.AdoptionRequest;
 import es.kitti.adoption.repository.AdoptionRequestRepository;
+import es.kitti.adoption.test.KafkaTestResource;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.common.QuarkusTestResource;
@@ -9,17 +11,14 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.quarkus.test.security.jwt.Claim;
 import io.quarkus.test.security.jwt.JwtSecurity;
-import io.restassured.http.ContentType;
-import io.smallrye.mutiny.Uni;
-import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.quarkus.vertx.core.runtime.context.VertxContextSafetyToggle;
+import io.restassured.http.ContentType;
 import io.smallrye.common.vertx.VertxContext;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
-import es.kitti.adoption.client.CatClient;
-import es.kitti.adoption.test.KafkaTestResource;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 

@@ -1,11 +1,5 @@
 package es.kitti.adoption.intake.service;
 
-import es.kitti.mon.either.Either;
-import es.kitti.mon.error.ConflictError;
-import es.kitti.mon.error.DomainError;
-import es.kitti.mon.error.ForbiddenError;
-import es.kitti.mon.error.NotFoundError;
-import io.smallrye.mutiny.Uni;
 import es.kitti.adoption.intake.client.OrganizationClient;
 import es.kitti.adoption.intake.client.OrganizationPublicMinimal;
 import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
@@ -15,6 +9,12 @@ import es.kitti.adoption.intake.entity.IntakeRequest;
 import es.kitti.adoption.intake.entity.IntakeStatus;
 import es.kitti.adoption.intake.mapper.IntakeMapper;
 import es.kitti.adoption.intake.repository.IntakeRequestRepository;
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +28,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)

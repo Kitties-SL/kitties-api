@@ -1,12 +1,8 @@
 package es.kitti.formanalysis.config;
 
+import es.kitti.formanalysis.client.*;
 import es.kitti.formanalysis.dto.FormAnalysisDetailResponse;
 import es.kitti.formanalysis.dto.FormFlagResponse;
-import es.kitti.formanalysis.client.NimChatRequest;
-import es.kitti.formanalysis.client.NimChatResponse;
-import es.kitti.formanalysis.client.NimChoice;
-import es.kitti.formanalysis.client.NimMessage;
-import es.kitti.formanalysis.client.NimResponseFormat;
 import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
 import es.kitti.formanalysis.dto.llm.StructuralAssessment;
 import es.kitti.formanalysis.entity.AnalysisDecision;

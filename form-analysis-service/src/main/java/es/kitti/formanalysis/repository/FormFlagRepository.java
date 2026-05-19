@@ -1,9 +1,9 @@
 package es.kitti.formanalysis.repository;
 
+import es.kitti.formanalysis.entity.FormFlag;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.formanalysis.entity.FormFlag;
 
 import java.util.List;
 

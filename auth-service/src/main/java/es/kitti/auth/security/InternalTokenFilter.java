@@ -1,11 +1,11 @@
 package es.kitti.auth.security;
 
+import io.quarkus.runtime.annotations.StaticInitSafe;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
-import io.quarkus.runtime.annotations.StaticInitSafe;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @Provider

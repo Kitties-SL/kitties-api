@@ -2,6 +2,7 @@ package es.kitti.cat.entity;
 
 import io.quarkus.hibernate.reactive.panache.PanacheEntity;
 import jakarta.persistence.*;
+
 import java.time.LocalDateTime;
 
 @Entity

@@ -1,10 +1,10 @@
 package es.kitti.adoption.intake.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import es.kitti.mon.either.Validation;
 import es.kitti.adoption.domain.CatAge;
 import es.kitti.adoption.domain.City;
 import es.kitti.adoption.domain.Name;
+import es.kitti.mon.either.Validation;
 
 public record IntakeRequestCreateRequest(
         @JsonProperty("targetOrganizationId") Long targetOrganizationId,

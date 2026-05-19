@@ -1,14 +1,14 @@
 package es.kitti.e2e;
 
-import io.restassured.http.ContentType;
 import es.kitti.e2e.support.E2EConfig;
 import es.kitti.e2e.support.MailHogClient;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.*;
 
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class UserE2E {

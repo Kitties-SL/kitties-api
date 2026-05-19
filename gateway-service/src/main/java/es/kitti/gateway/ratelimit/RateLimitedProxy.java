@@ -1,10 +1,10 @@
 package es.kitti.gateway.ratelimit;
 
+import es.kitti.gateway.proxy.ProxyService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
-import es.kitti.gateway.proxy.ProxyService;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped

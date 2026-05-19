@@ -1,5 +1,10 @@
 package es.kitti.cat.resource;
 
+import es.kitti.cat.dto.CatCreateRequest;
+import es.kitti.cat.dto.CatInventoryStatsResponse;
+import es.kitti.cat.dto.CatSummaryResponse;
+import es.kitti.cat.dto.CatUpdateRequest;
+import es.kitti.cat.service.CatService;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -11,17 +16,11 @@ import jakarta.json.JsonNumber;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import es.kitti.cat.dto.CatCreateRequest;
-import es.kitti.cat.dto.CatInventoryStatsResponse;
-import es.kitti.cat.dto.CatSummaryResponse;
-import es.kitti.cat.dto.CatUpdateRequest;
-import es.kitti.cat.dto.PageResponse;
-
-import java.util.List;
-import es.kitti.cat.service.CatService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+
+import java.util.List;
 
 @Path("/cats")
 @Produces(MediaType.APPLICATION_JSON)

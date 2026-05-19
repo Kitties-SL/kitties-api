@@ -1,10 +1,6 @@
 package es.kitti.formanalysis.service;
 
-import es.kitti.formanalysis.client.NimApiClient;
-import es.kitti.formanalysis.client.NimChatRequest;
-import es.kitti.formanalysis.client.NimChatResponse;
-import es.kitti.formanalysis.client.NimChoice;
-import es.kitti.formanalysis.client.NimMessage;
+import es.kitti.formanalysis.client.*;
 import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

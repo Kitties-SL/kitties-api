@@ -1,17 +1,22 @@
 package es.kitti.adoption.service;
 
-import es.kitti.mon.either.Either;
-import es.kitti.mon.either.Unit;
-import es.kitti.mon.error.*;
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
-import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
 import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
 import es.kitti.adoption.mapper.AdoptionMapper;
-import es.kitti.adoption.repository.*;
+import es.kitti.adoption.repository.AdoptionFormRepository;
+import es.kitti.adoption.repository.AdoptionRequestFormRepository;
+import es.kitti.adoption.repository.AdoptionRequestRepository;
+import es.kitti.adoption.repository.InterviewRepository;
+import es.kitti.mon.either.Either;
+import es.kitti.mon.error.ConflictError;
+import es.kitti.mon.error.DomainError;
+import es.kitti.mon.error.ForbiddenError;
+import es.kitti.mon.error.NotFoundError;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 

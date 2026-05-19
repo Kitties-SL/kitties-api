@@ -1,12 +1,12 @@
 package es.kitti.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.notification.event.UserRegisteredEvent;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.smallrye.mutiny.Uni;
-import es.kitti.notification.event.UserRegisteredEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

@@ -1,11 +1,11 @@
 package es.kitti.user.repository;
 
+import es.kitti.user.entity.User;
+import es.kitti.user.entity.UserStatus;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.user.entity.User;
-import es.kitti.user.entity.UserStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +37,10 @@ public class UserRepository implements PanacheRepository<User> {
     @WithSession
     public Uni<User> findByActivationToken(String token) {
         return find("activationToken", token).firstResult();
+    }
+
+    public Uni<User> findByPasswordRollbackToken(String token) {
+        return find("passwordRollbackToken", token).firstResult();
     }
 
     public Uni<Long> deleteExpiredUnactivated() {

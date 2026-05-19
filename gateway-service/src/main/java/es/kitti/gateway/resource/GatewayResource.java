@@ -2,6 +2,8 @@ package es.kitti.gateway.resource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.gateway.proxy.ProxyService;
+import es.kitti.gateway.ratelimit.RateLimitedProxy;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.security.PermitAll;
@@ -10,8 +12,6 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
-import es.kitti.gateway.proxy.ProxyService;
-import es.kitti.gateway.ratelimit.RateLimitedProxy;
 
 @Path("/api")
 public class GatewayResource {

@@ -1,6 +1,12 @@
 package es.kitti.formanalysis.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
+import es.kitti.formanalysis.entity.AnalysisDecision;
+import es.kitti.formanalysis.entity.FormAnalysis;
+import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
+import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
+import es.kitti.formanalysis.test.KafkaTestResource;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -9,12 +15,6 @@ import io.smallrye.reactive.messaging.memory.InMemoryConnector;
 import io.smallrye.reactive.messaging.memory.InMemorySink;
 import io.smallrye.reactive.messaging.memory.InMemorySource;
 import jakarta.inject.Inject;
-import es.kitti.formanalysis.dto.llm.LlmTextAnalysis;
-import es.kitti.formanalysis.entity.AnalysisDecision;
-import es.kitti.formanalysis.entity.FormAnalysis;
-import es.kitti.formanalysis.event.AdoptionFormAnalysedEvent;
-import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
-import es.kitti.formanalysis.test.KafkaTestResource;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

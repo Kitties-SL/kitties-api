@@ -1,10 +1,10 @@
 package es.kitti.adoption.intake.repository;
 
+import es.kitti.adoption.intake.entity.IntakeRequest;
+import es.kitti.adoption.intake.entity.IntakeStatus;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.adoption.intake.entity.IntakeRequest;
-import es.kitti.adoption.intake.entity.IntakeStatus;
 
 import java.util.List;
 

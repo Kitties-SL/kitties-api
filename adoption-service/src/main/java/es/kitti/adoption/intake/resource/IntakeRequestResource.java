@@ -1,5 +1,10 @@
 package es.kitti.adoption.intake.resource;
 
+import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
+import es.kitti.adoption.intake.dto.IntakePipelineStatsResponse;
+import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
+import es.kitti.adoption.intake.dto.IntakeRequestResponse;
+import es.kitti.adoption.intake.service.IntakeRequestService;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ValidationError;
 import io.quarkus.security.Authenticated;
@@ -9,11 +14,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
-import es.kitti.adoption.intake.dto.IntakePipelineStatsResponse;
-import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
-import es.kitti.adoption.intake.dto.IntakeRequestResponse;
-import es.kitti.adoption.intake.service.IntakeRequestService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;

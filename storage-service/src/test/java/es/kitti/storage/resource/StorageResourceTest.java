@@ -1,9 +1,9 @@
 package es.kitti.storage.resource;
 
+import es.kitti.storage.test.MinioTestResource;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import es.kitti.storage.test.MinioTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -11,7 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.notNullValue;
 
 @QuarkusTest
 @QuarkusTestResource(MinioTestResource.class)

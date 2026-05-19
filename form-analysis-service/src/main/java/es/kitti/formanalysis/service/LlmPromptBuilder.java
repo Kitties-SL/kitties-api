@@ -1,8 +1,8 @@
 package es.kitti.formanalysis.service;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.rules.StructuralSignal;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 

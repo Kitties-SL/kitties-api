@@ -1,5 +1,14 @@
 package es.kitti.cat.service;
 
+import es.kitti.cat.client.AdoptionClient;
+import es.kitti.cat.client.StorageClient;
+import es.kitti.cat.dto.*;
+import es.kitti.cat.entity.Cat;
+import es.kitti.cat.entity.CatImage;
+import es.kitti.cat.entity.CatStatus;
+import es.kitti.cat.mapper.CatMapper;
+import es.kitti.cat.repository.CatImageRepository;
+import es.kitti.cat.repository.CatRepository;
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
@@ -11,17 +20,8 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import es.kitti.cat.client.AdoptionClient;
-import es.kitti.cat.dto.*;
-import es.kitti.cat.entity.Cat;
-import es.kitti.cat.entity.CatImage;
-import es.kitti.cat.entity.CatStatus;
-import es.kitti.cat.mapper.CatMapper;
-import es.kitti.cat.repository.CatImageRepository;
-import es.kitti.cat.repository.CatRepository;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-import es.kitti.cat.client.StorageClient;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.util.List;

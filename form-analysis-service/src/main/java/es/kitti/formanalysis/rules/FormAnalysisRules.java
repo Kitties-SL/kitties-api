@@ -1,7 +1,7 @@
 package es.kitti.formanalysis.rules;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,9 +1,9 @@
 package es.kitti.chat.repository;
 
+import es.kitti.chat.entity.Message;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import es.kitti.chat.entity.Message;
 
 import java.util.List;
 

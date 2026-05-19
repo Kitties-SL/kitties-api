@@ -1,12 +1,6 @@
 package es.kitti.chat.config;
 
-import es.kitti.chat.dto.BlockUserRequest;
-import es.kitti.chat.dto.ChatDataExport;
-import es.kitti.chat.dto.ConversationExportEntry;
-import es.kitti.chat.dto.ConversationResponse;
-import es.kitti.chat.dto.CreateConversationRequest;
-import es.kitti.chat.dto.MessageResponse;
-import es.kitti.chat.dto.SendMessageRequest;
+import es.kitti.chat.dto.*;
 import es.kitti.chat.entity.SenderType;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.FieldViolation;

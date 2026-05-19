@@ -3,7 +3,8 @@ package es.kitti.user.domain;
 import es.kitti.mon.error.ValidationError;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class PasswordTest {
 

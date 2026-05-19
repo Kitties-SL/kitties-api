@@ -1,8 +1,8 @@
 package es.kitti.auth.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import es.kitti.mon.either.Validation;
 import es.kitti.auth.domain.Email;
+import es.kitti.mon.either.Validation;
 
 public record AuthRequest(
         @JsonProperty("email")    String email,
