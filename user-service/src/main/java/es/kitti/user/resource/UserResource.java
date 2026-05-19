@@ -3,16 +3,15 @@ package es.kitti.user.resource;
 import es.kitti.mon.error.ErrorResponse;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.ValidationError;
+import es.kitti.user.dto.*;
+import es.kitti.user.service.UserService;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
-import es.kitti.user.dto.*;
-import jakarta.ws.rs.PATCH;
-import jakarta.annotation.security.RolesAllowed;
-import es.kitti.user.service.UserService;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Path("/users")
@@ -133,6 +132,40 @@ public class UserResource {
                         err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                         data -> Response.ok(data).build()
                 ));
+    }
+
+    @POST
+    @Path("/me/password")
+    public Uni<Response> changePassword(ChangePasswordRequest request, @Context HttpHeaders headers) {
+        Long userId = Long.parseLong(jwt.getSubject());
+        String ip = extractIp(headers);
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.changePassword(userId, valid, ip)
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                __  -> Response.noContent().build()
+                        ))
+        );
+    }
+
+    @POST
+    @Path("/password/rollback")
+    @PermitAll
+    public Uni<Response> rollbackPassword(PasswordRollbackRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.rollbackPassword(valid.token())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                __  -> Response.noContent().build()
+                        ))
+        );
+    }
+
+    private String extractIp(HttpHeaders headers) {
+        String forwarded = headers.getHeaderString("X-Forwarded-For");
+        return forwarded != null ? forwarded.split(",")[0].trim() : null;
     }
 
     private Uni<Response> validationFailed(ValidationError err) {
