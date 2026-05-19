@@ -13,7 +13,10 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 @RegisterForReflection(targets = {
         ActivationRequest.class,
         ChangePasswordRequest.class,
-        PasswordRollbackRequest.class,
+        PasswordResetRequest.class,
+        PasswordPolicyUpdateRequest.class,
+        PasswordResetTokenIssueRequest.class,
+        PasswordResetTokenIssueResponse.class,
         UserCreateRequest.class,
         UserDataExportResponse.class,
         UserResponse.class,

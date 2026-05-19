@@ -16,8 +16,11 @@ import es.kitti.user.event.UserRegisteredEvent;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
 import io.quarkus.elytron.security.common.BcryptUtil;
+import io.smallrye.jwt.auth.principal.JWTParser;
+import io.smallrye.jwt.auth.principal.ParseException;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +48,7 @@ class UserServiceTest {
     @Mock AuthInternalClient authInternalClient;
     @Mock ChatInternalClient chatInternalClient;
     @Mock ObjectMapper objectMapper;
+    @Mock JWTParser jwtParser;
 
     @InjectMocks
     UserService userService;
@@ -399,12 +403,15 @@ class UserServiceTest {
     // --- changePassword ---
 
     @Test
-    void changePassword_success_persistsNewHashRevokesTokensEmitsEventAndPopulatesRollback() {
+    void changePassword_success_persistsNewHashRevokesTokensEmitsEventAndStoresJti() {
         String oldHash = BcryptUtil.bcryptHash("oldpass123");
         testUser.passwordHash = oldHash;
         var request = new ChangePasswordRequest("oldpass123", "newpass456");
 
         when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+        when(authInternalClient.requestPasswordResetToken(any(), anyString()))
+                .thenReturn(Uni.createFrom().item(new PasswordResetTokenIssueResponse(
+                        "jwt.payload.sig", "jti-abc", LocalDateTime.now().plusHours(24))));
         when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
         when(authInternalClient.deleteTokensByUser(eq(1L), anyString()))
                 .thenReturn(Uni.createFrom().item(Response.ok().build()));
@@ -414,9 +421,7 @@ class UserServiceTest {
         assertTrue(result.isRight());
         assertTrue(BcryptUtil.matches("newpass456", testUser.passwordHash));
         assertEquals(oldHash, testUser.previousPasswordHash);
-        assertNotNull(testUser.passwordRollbackToken);
-        assertNotNull(testUser.passwordRollbackExpiresAt);
-        assertTrue(testUser.passwordRollbackExpiresAt.isAfter(LocalDateTime.now().plusHours(23)));
+        assertEquals("jti-abc", testUser.passwordResetJti);
         verify(authInternalClient).deleteTokensByUser(1L, "test-secret");
         verify(passwordChangedEmitter).send(any(PasswordChangedEvent.class));
     }
@@ -456,11 +461,35 @@ class UserServiceTest {
     }
 
     @Test
+    void changePassword_strictPolicyReusingPrevious_returnsLeft409() {
+        String oldHash      = BcryptUtil.bcryptHash("oldpass123");
+        String previousHash = BcryptUtil.bcryptHash("recycled1");
+        testUser.passwordHash         = oldHash;
+        testUser.previousPasswordHash = previousHash;
+        testUser.strictPasswordPolicy = true;
+        var request = new ChangePasswordRequest("oldpass123", "recycled1");
+
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+
+        var result = userService.changePassword(1L, request, "9.9.9.9").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals("PASSWORD_REUSED",
+                ((ConflictError) ((Either.Left<?, ?>) result).value()).code());
+        verify(userRepository, never()).persist(any(User.class));
+        verify(authInternalClient, never()).requestPasswordResetToken(any(), anyString());
+    }
+
+    @Test
     void changePassword_authClientFails_stillReturnsRight() {
         testUser.passwordHash = BcryptUtil.bcryptHash("oldpass123");
         var request = new ChangePasswordRequest("oldpass123", "newpass456");
 
         when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+        when(authInternalClient.requestPasswordResetToken(any(), anyString()))
+                .thenReturn(Uni.createFrom().item(new PasswordResetTokenIssueResponse(
+                        "jwt.payload.sig", "jti-abc", LocalDateTime.now().plusHours(24))));
         when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
         when(authInternalClient.deleteTokensByUser(eq(1L), anyString()))
                 .thenReturn(Uni.createFrom().failure(new RuntimeException("auth down")));
@@ -471,85 +500,133 @@ class UserServiceTest {
         assertTrue(BcryptUtil.matches("newpass456", testUser.passwordHash));
     }
 
-    // --- rollbackPassword ---
+    // --- resetPassword ---
 
     @Test
-    void rollbackPassword_validToken_restoresOldHashAndClearsFieldsAndRevokesTokens() {
+    void resetPassword_validToken_persistsNewHashClearsJtiAndRevokesTokens() throws Exception {
         String oldHash = BcryptUtil.bcryptHash("oldpass123");
-        String newHash = BcryptUtil.bcryptHash("newpass456");
-        testUser.passwordHash              = newHash;
-        testUser.previousPasswordHash      = oldHash;
-        testUser.passwordRollbackToken     = "rb-token-abc";
-        testUser.passwordRollbackExpiresAt = LocalDateTime.now().plusHours(12);
+        testUser.passwordHash     = oldHash;
+        testUser.passwordResetJti = "jti-xyz";
 
-        when(userRepository.findByPasswordRollbackToken("rb-token-abc"))
-                .thenReturn(Uni.createFrom().item(testUser));
+        JsonWebToken parsed = mockJwt(1L, "jti-xyz", "password-reset");
+        when(jwtParser.parse("some.jwt.token")).thenReturn(parsed);
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
         when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
         when(authInternalClient.deleteTokensByUser(eq(1L), anyString()))
                 .thenReturn(Uni.createFrom().item(Response.ok().build()));
 
-        var result = userService.rollbackPassword("rb-token-abc").await().indefinitely();
+        var result = userService.resetPassword("some.jwt.token", "freshpass789").await().indefinitely();
 
         assertTrue(result.isRight());
-        assertEquals(oldHash, testUser.passwordHash);
-        assertNull(testUser.previousPasswordHash);
-        assertNull(testUser.passwordRollbackToken);
-        assertNull(testUser.passwordRollbackExpiresAt);
+        assertTrue(BcryptUtil.matches("freshpass789", testUser.passwordHash));
+        assertEquals(oldHash, testUser.previousPasswordHash);
+        assertNull(testUser.passwordResetJti);
         verify(authInternalClient).deleteTokensByUser(1L, "test-secret");
     }
 
     @Test
-    void rollbackPassword_unknownToken_returnsLeft404() {
-        when(userRepository.findByPasswordRollbackToken("nope"))
-                .thenReturn(Uni.createFrom().nullItem());
+    void resetPassword_invalidSignature_returnsLeft401() throws Exception {
+        when(jwtParser.parse("bad.jwt")).thenThrow(new ParseException("invalid"));
 
-        var result = userService.rollbackPassword("nope").await().indefinitely();
+        var result = userService.resetPassword("bad.jwt", "freshpass789").await().indefinitely();
 
         assertTrue(result.isLeft());
-        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
-        assertEquals("ROLLBACK_TOKEN_INVALID",
-                ((NotFoundError) ((Either.Left<?, ?>) result).value()).code());
-        verify(userRepository, never()).persist(any(User.class));
-        verify(authInternalClient, never()).deleteTokensByUser(anyLong(), anyString());
+        assertInstanceOf(UnauthorizedError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals("INVALID_RESET_TOKEN",
+                ((UnauthorizedError) ((Either.Left<?, ?>) result).value()).code());
+        verify(userRepository, never()).findById(anyLong());
     }
 
     @Test
-    void rollbackPassword_expiredToken_returnsLeft409() {
-        testUser.previousPasswordHash      = BcryptUtil.bcryptHash("oldpass123");
-        testUser.passwordRollbackToken     = "rb-token-xyz";
-        testUser.passwordRollbackExpiresAt = LocalDateTime.now().minusMinutes(1);
+    void resetPassword_wrongPurpose_returnsLeft401() throws Exception {
+        JsonWebToken parsed = mockJwt(1L, "jti-xyz", "access");
+        when(jwtParser.parse("wrong.purpose.jwt")).thenReturn(parsed);
 
-        when(userRepository.findByPasswordRollbackToken("rb-token-xyz"))
-                .thenReturn(Uni.createFrom().item(testUser));
+        var result = userService.resetPassword("wrong.purpose.jwt", "freshpass789").await().indefinitely();
 
-        var result = userService.rollbackPassword("rb-token-xyz").await().indefinitely();
+        assertTrue(result.isLeft());
+        assertInstanceOf(UnauthorizedError.class, ((Either.Left<?, ?>) result).value());
+    }
+
+    @Test
+    void resetPassword_jtiMismatch_returnsLeft409() throws Exception {
+        testUser.passwordHash     = BcryptUtil.bcryptHash("oldpass123");
+        testUser.passwordResetJti = "jti-current";
+
+        JsonWebToken parsed = mockJwt(1L, "jti-stale", "password-reset");
+        when(jwtParser.parse("stale.jwt")).thenReturn(parsed);
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+
+        var result = userService.resetPassword("stale.jwt", "freshpass789").await().indefinitely();
 
         assertTrue(result.isLeft());
         assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
-        assertEquals("ROLLBACK_TOKEN_EXPIRED",
+        assertEquals("RESET_TOKEN_USED_OR_SUPERSEDED",
                 ((ConflictError) ((Either.Left<?, ?>) result).value()).code());
-        assertEquals(409, result.fold(DomainError::httpStatus, __ -> 0));
-        verify(userRepository, never()).persist(any(User.class));
-        verify(authInternalClient, never()).deleteTokensByUser(anyLong(), anyString());
     }
 
     @Test
-    void rollbackPassword_authClientFails_stillReturnsRight() {
-        String oldHash = BcryptUtil.bcryptHash("oldpass123");
-        testUser.passwordHash              = BcryptUtil.bcryptHash("newpass456");
-        testUser.previousPasswordHash      = oldHash;
-        testUser.passwordRollbackToken     = "rb-token-abc";
-        testUser.passwordRollbackExpiresAt = LocalDateTime.now().plusHours(12);
+    void resetPassword_userNotFound_returnsLeft401() throws Exception {
+        JsonWebToken parsed = mockJwt(99L, "jti-xyz", "password-reset");
+        when(jwtParser.parse("orphan.jwt")).thenReturn(parsed);
+        when(userRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
 
-        when(userRepository.findByPasswordRollbackToken("rb-token-abc"))
-                .thenReturn(Uni.createFrom().item(testUser));
+        var result = userService.resetPassword("orphan.jwt", "freshpass789").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(UnauthorizedError.class, ((Either.Left<?, ?>) result).value());
+    }
+
+    @Test
+    void resetPassword_strictPolicyReusingPrevious_returnsLeft409() throws Exception {
+        String previousHash = BcryptUtil.bcryptHash("recycled1");
+        testUser.passwordHash         = BcryptUtil.bcryptHash("currentpass");
+        testUser.previousPasswordHash = previousHash;
+        testUser.passwordResetJti     = "jti-xyz";
+        testUser.strictPasswordPolicy = true;
+
+        JsonWebToken parsed = mockJwt(1L, "jti-xyz", "password-reset");
+        when(jwtParser.parse("ok.jwt")).thenReturn(parsed);
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
+
+        var result = userService.resetPassword("ok.jwt", "recycled1").await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals("PASSWORD_REUSED",
+                ((ConflictError) ((Either.Left<?, ?>) result).value()).code());
+        verify(userRepository, never()).persist(any(User.class));
+    }
+
+    // --- setPasswordPolicy ---
+
+    @Test
+    void setPasswordPolicy_enables_persistsFlag() {
+        testUser.strictPasswordPolicy = false;
+        when(userRepository.findById(1L)).thenReturn(Uni.createFrom().item(testUser));
         when(userRepository.persist(any(User.class))).thenReturn(Uni.createFrom().item(testUser));
-        when(authInternalClient.deleteTokensByUser(eq(1L), anyString()))
-                .thenReturn(Uni.createFrom().failure(new RuntimeException("auth down")));
 
-        var result = userService.rollbackPassword("rb-token-abc").await().indefinitely();
+        var result = userService.setPasswordPolicy(1L, true).await().indefinitely();
 
         assertTrue(result.isRight());
-        assertEquals(oldHash, testUser.passwordHash);
+        assertTrue(testUser.strictPasswordPolicy);
+    }
+
+    @Test
+    void setPasswordPolicy_userNotFound_returnsLeft404() {
+        when(userRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = userService.setPasswordPolicy(99L, true).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+    }
+
+    private JsonWebToken mockJwt(long sub, String jti, String purpose) {
+        JsonWebToken jwt = mock(JsonWebToken.class);
+        lenient().when(jwt.getSubject()).thenReturn(String.valueOf(sub));
+        lenient().when(jwt.getClaim("jti")).thenReturn(jti);
+        lenient().when(jwt.getClaim("purpose")).thenReturn(purpose);
+        return jwt;
     }
 }

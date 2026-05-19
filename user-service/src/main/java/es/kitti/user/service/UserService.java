@@ -8,6 +8,7 @@ import es.kitti.user.client.AdoptionInternalClient;
 import es.kitti.user.client.AuthInternalClient;
 import es.kitti.user.client.ChatInternalClient;
 import es.kitti.user.dto.*;
+import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.user.event.PasswordChangedEvent;
@@ -22,13 +23,16 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import io.smallrye.jwt.auth.principal.JWTParser;
+import io.smallrye.jwt.auth.principal.ParseException;
+
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @ApplicationScoped
 public class UserService {
@@ -38,6 +42,7 @@ public class UserService {
     @Inject @Channel("user-registered") Emitter<UserRegisteredEvent> userRegisteredEmitter;
     @Inject @Channel("password-changed") Emitter<PasswordChangedEvent> passwordChangedEmitter;
     @Inject ObjectMapper objectMapper;
+    @Inject JWTParser jwtParser;
 
     @RestClient AdoptionInternalClient adoptionInternalClient;
     @RestClient AuthInternalClient authInternalClient;
@@ -146,58 +151,110 @@ public class UserService {
                         return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("USER_NOT_FOUND")));
                     if (!BcryptUtil.matches(request.currentPassword(), user.passwordHash))
                         return Uni.createFrom().item(Either.<DomainError, Unit>left(new BadRequestError("INVALID_CURRENT_PASSWORD")));
-
-                    LocalDateTime now = LocalDateTime.now();
-                    LocalDateTime rollbackExpiresAt = now.plusHours(24);
-                    String rollbackToken = UUID.randomUUID().toString();
-
-                    user.previousPasswordHash      = user.passwordHash;
-                    user.passwordHash              = BcryptUtil.bcryptHash(request.newPassword());
-                    user.passwordRollbackToken     = rollbackToken;
-                    user.passwordRollbackExpiresAt = rollbackExpiresAt;
-
-                    return userRepository.persist(user)
-                            .onItem().invoke(saved -> passwordChangedEmitter.send(new PasswordChangedEvent(
-                                    saved.id, saved.email, saved.name, requestIp, now, rollbackToken, rollbackExpiresAt)))
-                            .onItem().transform(__ -> Either.<DomainError>unit());
+                    if (violatesStrictPolicy(user, request.newPassword()))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("PASSWORD_REUSED")));
+                    return applyPasswordChange(user, request.newPassword(), requestIp);
                 })
                 .call(either -> either.isRight()
-                        ? authInternalClient.deleteTokensByUser(userId, internalSecret)
-                                .replaceWithVoid()
-                                .onFailure().recoverWithUni(e -> {
-                                    Log.warnf("Could not revoke tokens for user %d after password change: %s", userId, e.getMessage());
-                                    return Uni.createFrom().voidItem();
-                                })
+                        ? revokeTokensBestEffort(userId)
                         : Uni.createFrom().voidItem()
                 );
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, Unit>> rollbackPassword(String token) {
-        return userRepository.findByPasswordRollbackToken(token)
-                .onItem().transformToUni(user -> {
-                    if (user == null || user.previousPasswordHash == null)
-                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("ROLLBACK_TOKEN_INVALID")));
-                    if (user.passwordRollbackExpiresAt == null
-                            || user.passwordRollbackExpiresAt.isBefore(LocalDateTime.now()))
-                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("ROLLBACK_TOKEN_EXPIRED")));
+    public Uni<Either<DomainError, Unit>> resetPassword(String token, String newPassword) {
+        ParsedResetToken parsed;
+        try {
+            parsed = parseResetToken(token);
+        } catch (ParseException e) {
+            return Uni.createFrom().item(Either.<DomainError, Unit>left(new UnauthorizedError("INVALID_RESET_TOKEN")));
+        }
+        if (parsed == null)
+            return Uni.createFrom().item(Either.<DomainError, Unit>left(new UnauthorizedError("INVALID_RESET_TOKEN")));
 
-                    Long capturedUserId = user.id;
-                    user.passwordHash              = user.previousPasswordHash;
-                    user.previousPasswordHash      = null;
-                    user.passwordRollbackToken     = null;
-                    user.passwordRollbackExpiresAt = null;
+        return userRepository.findById(parsed.userId())
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new UnauthorizedError("INVALID_RESET_TOKEN")));
+                    if (user.passwordResetJti == null || !user.passwordResetJti.equals(parsed.jti()))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("RESET_TOKEN_USED_OR_SUPERSEDED")));
+                    if (violatesStrictPolicy(user, newPassword))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("PASSWORD_REUSED")));
+
+                    user.previousPasswordHash = user.passwordHash;
+                    user.passwordHash         = BcryptUtil.bcryptHash(newPassword);
+                    user.passwordResetJti     = null;
 
                     return userRepository.persist(user)
-                            .call(__ -> authInternalClient.deleteTokensByUser(capturedUserId, internalSecret)
-                                    .replaceWithVoid()
-                                    .onFailure().recoverWithUni(e -> {
-                                        Log.warnf("Could not revoke tokens for user %d after password rollback: %s", capturedUserId, e.getMessage());
-                                        return Uni.createFrom().voidItem();
-                                    }))
+                            .onItem().transform(__ -> Either.<DomainError>unit());
+                })
+                .call(either -> either.isRight()
+                        ? revokeTokensBestEffort(parsed.userId())
+                        : Uni.createFrom().voidItem()
+                );
+    }
+
+    @WithTransaction
+    public Uni<Either<DomainError, Unit>> setPasswordPolicy(Long userId, boolean strict) {
+        return userRepository.findById(userId)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("USER_NOT_FOUND")));
+                    user.strictPasswordPolicy = strict;
+                    return userRepository.persist(user)
                             .onItem().transform(__ -> Either.<DomainError>unit());
                 });
     }
+
+    private Uni<Either<DomainError, Unit>> applyPasswordChange(User user, String newPassword, String requestIp) {
+        LocalDateTime now = LocalDateTime.now();
+        return authInternalClient.requestPasswordResetToken(
+                        new PasswordResetTokenIssueRequest(user.id), internalSecret)
+                .onItem().transformToUni(issued -> {
+                    user.previousPasswordHash = user.passwordHash;
+                    user.passwordHash         = BcryptUtil.bcryptHash(newPassword);
+                    user.passwordResetJti     = issued.jti();
+
+                    return userRepository.persist(user)
+                            .onItem().invoke(saved -> passwordChangedEmitter.send(new PasswordChangedEvent(
+                                    saved.id, saved.email, saved.name, requestIp, now,
+                                    issued.token(), issued.expiresAt())))
+                            .onItem().transform(__ -> Either.<DomainError>unit());
+                });
+    }
+
+    private boolean violatesStrictPolicy(User user, String newPassword) {
+        return user.strictPasswordPolicy
+                && user.previousPasswordHash != null
+                && BcryptUtil.matches(newPassword, user.previousPasswordHash);
+    }
+
+    private Uni<Void> revokeTokensBestEffort(Long userId) {
+        return authInternalClient.deleteTokensByUser(userId, internalSecret)
+                .replaceWithVoid()
+                .onFailure().recoverWithUni(e -> {
+                    Log.warnf("Could not revoke tokens for user %d after password change: %s", userId, e.getMessage());
+                    return Uni.createFrom().voidItem();
+                });
+    }
+
+    private ParsedResetToken parseResetToken(String token) throws ParseException {
+        if (token == null || token.isBlank()) return null;
+        JsonWebToken jwt = jwtParser.parse(token);
+        Object purpose = jwt.getClaim("purpose");
+        if (!"password-reset".equals(purpose)) return null;
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) return null;
+        Object jti = jwt.getClaim("jti");
+        if (jti == null || jti.toString().isBlank()) return null;
+        try {
+            return new ParsedResetToken(Long.parseLong(sub), jti.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private record ParsedResetToken(long userId, String jti) {}
 
     @WithSession
     public Uni<Either<DomainError, UserDataExportResponse>> exportMyData(Long userId) {
