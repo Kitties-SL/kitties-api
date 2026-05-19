@@ -12,6 +12,7 @@ public class InMemoryConnectorLifecycleManager implements QuarkusTestResourceLif
     public Map<String, String> start() {
         Map<String, String> env = new HashMap<>();
         env.putAll(InMemoryConnector.switchOutgoingChannelsToInMemory("user-registered"));
+        env.putAll(InMemoryConnector.switchOutgoingChannelsToInMemory("password-changed"));
         return env;
     }
 
