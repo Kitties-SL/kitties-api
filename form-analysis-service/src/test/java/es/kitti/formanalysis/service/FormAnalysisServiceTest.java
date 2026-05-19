@@ -290,7 +290,8 @@ class FormAnalysisServiceTest {
         when(llmClient.analyzeTextFields(any())).thenReturn(Uni.createFrom().item(
                 "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"NONE\",\"motivationQuality\":\"GENUINE\"," +
                 "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
-                "\"subterfugeSignals\":[],\"reasoning\":\"Posible riesgo de castigo físico en el texto\"}"));
+                "\"subterfugeSignals\":[],\"structuralAssessments\":[]," +
+                "\"reasoning\":\"Posible riesgo de castigo físico en el texto\"}"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");
@@ -359,7 +360,8 @@ class FormAnalysisServiceTest {
         when(llmClient.analyzeTextFields(any())).thenReturn(Uni.createFrom().item(
                 "{\"punishmentRisk\":\"HIGH\",\"abandonmentRisk\":\"HIGH\",\"motivationQuality\":\"SUPERFICIAL\"," +
                 "\"evasivenessLevel\":\"NONE\",\"consistencyCheck\":\"CONSISTENT\"," +
-                "\"subterfugeSignals\":[],\"reasoning\":\"Múltiples señales de alerta detectadas\"}"));
+                "\"subterfugeSignals\":[],\"structuralAssessments\":[]," +
+                "\"reasoning\":\"Múltiples señales de alerta detectadas\"}"));
 
         InMemorySource<String> source = connector.source("adoption-form-submitted");
         InMemorySink<AdoptionFormAnalysedEvent> sink = connector.sink("adoption-form-analysed");

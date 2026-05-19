@@ -11,14 +11,16 @@ public record LlmTextAnalysis(
         String evasivenessLevel,         // NONE | MODERATE | HIGH
         String consistencyCheck,         // CONSISTENT | INCONSISTENT | UNCERTAIN
         @JsonDeserialize(using = SubterfugeSignalsDeserializer.class)
-        List<String> subterfugeSignals,  // señales concretas detectadas (puede estar vacío)
-        String reasoning                 // explicación para el revisor humano
+        List<String> subterfugeSignals,
+        @JsonDeserialize(using = StructuralAssessmentsDeserializer.class)
+        List<StructuralAssessment> structuralAssessments,
+        String reasoning
 ) {
     public static LlmTextAnalysis unavailable() {
         return new LlmTextAnalysis(
                 "NONE", "NONE", "GENUINE",
                 "NONE", "CONSISTENT",
-                List.of(), "LLM unavailable"
+                List.of(), List.of(), "LLM unavailable"
         );
     }
 }

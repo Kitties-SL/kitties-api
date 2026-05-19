@@ -37,12 +37,17 @@ public class NimLlmClient implements LlmTextAnalysisClient {
 
             Responde ÚNICAMENTE con un objeto JSON válido que contenga exactamente \
             estos campos: punishmentRisk, abandonmentRisk, motivationQuality, \
-            evasivenessLevel, consistencyCheck, subterfugeSignals, reasoning. \
+            evasivenessLevel, consistencyCheck, subterfugeSignals, \
+            structuralAssessments, reasoning. \
             Sin texto adicional fuera del JSON.
 
             Reglas de formato estrictas:
             - subterfugeSignals SIEMPRE debe ser un array JSON, aunque esté vacío: [] \
             Nunca devuelvas una string como "NONE" o "none" para ese campo.
+            - structuralAssessments SIEMPRE debe ser un array JSON. Si el mensaje \
+            incluye señales estructurales, devuelve una entrada por cada una con el \
+            formato: {"code":"CODIGO","severity":"NONE|LOW|HIGH","reasoning":"..."}. \
+            Si no hay señales estructurales, devuelve [].
             - Los valores de los demás campos son siempre strings, nunca arrays.
             """;
 

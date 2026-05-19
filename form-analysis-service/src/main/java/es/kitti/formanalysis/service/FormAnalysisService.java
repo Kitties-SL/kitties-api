@@ -12,12 +12,12 @@ import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
 import es.kitti.formanalysis.rules.FlagResult;
 import es.kitti.formanalysis.rules.FormAnalysisRules;
 import es.kitti.formanalysis.rules.LlmFlagConverter;
+import es.kitti.formanalysis.rules.StructuralSignal;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 @ApplicationScoped
 public class FormAnalysisService {
@@ -56,8 +56,8 @@ public class FormAnalysisService {
 
         Log.infof("Analysing form for adoption request: %d", event.adoptionRequestId());
 
-        List<FlagResult> rulesFlags = formAnalysisRules.evaluate(event);
-        String prompt = llmPromptBuilder.build(event);
+        List<StructuralSignal> structuralSignals = formAnalysisRules.evaluate(event);
+        String prompt = llmPromptBuilder.build(event, structuralSignals);
 
         Log.debugf("Calling LLM for request %d", (long) event.adoptionRequestId());
         return llmClient.analyzeTextFields(prompt)
@@ -74,8 +74,7 @@ public class FormAnalysisService {
                 .onItem().transform(this::parseLlmResponse)
                 .onItem().transform(r -> r != null ? r : LlmTextAnalysis.unavailable())
                 .onItem().transformToUni(llmResult -> {
-                    List<FlagResult> llmFlags = llmFlagConverter.convert(llmResult);
-                    List<FlagResult> allFlags = Stream.concat(rulesFlags.stream(), llmFlags.stream()).toList();
+                    List<FlagResult> allFlags = llmFlagConverter.convert(llmResult);
 
                     long criticalCount = allFlags.stream()
                             .filter(f -> f.severity() == FlagSeverity.Critical).count();

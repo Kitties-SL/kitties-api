@@ -1,7 +1,10 @@
 package es.kitti.formanalysis.service;
 
 import es.kitti.formanalysis.event.AdoptionFormSubmittedEvent;
+import es.kitti.formanalysis.rules.StructuralSignal;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,7 +36,7 @@ class LlmPromptBuilderTest {
         var e = event("Tuve un gato 5 años", "Lo ignoro", "Quiero darle un hogar",
                 "Necesitan estimulación", "Juguetes y rascadores");
 
-        String prompt = builder.build(e);
+        String prompt = builder.build(e, List.of());
 
         assertTrue(prompt.contains("Historial de mascotas anteriores"));
         assertTrue(prompt.contains("Reacción ante comportamientos no deseados"));
@@ -48,7 +51,7 @@ class LlmPromptBuilderTest {
     void build_nullFields_skipsNullFields() {
         var e = event(null, "Lo ignoro", null, null, "Juguetes");
 
-        String prompt = builder.build(e);
+        String prompt = builder.build(e, List.of());
 
         assertFalse(prompt.contains("Historial de mascotas anteriores"));
         assertFalse(prompt.contains("Motivación para adoptar"));
@@ -61,7 +64,7 @@ class LlmPromptBuilderTest {
     void build_blankFields_skipsBlankFields() {
         var e = event("  ", "Lo ignoro", "", null, "Juguetes");
 
-        String prompt = builder.build(e);
+        String prompt = builder.build(e, List.of());
 
         assertFalse(prompt.contains("Historial de mascotas anteriores"));
         assertFalse(prompt.contains("Motivación para adoptar"));
@@ -72,7 +75,7 @@ class LlmPromptBuilderTest {
     void build_allNullFields_returnsOnlyHeader() {
         var e = event(null, null, null, null, null);
 
-        String prompt = builder.build(e);
+        String prompt = builder.build(e, List.of());
 
         assertTrue(prompt.contains("Evalúa las siguientes respuestas"));
         assertFalse(prompt.contains("\""));
@@ -82,8 +85,34 @@ class LlmPromptBuilderTest {
     void build_fieldValuesWrappedInQuotes() {
         var e = event(null, "Le daría un cachete", null, null, null);
 
-        String prompt = builder.build(e);
+        String prompt = builder.build(e, List.of());
 
         assertTrue(prompt.contains("\"Le daría un cachete\""));
+    }
+
+    @Test
+    void build_withStructuralSignals_includesSignalsSection() {
+        var e = event("Tuve gatos", "Los ignoro", "Quiero darle un hogar", "Juegan", "Juguetes");
+        var signals = List.of(
+                new StructuralSignal("UNSTABLE_HOUSING", "La vivienda no es estable o hay mudanza prevista"),
+                new StructuralSignal("INSUFFICIENT_PLAY_TIME", "Menos de 15 minutos de juego diario")
+        );
+
+        String prompt = builder.build(e, signals);
+
+        assertTrue(prompt.contains("señales estructurales"));
+        assertTrue(prompt.contains("UNSTABLE_HOUSING"));
+        assertTrue(prompt.contains("La vivienda no es estable"));
+        assertTrue(prompt.contains("INSUFFICIENT_PLAY_TIME"));
+    }
+
+    @Test
+    void build_withEmptySignals_noSignalsSection() {
+        var e = event("Tuve gatos", "Los ignoro", "Quiero darle un hogar", "Juegan", "Juguetes");
+
+        String prompt = builder.build(e, List.of());
+
+        assertFalse(prompt.contains("señales estructurales"));
+        assertFalse(prompt.contains("---"));
     }
 }
