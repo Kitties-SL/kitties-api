@@ -13,6 +13,8 @@ import java.io.IOException;
 import es.kitti.adoption.client.CatClient;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
+import es.kitti.adoption.entity.ActivityLevel;
+import es.kitti.adoption.entity.HousingType;
 import es.kitti.adoption.mapper.AdoptionMapper;
 import es.kitti.adoption.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -149,6 +151,68 @@ class AdoptionServiceTest {
         assertTrue(result.isLeft());
         assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
         assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    // --- findFormByIdForOrg ---
+
+    @Test
+    void findFormByIdForOrg_orgOwner_formExists_returnsRight() {
+        var form = new es.kitti.adoption.entity.AdoptionRequestForm();
+        form.id = 5L;
+        form.adoptionRequestId = 1L;
+        var formResponse = new AdoptionRequestFormResponse(
+                5L, 1L, true, "Tuve dos gatos", 2, false, null,
+                false, null, 6, true, null,
+                HousingType.Apartment, 80, false, false, null,
+                true, true, true, ActivityLevel.Quiet,
+                "Para estimulación mental", 30, "Juguetes",
+                "Redirigir con juguetes", true, true,
+                "Dar un hogar", true, true, true, false, null,
+                LocalDateTime.now()
+        );
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestFormRepository.findByAdoptionRequestId(1L)).thenReturn(Uni.createFrom().item(form));
+        when(adoptionMapper.toResponse(form)).thenReturn(formResponse);
+
+        var result = adoptionService.findFormByIdForOrg(1L, 200L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(5L, result.getOrElse(null).id());
+        assertEquals(1L, result.getOrElse(null).adoptionRequestId());
+    }
+
+    @Test
+    void findFormByIdForOrg_adoptionNotFound_returnsLeft404() {
+        when(adoptionRequestRepository.findById(99L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = adoptionService.findFormByIdForOrg(99L, 200L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void findFormByIdForOrg_wrongOrg_returnsLeft403() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+
+        var result = adoptionService.findFormByIdForOrg(1L, 999L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(403, result.fold(DomainError::httpStatus, __ -> 0));
+    }
+
+    @Test
+    void findFormByIdForOrg_formNotYetSubmitted_returnsLeft404() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestFormRepository.findByAdoptionRequestId(1L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = adoptionService.findFormByIdForOrg(1L, 200L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals("ADOPTION_FORM_NOT_FOUND", ((NotFoundError) ((Either.Left<?, ?>) result).value()).code());
     }
 
     // --- updateStatus ---
