@@ -36,6 +36,12 @@ public class User extends PanacheEntity {
     public LocalDateTime deletedAt;
     @Column(name = "scheduled_purge_at")
     public LocalDateTime scheduledPurgeAt;
+    @Column(name = "previous_password_hash")
+    public String previousPasswordHash;
+    @Column(name = "password_rollback_token")
+    public String passwordRollbackToken;
+    @Column(name = "password_rollback_expires_at")
+    public LocalDateTime passwordRollbackExpiresAt;
     @Column(name = "created_at", nullable = false, updatable = false)
     public LocalDateTime createdAt;
     @Column(name = "updated_at", nullable = false)
