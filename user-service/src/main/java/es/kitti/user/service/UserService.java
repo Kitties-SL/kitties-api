@@ -2,37 +2,33 @@ package es.kitti.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.mon.either.Either;
-import es.kitti.mon.error.ConflictError;
-import es.kitti.mon.error.DomainError;
-import es.kitti.mon.error.ForbiddenError;
-import es.kitti.mon.error.NotFoundError;
-import es.kitti.mon.error.UnauthorizedError;
+import es.kitti.mon.either.Unit;
+import es.kitti.mon.error.*;
 import es.kitti.user.client.AdoptionInternalClient;
+import es.kitti.user.client.AuthInternalClient;
 import es.kitti.user.client.ChatInternalClient;
-import es.kitti.user.dto.UserDataExportResponse;
-import io.quarkus.elytron.security.common.BcryptUtil;
-import io.quarkus.hibernate.reactive.panache.Panache;
-import io.quarkus.hibernate.reactive.panache.common.WithSession;
-import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import es.kitti.user.dto.UserCreateRequest;
-import es.kitti.user.dto.UserResponse;
-import es.kitti.user.dto.UserUpdateRequest;
-import es.kitti.user.entity.User;
+import es.kitti.user.dto.*;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
+import es.kitti.user.event.PasswordChangedEvent;
 import es.kitti.user.event.UserRegisteredEvent;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
+import io.quarkus.elytron.security.common.BcryptUtil;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @ApplicationScoped
 public class UserService {
@@ -40,9 +36,11 @@ public class UserService {
     @Inject UserRepository userRepository;
     @Inject UserMapper userMapper;
     @Inject @Channel("user-registered") Emitter<UserRegisteredEvent> userRegisteredEmitter;
+    @Inject @Channel("password-changed") Emitter<PasswordChangedEvent> passwordChangedEmitter;
     @Inject ObjectMapper objectMapper;
 
     @RestClient AdoptionInternalClient adoptionInternalClient;
+    @RestClient AuthInternalClient authInternalClient;
     @RestClient ChatInternalClient chatInternalClient;
 
     @ConfigProperty(name = "kitties.internal.secret")
@@ -137,6 +135,67 @@ public class UserService {
                     user.role = role;
                     return userRepository.persist(user)
                             .onItem().transform(saved -> Either.<DomainError, UserResponse>right(userMapper.toResponse(saved)));
+                });
+    }
+
+    @WithTransaction
+    public Uni<Either<DomainError, Unit>> changePassword(Long userId, ChangePasswordRequest request, String requestIp) {
+        return userRepository.findById(userId)
+                .onItem().transformToUni(user -> {
+                    if (user == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("USER_NOT_FOUND")));
+                    if (!BcryptUtil.matches(request.currentPassword(), user.passwordHash))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new BadRequestError("INVALID_CURRENT_PASSWORD")));
+
+                    LocalDateTime now = LocalDateTime.now();
+                    LocalDateTime rollbackExpiresAt = now.plusHours(24);
+                    String rollbackToken = UUID.randomUUID().toString();
+
+                    user.previousPasswordHash      = user.passwordHash;
+                    user.passwordHash              = BcryptUtil.bcryptHash(request.newPassword());
+                    user.passwordRollbackToken     = rollbackToken;
+                    user.passwordRollbackExpiresAt = rollbackExpiresAt;
+
+                    return userRepository.persist(user)
+                            .onItem().invoke(saved -> passwordChangedEmitter.send(new PasswordChangedEvent(
+                                    saved.id, saved.email, saved.name, requestIp, now, rollbackToken, rollbackExpiresAt)))
+                            .onItem().transform(__ -> Either.<DomainError>unit());
+                })
+                .call(either -> either.isRight()
+                        ? authInternalClient.deleteTokensByUser(userId, internalSecret)
+                                .replaceWithVoid()
+                                .onFailure().recoverWithUni(e -> {
+                                    Log.warnf("Could not revoke tokens for user %d after password change: %s", userId, e.getMessage());
+                                    return Uni.createFrom().voidItem();
+                                })
+                        : Uni.createFrom().voidItem()
+                );
+    }
+
+    @WithTransaction
+    public Uni<Either<DomainError, Unit>> rollbackPassword(String token) {
+        return userRepository.findByPasswordRollbackToken(token)
+                .onItem().transformToUni(user -> {
+                    if (user == null || user.previousPasswordHash == null)
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new NotFoundError("ROLLBACK_TOKEN_INVALID")));
+                    if (user.passwordRollbackExpiresAt == null
+                            || user.passwordRollbackExpiresAt.isBefore(LocalDateTime.now()))
+                        return Uni.createFrom().item(Either.<DomainError, Unit>left(new ConflictError("ROLLBACK_TOKEN_EXPIRED")));
+
+                    Long capturedUserId = user.id;
+                    user.passwordHash              = user.previousPasswordHash;
+                    user.previousPasswordHash      = null;
+                    user.passwordRollbackToken     = null;
+                    user.passwordRollbackExpiresAt = null;
+
+                    return userRepository.persist(user)
+                            .call(__ -> authInternalClient.deleteTokensByUser(capturedUserId, internalSecret)
+                                    .replaceWithVoid()
+                                    .onFailure().recoverWithUni(e -> {
+                                        Log.warnf("Could not revoke tokens for user %d after password rollback: %s", capturedUserId, e.getMessage());
+                                        return Uni.createFrom().voidItem();
+                                    }))
+                            .onItem().transform(__ -> Either.<DomainError>unit());
                 });
     }
 
