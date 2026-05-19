@@ -39,6 +39,11 @@ public class NimLlmClient implements LlmTextAnalysisClient {
             estos campos: punishmentRisk, abandonmentRisk, motivationQuality, \
             evasivenessLevel, consistencyCheck, subterfugeSignals, reasoning. \
             Sin texto adicional fuera del JSON.
+
+            Reglas de formato estrictas:
+            - subterfugeSignals SIEMPRE debe ser un array JSON, aunque esté vacío: [] \
+            Nunca devuelvas una string como "NONE" o "none" para ese campo.
+            - Los valores de los demás campos son siempre strings, nunca arrays.
             """;
 
     @Inject
