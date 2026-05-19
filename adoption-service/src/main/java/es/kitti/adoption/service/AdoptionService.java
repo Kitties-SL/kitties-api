@@ -55,6 +55,22 @@ public class AdoptionService {
     }
 
     @WithSession
+    public Uni<Either<DomainError, AdoptionRequestFormResponse>> findFormByIdForOrg(Long id, Long orgId) {
+        return findAdoptionOrNotFound(id)
+                .onItem().transformToUni(either -> either.fold(
+                        err -> Uni.createFrom().item(Either.left(err)),
+                        adoption -> checkOrganizationOwner(adoption, orgId)
+                                .fold(
+                                        err -> Uni.createFrom().item(Either.<DomainError, AdoptionRequestFormResponse>left(err)),
+                                        v   -> adoptionRequestFormRepository.findByAdoptionRequestId(id)
+                                                .onItem().transform(form -> form == null
+                                                        ? Either.<DomainError, AdoptionRequestFormResponse>left(new NotFoundError("ADOPTION_FORM_NOT_FOUND"))
+                                                        : Either.<DomainError, AdoptionRequestFormResponse>right(adoptionMapper.toResponse(form)))
+                                )
+                ));
+    }
+
+    @WithSession
     public Uni<List<AdoptionRequestResponse>> findByAdopterId(Long adopterId) {
         return adoptionRequestRepository.findByAdopterId(adopterId)
                 .onItem().transform(list -> list.stream().map(adoptionMapper::toResponse).toList());
