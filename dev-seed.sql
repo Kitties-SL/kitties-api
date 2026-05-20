@@ -20,11 +20,11 @@ BEGIN;
 
 INSERT INTO users.users (
     id, email, password_hash, name, surname,
-    status, role, created_at, updated_at
+    status, role, strict_password_policy, created_at, updated_at
 ) VALUES
-    (1, 'adoptante@kitti.es', '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Carlos',  'García',  'Active', 'User',         NOW(), NOW()),
-    (2, 'refugio@kitti.es',   '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Laura',   'Martínez','Active', 'Organization', NOW(), NOW()),
-    (3, 'felinos@kitti.es',   '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Marcos',  'López',   'Active', 'Organization', NOW(), NOW());
+    (1, 'adoptante@kitti.es', '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Carlos',  'García',  'Active', 'User',         FALSE, NOW(), NOW()),
+    (2, 'refugio@kitti.es',   '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Laura',   'Martínez','Active', 'Organization', FALSE, NOW(), NOW()),
+    (3, 'felinos@kitti.es',   '$2a$10$kV0FosI9wx8frVmUeGfp.O4PJbqCE5b.nYq/cgaUu0BtO5eTkYOr6', 'Marcos',  'López',   'Active', 'Organization', FALSE, NOW(), NOW());
 
 -- ─── Organizaciones ────────────────────────────────────────────────────────
 
