@@ -27,24 +27,25 @@ public class RateLimitedProxy {
     @ConfigProperty(name = "rate-limit.storage.upload", defaultValue = "5")
     int uploadLimit;
 
-    public Uni<Response> proxyLogin(String ip, byte[] body, String authHeader, String contentType) {
-        if (!rateLimiter.tryAcquire(ip, loginLimit, MINUTE_MS)) {
+    public Uni<Response> proxyLogin(String rateLimitKey, String clientIp,
+                                    byte[] body, String authHeader, String contentType) {
+        if (!rateLimiter.tryAcquire(rateLimitKey, loginLimit, MINUTE_MS)) {
             throw new RateLimitExceededException();
         }
-        return proxyService.proxy("POST", "/api/auth/login", body, authHeader, contentType);
+        return proxyService.proxy("POST", "/api/auth/login", body, authHeader, contentType, clientIp);
     }
 
-    public Uni<Response> proxyRefresh(String ip, byte[] body, String authHeader, String contentType) {
-        if (!rateLimiter.tryAcquire(ip, refreshLimit, MINUTE_MS)) {
+    public Uni<Response> proxyRefresh(String clientIp, byte[] body, String authHeader, String contentType) {
+        if (!rateLimiter.tryAcquire(clientIp, refreshLimit, MINUTE_MS)) {
             throw new RateLimitExceededException();
         }
-        return proxyService.proxy("POST", "/api/auth/refresh", body, authHeader, contentType);
+        return proxyService.proxy("POST", "/api/auth/refresh", body, authHeader, contentType, clientIp);
     }
 
-    public Uni<Response> proxyStorageUpload(String ip, byte[] body, String authHeader, String contentType) {
-        if (!rateLimiter.tryAcquire(ip, uploadLimit, MINUTE_MS)) {
+    public Uni<Response> proxyStorageUpload(String clientIp, byte[] body, String authHeader, String contentType) {
+        if (!rateLimiter.tryAcquire(clientIp, uploadLimit, MINUTE_MS)) {
             throw new RateLimitExceededException();
         }
-        return proxyService.proxy("POST", "/api/storage/upload", body, authHeader, contentType);
+        return proxyService.proxy("POST", "/api/storage/upload", body, authHeader, contentType, clientIp);
     }
 }

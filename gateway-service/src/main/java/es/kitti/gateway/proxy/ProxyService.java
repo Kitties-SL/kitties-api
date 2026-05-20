@@ -41,7 +41,7 @@ public class ProxyService {
 
     public Uni<Response> proxy(String method, String path,
                                byte[] body, String authHeader,
-                               String contentType) {
+                               String contentType, String clientIp) {
         String targetUrl = resolveTarget(path);
         if (targetUrl == null) {
             return Uni.createFrom().item(
@@ -61,6 +61,9 @@ public class ProxyService {
         }
         if (contentType != null) {
             request = request.putHeader("Content-Type", contentType);
+        }
+        if (clientIp != null && !clientIp.isBlank()) {
+            request = request.putHeader("X-Forwarded-For", clientIp);
         }
 
         long timeoutMs = path.startsWith("/api/storage/upload") ? 30_000L : 5_000L;
