@@ -150,6 +150,20 @@ public class UserResource {
     }
 
     @POST
+    @Path("/password/forgot")
+    @PermitAll
+    public Uni<Response> forgotPassword(PasswordForgotRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.requestPasswordReset(valid.email())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                __  -> Response.noContent().build()
+                        ))
+        );
+    }
+
+    @POST
     @Path("/password/reset")
     @PermitAll
     public Uni<Response> resetPassword(PasswordResetRequest request) {

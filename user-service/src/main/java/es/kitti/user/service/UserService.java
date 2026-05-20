@@ -12,6 +12,7 @@ import es.kitti.user.entity.User;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
 import es.kitti.user.event.PasswordChangedEvent;
+import es.kitti.user.event.PasswordResetRequestedEvent;
 import es.kitti.user.event.UserRegisteredEvent;
 import es.kitti.user.mapper.UserMapper;
 import es.kitti.user.repository.UserRepository;
@@ -39,8 +40,9 @@ public class UserService {
 
     @Inject UserRepository userRepository;
     @Inject UserMapper userMapper;
-    @Inject @Channel("user-registered") Emitter<UserRegisteredEvent> userRegisteredEmitter;
-    @Inject @Channel("password-changed") Emitter<PasswordChangedEvent> passwordChangedEmitter;
+    @Inject @Channel("user-registered")         Emitter<UserRegisteredEvent>         userRegisteredEmitter;
+    @Inject @Channel("password-changed")         Emitter<PasswordChangedEvent>         passwordChangedEmitter;
+    @Inject @Channel("password-reset-requested") Emitter<PasswordResetRequestedEvent> passwordResetRequestedEmitter;
     @Inject ObjectMapper objectMapper;
     @Inject JWTParser jwtParser;
 
@@ -192,6 +194,26 @@ public class UserService {
                         ? revokeTokensBestEffort(parsed.userId())
                         : Uni.createFrom().voidItem()
                 );
+    }
+
+    @WithTransaction
+    public Uni<Either<DomainError, Unit>> requestPasswordReset(String email) {
+        return userRepository.findByEmail(email)
+                .onItem().transformToUni(user -> {
+                    if (user == null || user.status != UserStatus.Active)
+                        return Uni.createFrom().item(Either.<DomainError>unit());
+                    return authInternalClient.requestPasswordResetToken(
+                                    new PasswordResetTokenIssueRequest(user.id), internalSecret)
+                            .onItem().transformToUni(issued -> {
+                                user.passwordResetJti = issued.jti();
+                                return userRepository.persist(user)
+                                        .onItem().invoke(saved -> passwordResetRequestedEmitter.send(
+                                                new PasswordResetRequestedEvent(
+                                                        saved.id, saved.email, saved.name,
+                                                        issued.token(), issued.expiresAt())))
+                                        .onItem().transform(__ -> Either.<DomainError>unit());
+                            });
+                });
     }
 
     @WithTransaction
