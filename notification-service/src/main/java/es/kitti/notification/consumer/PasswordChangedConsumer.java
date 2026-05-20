@@ -2,6 +2,7 @@ package es.kitti.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.notification.event.PasswordChangedEvent;
+import es.kitti.notification.service.IpGeoLookupService;
 import io.quarkus.logging.Log;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
@@ -27,6 +28,9 @@ public class PasswordChangedConsumer {
     @Inject
     ObjectMapper objectMapper;
 
+    @Inject
+    IpGeoLookupService ipGeoLookup;
+
     @ConfigProperty(name = "app.frontend.url", defaultValue = "http://localhost:5173")
     String frontendUrl;
 
@@ -41,22 +45,27 @@ public class PasswordChangedConsumer {
             Log.infof("Sending password-changed notification to %s", event.email());
 
             String resetUrl = frontendUrl + "/account/password-reset?token=" + event.resetToken();
+            String ip = event.requestIp() != null ? event.requestIp() : "desconocida";
 
-            String html = passwordChangedTemplate
-                    .data("name",           event.name())
-                    .data("changedAt",      event.changedAt().format(DATE_FORMATTER))
-                    .data("requestIp",      event.requestIp() != null ? event.requestIp() : "desconocida")
-                    .data("resetUrl",       resetUrl)
-                    .data("resetExpiresAt", event.resetExpiresAt().format(DATE_FORMATTER))
-                    .render();
+            return ipGeoLookup.describe(event.requestIp())
+                    .onItem().transformToUni(location -> {
+                        String html = passwordChangedTemplate
+                                .data("name",            event.name())
+                                .data("changedAt",       event.changedAt().format(DATE_FORMATTER))
+                                .data("requestIp",       ip)
+                                .data("requestLocation", location)
+                                .data("resetUrl",        resetUrl)
+                                .data("resetExpiresAt",  event.resetExpiresAt().format(DATE_FORMATTER))
+                                .render();
 
-            return mailer.send(
-                    Mail.withHtml(
-                            event.email(),
-                            "Tu contraseña en Kitties ha sido cambiada 🐾",
-                            html
-                    )
-            );
+                        return mailer.send(
+                                Mail.withHtml(
+                                        event.email(),
+                                        "Tu contraseña en Kitties ha sido cambiada 🐾",
+                                        html
+                                )
+                        );
+                    });
         } catch (Exception e) {
             Log.errorf("Error processing password-changed event, routing to DLQ: %s", e.getMessage());
             return Uni.createFrom().failure(e);

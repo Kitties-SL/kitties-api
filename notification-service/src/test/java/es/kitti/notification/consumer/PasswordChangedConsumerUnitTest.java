@@ -3,11 +3,13 @@ package es.kitti.notification.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import es.kitti.notification.event.PasswordChangedEvent;
+import es.kitti.notification.service.IpGeoLookupService;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.smallrye.mutiny.Uni;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,9 +31,16 @@ class PasswordChangedConsumerUnitTest {
     @Mock ObjectMapper objectMapper;
     @Mock Template passwordChangedTemplate;
     @Mock TemplateInstance templateInstance;
+    @Mock IpGeoLookupService ipGeoLookup;
 
     @InjectMocks
     PasswordChangedConsumer consumer;
+
+    @BeforeEach
+    void stubGeoLookup() {
+        lenient().when(ipGeoLookup.describe(any()))
+                .thenReturn(Uni.createFrom().item("Madrid, España"));
+    }
 
     private PasswordChangedEvent sampleEvent() {
         return new PasswordChangedEvent(
