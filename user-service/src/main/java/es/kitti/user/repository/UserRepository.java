@@ -39,10 +39,6 @@ public class UserRepository implements PanacheRepository<User> {
         return find("activationToken", token).firstResult();
     }
 
-    public Uni<User> findByPasswordRollbackToken(String token) {
-        return find("passwordRollbackToken", token).firstResult();
-    }
-
     public Uni<Long> deleteExpiredUnactivated() {
         return delete("status = ?1 and activationTokenExpiresAt < ?2 and deletedAt is null",
                 UserStatus.Inactive, LocalDateTime.now());

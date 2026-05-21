@@ -3,6 +3,7 @@ package es.kitti.user.entity;
 
 import io.quarkus.hibernate.reactive.panache.PanacheEntity;
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -38,10 +39,11 @@ public class User extends PanacheEntity {
     public LocalDateTime scheduledPurgeAt;
     @Column(name = "previous_password_hash")
     public String previousPasswordHash;
-    @Column(name = "password_rollback_token")
-    public String passwordRollbackToken;
-    @Column(name = "password_rollback_expires_at")
-    public LocalDateTime passwordRollbackExpiresAt;
+    @Column(name = "password_reset_jti")
+    public String passwordResetJti;
+    @Column(name = "strict_password_policy", nullable = false)
+    @ColumnDefault("false")
+    public boolean strictPasswordPolicy;
     @Column(name = "created_at", nullable = false, updatable = false)
     public LocalDateTime createdAt;
     @Column(name = "updated_at", nullable = false)

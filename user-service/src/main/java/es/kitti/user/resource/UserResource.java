@@ -150,12 +150,40 @@ public class UserResource {
     }
 
     @POST
-    @Path("/password/rollback")
+    @Path("/password/forgot")
     @PermitAll
-    public Uni<Response> rollbackPassword(PasswordRollbackRequest request) {
+    public Uni<Response> forgotPassword(PasswordForgotRequest request) {
         return request.validate().match(
                 this::validationFailed,
-                valid -> userService.rollbackPassword(valid.token())
+                valid -> userService.requestPasswordReset(valid.email())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                __  -> Response.noContent().build()
+                        ))
+        );
+    }
+
+    @POST
+    @Path("/password/reset")
+    @PermitAll
+    public Uni<Response> resetPassword(PasswordResetRequest request) {
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.resetPassword(valid.token(), valid.newPassword())
+                        .onItem().transform(either -> either.fold(
+                                err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                __  -> Response.noContent().build()
+                        ))
+        );
+    }
+
+    @PUT
+    @Path("/me/password-policy")
+    public Uni<Response> updatePasswordPolicy(PasswordPolicyUpdateRequest request) {
+        Long userId = Long.parseLong(jwt.getSubject());
+        return request.validate().match(
+                this::validationFailed,
+                valid -> userService.setPasswordPolicy(userId, valid.strict())
                         .onItem().transform(either -> either.fold(
                                 err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
                                 __  -> Response.noContent().build()

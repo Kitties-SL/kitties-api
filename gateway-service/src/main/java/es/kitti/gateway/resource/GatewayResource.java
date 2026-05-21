@@ -30,9 +30,10 @@ public class GatewayResource {
     public Uni<Response> login(@Context HttpHeaders headers,
                                @Context RoutingContext rc,
                                byte[] body) {
+        String ip = clientIp(headers, rc);
         String key = extractEmail(body);
-        if (key == null) key = clientIp(headers, rc);
-        return rateLimitedProxy.proxyLogin(key, body,
+        if (key == null) key = ip;
+        return rateLimitedProxy.proxyLogin(key, ip, body,
                 headers.getHeaderString("Authorization"),
                 headers.getHeaderString("Content-Type"));
     }
@@ -51,10 +52,13 @@ public class GatewayResource {
     @POST
     @Path("/auth/logout")
     @PermitAll
-    public Uni<Response> logout(@Context HttpHeaders headers, byte[] body) {
+    public Uni<Response> logout(@Context HttpHeaders headers,
+                                @Context RoutingContext rc,
+                                byte[] body) {
         return proxyService.proxy("POST", "/api/auth/logout", body,
                 headers.getHeaderString("Authorization"),
-                headers.getHeaderString("Content-Type"));
+                headers.getHeaderString("Content-Type"),
+                clientIp(headers, rc));
     }
 
     @POST
@@ -70,47 +74,57 @@ public class GatewayResource {
     @GET
     @Path("/{path: .+}")
     public Uni<Response> get(@PathParam("path") String path,
-                             @Context HttpHeaders headers) {
+                             @Context HttpHeaders headers,
+                             @Context RoutingContext rc) {
         return proxyService.proxy("GET", "/api/" + path, null,
-                headers.getHeaderString("Authorization"), null);
+                headers.getHeaderString("Authorization"), null,
+                clientIp(headers, rc));
     }
 
     @POST
     @Path("/{path: .+}")
     public Uni<Response> post(@PathParam("path") String path,
                               @Context HttpHeaders headers,
+                              @Context RoutingContext rc,
                               byte[] body) {
         return proxyService.proxy("POST", "/api/" + path, body,
                 headers.getHeaderString("Authorization"),
-                headers.getHeaderString("Content-Type"));
+                headers.getHeaderString("Content-Type"),
+                clientIp(headers, rc));
     }
 
     @PUT
     @Path("/{path: .+}")
     public Uni<Response> put(@PathParam("path") String path,
                              @Context HttpHeaders headers,
+                             @Context RoutingContext rc,
                              byte[] body) {
         return proxyService.proxy("PUT", "/api/" + path, body,
                 headers.getHeaderString("Authorization"),
-                headers.getHeaderString("Content-Type"));
+                headers.getHeaderString("Content-Type"),
+                clientIp(headers, rc));
     }
 
     @PATCH
     @Path("/{path: .+}")
     public Uni<Response> patch(@PathParam("path") String path,
                                @Context HttpHeaders headers,
+                               @Context RoutingContext rc,
                                byte[] body) {
         return proxyService.proxy("PATCH", "/api/" + path, body,
                 headers.getHeaderString("Authorization"),
-                headers.getHeaderString("Content-Type"));
+                headers.getHeaderString("Content-Type"),
+                clientIp(headers, rc));
     }
 
     @DELETE
     @Path("/{path: .+}")
     public Uni<Response> delete(@PathParam("path") String path,
-                                @Context HttpHeaders headers) {
+                                @Context HttpHeaders headers,
+                                @Context RoutingContext rc) {
         return proxyService.proxy("DELETE", "/api/" + path, null,
-                headers.getHeaderString("Authorization"), null);
+                headers.getHeaderString("Authorization"), null,
+                clientIp(headers, rc));
     }
 
     private static String extractEmail(byte[] body) {

@@ -21,6 +21,8 @@ public class MailHogClient {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Pattern TOKEN_PATTERN = Pattern.compile("/activate\\?token=([\\w-]+)");
+    private static final Pattern RESET_TOKEN_PATTERN =
+            Pattern.compile("/password-reset\\?token=([A-Za-z0-9_.\\-]+)");
 
     /** Polls MailHog until an email arrives for the given address (max 15 s). */
     public static String waitForEmail(String toAddress) {
@@ -29,7 +31,25 @@ public class MailHogClient {
                 .atMost(15, TimeUnit.SECONDS)
                 .pollInterval(Duration.ofMillis(500))
                 .until(() -> {
-                    String raw = fetchEmailBody(toAddress);
+                    String raw = fetchEmailBody(toAddress, null);
+                    if (raw != null) {
+                        body.set(raw);
+                        return true;
+                    }
+                    return false;
+                });
+        return body.get();
+    }
+
+    /** Polls MailHog until an email matching {@code marker} arrives. Useful when the user
+     *  has multiple emails (e.g. activation + password-change). */
+    public static String waitForEmailContaining(String toAddress, String marker) {
+        AtomicReference<String> body = new AtomicReference<>();
+        Awaitility.await()
+                .atMost(15, TimeUnit.SECONDS)
+                .pollInterval(Duration.ofMillis(500))
+                .until(() -> {
+                    String raw = fetchEmailBody(toAddress, marker);
                     if (raw != null) {
                         body.set(raw);
                         return true;
@@ -50,6 +70,15 @@ public class MailHogClient {
         throw new AssertionError("Activation token not found in email body");
     }
 
+    public static String extractPasswordResetToken(String emailBody) {
+        String decodedBody = emailBody.replaceAll("=\\r?\\n", "").replace("=3D", "=");
+        Matcher m = RESET_TOKEN_PATTERN.matcher(decodedBody);
+        if (m.find()) {
+            return m.group(1);
+        }
+        throw new AssertionError("Password reset token not found in email body");
+    }
+
     public static void deleteAll() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
@@ -62,7 +91,7 @@ public class MailHogClient {
         }
     }
 
-    private static String fetchEmailBody(String toAddress) {
+    private static String fetchEmailBody(String toAddress, String marker) {
         try {
             String encoded = URLEncoder.encode(toAddress, StandardCharsets.UTF_8);
             HttpRequest req = HttpRequest.newBuilder()
@@ -73,22 +102,29 @@ public class MailHogClient {
             JsonNode root = MAPPER.readTree(resp.body());
             if (root.path("total").asInt() == 0) return null;
 
-            JsonNode item = root.path("items").get(0);
-            // Try plain body first
-            String plain = item.path("Content").path("Body").asText(null);
-            if (plain != null && !plain.isBlank()) return plain;
-
-            // Multipart: search MIME parts
-            JsonNode parts = item.path("MIME").path("Parts");
-            if (parts.isArray()) {
-                for (JsonNode part : parts) {
-                    String partBody = part.path("Body").asText(null);
-                    if (partBody != null && !partBody.isBlank()) return partBody;
-                }
+            for (JsonNode item : root.path("items")) {
+                String body = extractItemBody(item);
+                if (body == null) continue;
+                if (marker == null) return body;
+                String decoded = body.replaceAll("=\\r?\\n", "").replace("=3D", "=");
+                if (decoded.contains(marker)) return body;
             }
             return null;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String extractItemBody(JsonNode item) {
+        String plain = item.path("Content").path("Body").asText(null);
+        if (plain != null && !plain.isBlank()) return plain;
+        JsonNode parts = item.path("MIME").path("Parts");
+        if (parts.isArray()) {
+            for (JsonNode part : parts) {
+                String partBody = part.path("Body").asText(null);
+                if (partBody != null && !partBody.isBlank()) return partBody;
+            }
+        }
+        return null;
     }
 }

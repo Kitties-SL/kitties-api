@@ -19,7 +19,8 @@ public class JwtAuthFilter {
             "POST:/api/auth/logout",
             "POST:/api/users",
             "POST:/api/users/activate",
-            "POST:/api/users/password/rollback",
+            "POST:/api/users/password/forgot",
+            "POST:/api/users/password/reset",
             "POST:/api/organizations/register",
             "GET:/doc",
             "GET:/swagger-ui"

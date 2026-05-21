@@ -6,19 +6,26 @@ import es.kitti.mon.error.ValidationError;
 import es.kitti.user.dto.*;
 import es.kitti.user.entity.UserRole;
 import es.kitti.user.entity.UserStatus;
+import es.kitti.user.dto.PasswordForgotRequest;
 import es.kitti.user.event.PasswordChangedEvent;
+import es.kitti.user.event.PasswordResetRequestedEvent;
 import es.kitti.user.event.UserRegisteredEvent;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
 @RegisterForReflection(targets = {
         ActivationRequest.class,
         ChangePasswordRequest.class,
-        PasswordRollbackRequest.class,
+        PasswordResetRequest.class,
+        PasswordPolicyUpdateRequest.class,
+        PasswordResetTokenIssueRequest.class,
+        PasswordResetTokenIssueResponse.class,
         UserCreateRequest.class,
         UserDataExportResponse.class,
         UserResponse.class,
         UserUpdateRequest.class,
         PasswordChangedEvent.class,
+        PasswordForgotRequest.class,
+        PasswordResetRequestedEvent.class,
         UserRegisteredEvent.class,
         UserRole.class,
         UserStatus.class,
