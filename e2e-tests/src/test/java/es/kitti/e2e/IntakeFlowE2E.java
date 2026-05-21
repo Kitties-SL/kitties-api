@@ -372,6 +372,20 @@ class IntakeFlowE2E {
             .statusCode(409);
     }
 
+    @Test @Order(22)
+    void approve_missingSexAndCountry_returns422() {
+        // Validation runs before the status check, so it fires even on an already-decided intake.
+        given()
+            .header("Authorization", "Bearer " + targetOrgToken)
+            .contentType(ContentType.JSON)
+            .body(Map.of())
+        .when()
+            .patch("/api/intake-requests/" + approvedIntakeId + "/approve")
+        .then()
+            .statusCode(422)
+            .body("violations.field", hasItems("sex", "country"));
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────────
 
     private static void register(String email, String name, String surname, String role) {
