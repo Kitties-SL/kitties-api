@@ -215,7 +215,7 @@ class AdoptionWriteServiceTest {
         when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
 
-        adoptionWriteService.applyFormAnalysisResult(1L, "REJECTED", "not suitable").await().indefinitely();
+        adoptionWriteService.applyFormAnalysisResult(1L, "Rejected", "not suitable").await().indefinitely();
 
         assertEquals(AdoptionStatus.Rejected, testAdoption.status);
         assertEquals("not suitable", testAdoption.rejectionReason);
@@ -227,7 +227,7 @@ class AdoptionWriteServiceTest {
         when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
         when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
 
-        adoptionWriteService.applyFormAnalysisResult(1L, "ACCEPTED", null).await().indefinitely();
+        adoptionWriteService.applyFormAnalysisResult(1L, "Approved", null).await().indefinitely();
 
         assertEquals(AdoptionStatus.Pending, testAdoption.status);
         verify(adoptionRequestRepository).persist(testAdoption);
