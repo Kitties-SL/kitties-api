@@ -2,7 +2,9 @@ package es.kitti.organization.mapper;
 
 import es.kitti.organization.dto.CreateOrganizationRequest;
 import es.kitti.organization.dto.MemberResponse;
+import es.kitti.organization.dto.OrganizationPublicResponse;
 import es.kitti.organization.dto.OrganizationResponse;
+import es.kitti.organization.dto.OrganizationSummary;
 import es.kitti.organization.dto.RegisterOrganizationRequest;
 import es.kitti.organization.entity.Organization;
 import es.kitti.organization.entity.OrganizationMember;
@@ -58,6 +60,32 @@ public class OrganizationMapper {
                 org.maxMembers,
                 org.createdAt,
                 org.updatedAt
+        );
+    }
+
+    public OrganizationSummary toSummary(Organization org, long activeCatsCount) {
+        return new OrganizationSummary(
+                org.id,
+                org.name,
+                org.description,
+                org.region,
+                org.city,
+                org.logoUrl,
+                org.plan,
+                activeCatsCount
+        );
+    }
+
+    public OrganizationPublicResponse toPublicResponse(Organization org, long activeCatsCount) {
+        return new OrganizationPublicResponse(
+                org.id,
+                org.name,
+                org.description,
+                org.region,
+                org.city,
+                org.logoUrl,
+                org.plan,
+                activeCatsCount
         );
     }
 
