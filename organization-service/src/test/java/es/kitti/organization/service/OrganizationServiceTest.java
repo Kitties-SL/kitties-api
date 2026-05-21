@@ -4,6 +4,9 @@ import es.kitti.mon.either.Either;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.ForbiddenError;
 import es.kitti.mon.error.NotFoundError;
+import es.kitti.organization.client.CatServiceClient;
+import es.kitti.organization.client.dto.CountByOrgsRequest;
+import es.kitti.organization.client.dto.OrgCatCount;
 import es.kitti.organization.dto.CreateOrganizationRequest;
 import es.kitti.organization.dto.OrganizationResponse;
 import es.kitti.organization.dto.UpdateOrganizationRequest;
@@ -20,10 +23,14 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +38,7 @@ class OrganizationServiceTest {
 
     @Mock OrganizationRepository organizationRepository;
     @Mock OrganizationMemberService memberService;
+    @Mock CatServiceClient catServiceClient;
     @Spy  OrganizationMapper mapper;
     @InjectMocks OrganizationService service;
 
@@ -39,6 +47,8 @@ class OrganizationServiceTest {
 
     @BeforeEach
     void setUp() {
+        service.internalSecret = "test-secret";
+
         org = new Organization();
         org.id = 1L;
         org.name = "Protectora Test";
@@ -223,5 +233,131 @@ class OrganizationServiceTest {
 
         assertEquals("New Name", org.name);
         assertEquals("Desc", org.description);
+    }
+
+    // --- search (público) ---
+
+    @Test
+    void search_noFilters_returnsPageWithCounts() {
+        Organization other = activeOrg(2L, "Otra Protectora");
+        when(organizationRepository.search(null, null, null, 0, 20))
+                .thenReturn(Uni.createFrom().item(List.of(org, other)));
+        when(organizationRepository.countSearch(null, null, null))
+                .thenReturn(Uni.createFrom().item(2L));
+        when(catServiceClient.countByOrgs(any(CountByOrgsRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().item(List.of(
+                        new OrgCatCount(1L, 5L),
+                        new OrgCatCount(2L, 0L)
+                )));
+
+        var result = service.search(null, null, null, 0, 20).await().indefinitely();
+
+        assertEquals(2, result.content().size());
+        assertEquals(2L, result.total());
+        assertEquals(5L, result.content().get(0).activeCatsCount());
+        assertEquals(0L, result.content().get(1).activeCatsCount());
+    }
+
+    @Test
+    void search_emptyResult_skipsCatServiceCall() {
+        when(organizationRepository.search("nope", null, null, 0, 20))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(organizationRepository.countSearch("nope", null, null))
+                .thenReturn(Uni.createFrom().item(0L));
+
+        var result = service.search("nope", null, null, 0, 20).await().indefinitely();
+
+        assertTrue(result.content().isEmpty());
+        assertEquals(0L, result.total());
+        verify(catServiceClient, never()).countByOrgs(any(), any());
+    }
+
+    @Test
+    void search_catServiceFails_fillsCountsWithZero() {
+        when(organizationRepository.search(null, null, null, 0, 20))
+                .thenReturn(Uni.createFrom().item(List.of(org)));
+        when(organizationRepository.countSearch(null, null, null))
+                .thenReturn(Uni.createFrom().item(1L));
+        when(catServiceClient.countByOrgs(any(CountByOrgsRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("cat-service down")));
+
+        var result = service.search(null, null, null, 0, 20).await().indefinitely();
+
+        assertEquals(1, result.content().size());
+        assertEquals(0L, result.content().get(0).activeCatsCount());
+    }
+
+    @Test
+    void search_sizeExceedsMax_capsAt100() {
+        when(organizationRepository.search(null, null, null, 0, 100))
+                .thenReturn(Uni.createFrom().item(List.of()));
+        when(organizationRepository.countSearch(null, null, null))
+                .thenReturn(Uni.createFrom().item(0L));
+
+        service.search(null, null, null, 0, 500).await().indefinitely();
+
+        verify(organizationRepository).search(null, null, null, 0, 100);
+    }
+
+    // --- findPublicById ---
+
+    @Test
+    void findPublicById_active_returnsRightWithCount() {
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
+        when(catServiceClient.countByOrgs(any(CountByOrgsRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().item(List.of(new OrgCatCount(1L, 12L))));
+
+        var result = service.findPublicById(1L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(1L, result.getOrElse(null).id());
+        assertEquals(12L, result.getOrElse(null).activeCatsCount());
+    }
+
+    @Test
+    void findPublicById_notFound_returnsLeft404() {
+        when(organizationRepository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
+
+        var result = service.findPublicById(999L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertEquals(404, result.fold(DomainError::httpStatus, __ -> 0));
+        verify(catServiceClient, never()).countByOrgs(any(), any());
+    }
+
+    @Test
+    void findPublicById_notActive_returnsLeft404() {
+        org.status = OrganizationStatus.Pending;
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
+
+        var result = service.findPublicById(1L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(NotFoundError.class, result.fold(e -> e, __ -> null));
+        verify(catServiceClient, never()).countByOrgs(any(), any());
+    }
+
+    @Test
+    void findPublicById_catServiceFails_returnsRightWithZeroCount() {
+        when(organizationRepository.findById(1L)).thenReturn(Uni.createFrom().item(org));
+        when(catServiceClient.countByOrgs(any(CountByOrgsRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("cat-service down")));
+
+        var result = service.findPublicById(1L).await().indefinitely();
+
+        assertTrue(result.isRight());
+        assertEquals(0L, result.getOrElse(null).activeCatsCount());
+    }
+
+    private Organization activeOrg(Long id, String name) {
+        Organization o = new Organization();
+        o.id = id;
+        o.name = name;
+        o.status = OrganizationStatus.Active;
+        o.plan = OrganizationPlan.Free;
+        o.maxMembers = 1;
+        o.createdAt = LocalDateTime.now();
+        o.updatedAt = LocalDateTime.now();
+        return o;
     }
 }
