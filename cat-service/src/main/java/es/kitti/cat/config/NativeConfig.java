@@ -11,11 +11,14 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
 @RegisterForReflection(targets = {
         CatCreateRequest.class,
+        CatCreateInternalRequest.class,
         CatImageResponse.class,
         CatInventoryStatsResponse.class,
         CatResponse.class,
         CatSummaryResponse.class,
         CatUpdateRequest.class,
+        CountByOrgsRequest.class,
+        OrgCatCountResponse.class,
         PageResponse.class,
         StorageResponse.class,
         CatSex.class,

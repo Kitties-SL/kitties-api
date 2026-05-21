@@ -25,6 +25,8 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CatService {
@@ -56,6 +58,27 @@ public class CatService {
         cat.organizationId = callerId;
         return catRepository.persist(cat)
                 .onItem().transform(saved -> catMapper.toResponse(saved, List.of()));
+    }
+
+    @WithTransaction
+    public Uni<CatResponse> createForOrganization(CatCreateInternalRequest request) {
+        Cat cat = catMapper.toEntity(request);
+        return catRepository.persist(cat)
+                .onItem().transform(saved -> catMapper.toResponse(saved, List.of()));
+    }
+
+    @WithSession
+    public Uni<List<OrgCatCountResponse>> countActiveByOrgIds(List<Long> orgIds) {
+        if (orgIds == null || orgIds.isEmpty())
+            return Uni.createFrom().item(List.of());
+        return catRepository.findAvailableByOrgIds(orgIds)
+                .onItem().transform(cats -> {
+                    Map<Long, Long> counts = cats.stream()
+                            .collect(Collectors.groupingBy(c -> c.organizationId, Collectors.counting()));
+                    return orgIds.stream()
+                            .map(id -> new OrgCatCountResponse(id, counts.getOrDefault(id, 0L)))
+                            .toList();
+                });
     }
 
     @WithTransaction

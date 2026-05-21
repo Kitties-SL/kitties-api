@@ -26,6 +26,22 @@ public class CatMapper {
         return cat;
     }
 
+    public Cat toEntity(CatCreateInternalRequest request) {
+        Cat cat = new Cat();
+        cat.name           = request.name();
+        cat.age            = request.age();
+        cat.sex            = CatSex.valueOf(request.sex());
+        cat.description    = request.description();
+        cat.neutered       = request.neutered() != null ? request.neutered() : false;
+        cat.city           = request.city();
+        cat.region         = request.region();
+        cat.country        = request.country();
+        cat.latitude       = request.latitude();
+        cat.longitude      = request.longitude();
+        cat.organizationId = request.organizationId();
+        return cat;
+    }
+
     public void updateEntity(Cat cat, CatUpdateRequest request) {
         if (request.name() != null) cat.name = request.name();
         if (request.age() != null) cat.age = request.age();
