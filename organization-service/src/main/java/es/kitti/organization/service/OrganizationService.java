@@ -191,10 +191,14 @@ public class OrganizationService {
     }
 
     // Hop back to the EventLoop after the REST client callback to keep Hibernate Reactive's
-    // session context alive for downstream work (gotcha HR000068).
+    // session context alive for downstream work (gotcha HR000068). Context may be null in
+    // unit tests outside a Vert.x request; skip the hop in that case.
     private Uni<Map<Long, Long>> fetchCatCounts(List<Long> orgIds, Context eventLoopCtx) {
-        return catServiceClient.countByOrgs(new CountByOrgsRequest(orgIds), internalSecret)
-                .emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()))
+        Uni<List<OrgCatCount>> call = catServiceClient.countByOrgs(new CountByOrgsRequest(orgIds), internalSecret);
+        if (eventLoopCtx != null) {
+            call = call.emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()));
+        }
+        return call
                 .onFailure().recoverWithItem(t -> {
                     Log.warnf(t, "cat-service unreachable; falling back to activeCatsCount=0");
                     return List.<OrgCatCount>of();

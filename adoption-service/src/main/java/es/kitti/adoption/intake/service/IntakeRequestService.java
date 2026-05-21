@@ -1,6 +1,7 @@
 package es.kitti.adoption.intake.service;
 
 import es.kitti.adoption.client.CatClient;
+import es.kitti.adoption.client.dto.CatResponse;
 import es.kitti.adoption.intake.client.OrganizationClient;
 import es.kitti.adoption.intake.client.OrganizationPublicMinimal;
 import es.kitti.adoption.intake.dto.*;
@@ -81,20 +82,26 @@ public class IntakeRequestService {
         return findPendingForOrg(id, callerOrgId)
                 .onItem().transformToUni(either -> either.fold(
                         err    -> Uni.createFrom().item(Either.<DomainError, IntakeApprovedResponse>left(err)),
-                        entity -> catClient.createInternal(mapper.toCatCreateInternal(entity, request), internalSecret)
-                                .emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()))
-                                .onItem().transformToUni(catResp -> {
-                                    entity.status = IntakeStatus.Approved;
-                                    entity.decidedAt = LocalDateTime.now();
-                                    return repository.persist(entity)
-                                            .onItem().transform(saved -> Either.<DomainError, IntakeApprovedResponse>right(
-                                                    new IntakeApprovedResponse(mapper.toResponse(saved), catResp)));
-                                })
-                                .onFailure().recoverWithItem(t -> {
-                                    Log.errorf(t, "cat-service createInternal failed for intake %d", id);
-                                    return Either.<DomainError, IntakeApprovedResponse>left(
-                                            new ConflictError("CAT_SERVICE_UNAVAILABLE"));
-                                })
+                        entity -> {
+                            Uni<CatResponse> catCall = catClient.createInternal(
+                                    mapper.toCatCreateInternal(entity, request), internalSecret);
+                            if (eventLoopCtx != null) {
+                                catCall = catCall.emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()));
+                            }
+                            return catCall
+                                    .onItem().transformToUni(catResp -> {
+                                        entity.status = IntakeStatus.Approved;
+                                        entity.decidedAt = LocalDateTime.now();
+                                        return repository.persist(entity)
+                                                .onItem().transform(saved -> Either.<DomainError, IntakeApprovedResponse>right(
+                                                        new IntakeApprovedResponse(mapper.toResponse(saved), catResp)));
+                                    })
+                                    .onFailure().recoverWithItem(t -> {
+                                        Log.errorf(t, "cat-service createInternal failed for intake %d", id);
+                                        return Either.<DomainError, IntakeApprovedResponse>left(
+                                                new ConflictError("CAT_SERVICE_UNAVAILABLE"));
+                                    });
+                        }
                 ));
     }
 
