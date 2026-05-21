@@ -1,5 +1,6 @@
 package es.kitti.adoption.intake.resource;
 
+import es.kitti.adoption.intake.dto.IntakeApproveRequest;
 import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
 import es.kitti.adoption.intake.dto.IntakePipelineStatsResponse;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
@@ -65,13 +66,16 @@ public class IntakeRequestResource {
     @PATCH
     @Path("/{id}/approve")
     @RolesAllowed("Organization")
-    public Uni<Response> approve(@PathParam("id") Long id) {
+    public Uni<Response> approve(@PathParam("id") Long id, IntakeApproveRequest request) {
         Long callerOrgId = Long.parseLong(jwt.getSubject());
-        return service.approve(id, callerOrgId)
-                .onItem().transform(either -> either.fold(
-                        err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
-                        data -> Response.ok(data).build()
-                ));
+        return request.validate().match(
+                this::validationFailed,
+                valid -> service.approve(id, valid, callerOrgId)
+                        .onItem().transform(either -> either.fold(
+                                err  -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                                data -> Response.ok(data).build()
+                        ))
+        );
     }
 
     @PATCH

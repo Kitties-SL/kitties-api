@@ -137,12 +137,16 @@ class IntakeFlowE2E {
     void targetOrg_approvesIntake_returns200() {
         given()
             .header("Authorization", "Bearer " + targetOrgToken)
+            .contentType(ContentType.JSON)
+            .body(Map.of("sex", "Female", "country", "ES", "neutered", true))
         .when()
             .patch("/api/intake-requests/" + approvedIntakeId + "/approve")
         .then()
             .statusCode(200)
-            .body("status", equalTo("Approved"))
-            .body("decidedAt", notNullValue());
+            .body("intakeRequest.status", equalTo("Approved"))
+            .body("intakeRequest.decidedAt", notNullValue())
+            .body("createdCat.id", notNullValue())
+            .body("createdCat.organizationId", equalTo(targetOrgEntityId.intValue()));
     }
 
     // ─── Chat — workaround: open conversation via internal endpoint directly ────
@@ -360,6 +364,8 @@ class IntakeFlowE2E {
     void cannotApproveAlreadyDecidedIntake_returns409() {
         given()
             .header("Authorization", "Bearer " + targetOrgToken)
+            .contentType(ContentType.JSON)
+            .body(Map.of("sex", "Female", "country", "ES"))
         .when()
             .patch("/api/intake-requests/" + approvedIntakeId + "/approve")
         .then()
