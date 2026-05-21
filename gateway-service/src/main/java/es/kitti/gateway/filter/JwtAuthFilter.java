@@ -29,6 +29,8 @@ public class JwtAuthFilter {
     private static final Set<Pattern> PUBLIC_PATTERNS = Set.of(
             Pattern.compile("GET:/api/cats"),
             Pattern.compile("GET:/api/cats/\\d+"),
+            Pattern.compile("GET:/api/organizations"),
+            Pattern.compile("GET:/api/organizations/\\d+/public"),
             Pattern.compile("GET:/api/storage/files/.*"),
             Pattern.compile("GET:/api/storage/files/.+"),
             Pattern.compile("GET:/api/openapi/.*"),
