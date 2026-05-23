@@ -12,6 +12,8 @@ import java.util.Objects;
 @ApplicationScoped
 public class LlmFlagConverter {
 
+    static final int MAX_REASONING_LENGTH = 200;
+
     public List<FlagResult> convert(LlmTextAnalysis analysis) {
         List<FlagResult> flags = new ArrayList<>();
 
@@ -53,7 +55,7 @@ public class LlmFlagConverter {
         if (analysis.structuralAssessments() != null) {
             for (StructuralAssessment assessment : analysis.structuralAssessments()) {
                 String description = assessment.reasoning() != null && !assessment.reasoning().isBlank()
-                        ? assessment.reasoning()
+                        ? truncate(assessment.reasoning(), MAX_REASONING_LENGTH)
                         : assessment.code();
                 switch (Objects.toString(assessment.severity(), "")) {
                     case "HIGH" -> flags.add(new FlagResult(FlagSeverity.Warning, assessment.code(), description));
@@ -63,5 +65,10 @@ public class LlmFlagConverter {
         }
 
         return flags;
+    }
+
+    private static String truncate(String s, int max) {
+        if (s.length() <= max) return s;
+        return s.substring(0, max - 1) + "…";
     }
 }

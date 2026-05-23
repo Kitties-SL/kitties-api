@@ -25,6 +25,8 @@ import java.util.List;
 @ApplicationScoped
 public class FormAnalysisService {
 
+    static final int MAX_REJECTION_REASON_LENGTH = 1000;
+
     @Inject
     FormAnalysisRules formAnalysisRules;
 
@@ -152,11 +154,14 @@ public class FormAnalysisService {
     private String buildRejectionReason(List<FlagResult> flags, AnalysisDecision decision) {
         if (decision == AnalysisDecision.Approved) return null;
 
-        return flags.stream()
+        String joined = flags.stream()
                 .filter(f -> f.severity() == FlagSeverity.Critical ||
                         f.severity() == FlagSeverity.Warning)
                 .map(FlagResult::description)
                 .reduce((a, b) -> a + ". " + b)
                 .orElse(null);
+
+        if (joined == null || joined.length() <= MAX_REJECTION_REASON_LENGTH) return joined;
+        return joined.substring(0, MAX_REJECTION_REASON_LENGTH - 1) + "…";
     }
 }
