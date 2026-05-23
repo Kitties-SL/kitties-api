@@ -160,6 +160,10 @@ class IntakeRequestResourceTest {
     })
     void approveNotFound_returns404() {
         given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        { "sex": "Female", "country": "ES" }
+                        """)
                 .when()
                 .patch("/intake-requests/999999/approve")
                 .then()

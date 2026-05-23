@@ -67,4 +67,10 @@ public class CatRepository implements PanacheRepository<Cat> {
     public Uni<List<Cat>> findAllByOrganizationId(Long organizationId) {
         return find("organizationId", organizationId).list();
     }
+
+    @WithSession
+    public Uni<List<Cat>> findAvailableByOrgIds(List<Long> orgIds) {
+        if (orgIds == null || orgIds.isEmpty()) return Uni.createFrom().item(List.of());
+        return list("status = ?1 and organizationId in ?2", CatStatus.Available, orgIds);
+    }
 }

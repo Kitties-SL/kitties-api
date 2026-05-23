@@ -5,13 +5,20 @@ import es.kitti.mon.either.Unit;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
+import es.kitti.organization.client.CatServiceClient;
 import es.kitti.organization.client.UserServiceClient;
+import es.kitti.organization.client.dto.CountByOrgsRequest;
 import es.kitti.organization.client.dto.CreateUserRequest;
+import es.kitti.organization.client.dto.OrgCatCount;
 import es.kitti.organization.dto.CreateOrganizationRequest;
+import es.kitti.organization.dto.OrganizationPublicResponse;
 import es.kitti.organization.dto.OrganizationResponse;
+import es.kitti.organization.dto.OrganizationSummary;
+import es.kitti.organization.dto.PageResponse;
 import es.kitti.organization.dto.RegisterOrganizationRequest;
 import es.kitti.organization.dto.UpdateOrganizationRequest;
 import es.kitti.organization.entity.Organization;
+import es.kitti.organization.entity.OrganizationStatus;
 import es.kitti.organization.mapper.OrganizationMapper;
 import es.kitti.organization.repository.OrganizationRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
@@ -26,6 +33,10 @@ import jakarta.ws.rs.WebApplicationException;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @ApplicationScoped
 public class OrganizationService {
 
@@ -34,6 +45,7 @@ public class OrganizationService {
     @Inject OrganizationMapper mapper;
     @Inject OrganizationWriteService writeService;
     @RestClient UserServiceClient userServiceClient;
+    @RestClient CatServiceClient catServiceClient;
     @ConfigProperty(name = "kitties.internal.secret") String internalSecret;
 
     @WithTransaction
@@ -137,6 +149,62 @@ public class OrganizationService {
                                             : Either.<DomainError, OrganizationResponse>right(mapper.toResponse(org))
                             );
                 });
+    }
+
+    @WithSession
+    public Uni<PageResponse<OrganizationSummary>> search(
+            String name, String region, String city, int page, int size) {
+        if (size > 100) size = 100;
+        final int effectiveSize = size;
+        Context eventLoopCtx = Vertx.currentContext();
+        return organizationRepository.search(name, region, city, page, effectiveSize)
+                .onItem().transformToUni(orgs ->
+                        organizationRepository.countSearch(name, region, city)
+                                .onItem().transformToUni(total -> {
+                                    if (orgs.isEmpty())
+                                        return Uni.createFrom().item(
+                                                PageResponse.of(List.<OrganizationSummary>of(), page, effectiveSize, total));
+                                    List<Long> orgIds = orgs.stream().map(o -> o.id).toList();
+                                    return fetchCatCounts(orgIds, eventLoopCtx)
+                                            .onItem().transform(countMap -> {
+                                                List<OrganizationSummary> content = orgs.stream()
+                                                        .map(o -> mapper.toSummary(o, countMap.getOrDefault(o.id, 0L)))
+                                                        .toList();
+                                                return PageResponse.of(content, page, effectiveSize, total);
+                                            });
+                                })
+                );
+    }
+
+    @WithSession
+    public Uni<Either<DomainError, OrganizationPublicResponse>> findPublicById(Long id) {
+        Context eventLoopCtx = Vertx.currentContext();
+        return organizationRepository.findById(id)
+                .onItem().transformToUni(org -> {
+                    if (org == null || org.status != OrganizationStatus.Active)
+                        return Uni.createFrom().item(Either.<DomainError, OrganizationPublicResponse>left(
+                                new NotFoundError("ORGANIZATION_NOT_FOUND")));
+                    return fetchCatCounts(List.of(id), eventLoopCtx)
+                            .onItem().transform(countMap -> Either.<DomainError, OrganizationPublicResponse>right(
+                                    mapper.toPublicResponse(org, countMap.getOrDefault(id, 0L))));
+                });
+    }
+
+    // Hop back to the EventLoop after the REST client callback to keep Hibernate Reactive's
+    // session context alive for downstream work (gotcha HR000068). Context may be null in
+    // unit tests outside a Vert.x request; skip the hop in that case.
+    private Uni<Map<Long, Long>> fetchCatCounts(List<Long> orgIds, Context eventLoopCtx) {
+        Uni<List<OrgCatCount>> call = catServiceClient.countByOrgs(new CountByOrgsRequest(orgIds), internalSecret);
+        if (eventLoopCtx != null) {
+            call = call.emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()));
+        }
+        return call
+                .onFailure().recoverWithItem(t -> {
+                    Log.warnf(t, "cat-service unreachable; falling back to activeCatsCount=0");
+                    return List.<OrgCatCount>of();
+                })
+                .onItem().transform(counts -> counts.stream()
+                        .collect(Collectors.toMap(OrgCatCount::orgId, OrgCatCount::count)));
     }
 
     @WithTransaction

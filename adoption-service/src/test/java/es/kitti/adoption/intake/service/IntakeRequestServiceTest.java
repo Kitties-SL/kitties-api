@@ -1,7 +1,11 @@
 package es.kitti.adoption.intake.service;
 
+import es.kitti.adoption.client.CatClient;
+import es.kitti.adoption.client.dto.CatCreateInternalRequest;
+import es.kitti.adoption.client.dto.CatResponse;
 import es.kitti.adoption.intake.client.OrganizationClient;
 import es.kitti.adoption.intake.client.OrganizationPublicMinimal;
+import es.kitti.adoption.intake.dto.IntakeApproveRequest;
 import es.kitti.adoption.intake.dto.IntakeDecisionRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestResponse;
@@ -37,6 +41,7 @@ class IntakeRequestServiceTest {
     @Mock IntakeRequestRepository repository;
     @Mock IntakeMapper mapper;
     @Mock OrganizationClient organizationClient;
+    @Mock CatClient catClient;
 
     @InjectMocks
     IntakeRequestService service;
@@ -89,22 +94,51 @@ class IntakeRequestServiceTest {
 
     @Test
     void approve_pendingAndOwner_returnsRight() {
+        var approveReq = new IntakeApproveRequest("Female", "ES", null, null, null, null, null, true);
+        var catResp = new CatResponse(42L, "Mishi", 3, "Female", null, true, "Available",
+                "La Orotava", "Santa Cruz de Tenerife", "ES", 200L, LocalDateTime.now());
+
         when(repository.findById(1L)).thenReturn(Uni.createFrom().item(pending));
+        when(mapper.toCatCreateInternal(any(IntakeRequest.class), any(IntakeApproveRequest.class)))
+                .thenReturn(new CatCreateInternalRequest("Mishi", 3, "Female", null, true,
+                        "La Orotava", "Santa Cruz de Tenerife", "ES", null, null, 200L));
+        when(catClient.createInternal(any(CatCreateInternalRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().item(catResp));
         doReturn(Uni.createFrom().item(pending)).when(repository).persist(any(IntakeRequest.class));
         when(mapper.toResponse(any())).thenReturn(pendingResponse);
 
-        var result = service.approve(1L, 200L).await().indefinitely();
+        var result = service.approve(1L, approveReq, 200L).await().indefinitely();
 
         assertTrue(result.isRight());
         assertEquals(IntakeStatus.Approved, pending.status);
         assertNotNull(pending.decidedAt);
+        assertEquals(42L, result.getOrElse(null).createdCat().id());
+    }
+
+    @Test
+    void approve_catServiceFails_returnsLeft409() {
+        var approveReq = new IntakeApproveRequest("Female", "ES", null, null, null, null, null, true);
+
+        when(repository.findById(1L)).thenReturn(Uni.createFrom().item(pending));
+        when(mapper.toCatCreateInternal(any(IntakeRequest.class), any(IntakeApproveRequest.class)))
+                .thenReturn(new CatCreateInternalRequest("Mishi", 3, "Female", null, true,
+                        "La Orotava", "Santa Cruz de Tenerife", "ES", null, null, 200L));
+        when(catClient.createInternal(any(CatCreateInternalRequest.class), eq("test-secret")))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("cat-service down")));
+
+        var result = service.approve(1L, approveReq, 200L).await().indefinitely();
+
+        assertTrue(result.isLeft());
+        assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());
+        assertEquals(IntakeStatus.Pending, pending.status);
     }
 
     @Test
     void approve_notOwner_returnsLeft403() {
+        var approveReq = new IntakeApproveRequest("Female", "ES", null, null, null, null, null, true);
         when(repository.findById(1L)).thenReturn(Uni.createFrom().item(pending));
 
-        var result = service.approve(1L, 999L).await().indefinitely();
+        var result = service.approve(1L, approveReq, 999L).await().indefinitely();
 
         assertTrue(result.isLeft());
         assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
@@ -113,9 +147,10 @@ class IntakeRequestServiceTest {
 
     @Test
     void approve_notFound_returnsLeft404() {
+        var approveReq = new IntakeApproveRequest("Female", "ES", null, null, null, null, null, true);
         when(repository.findById(999L)).thenReturn(Uni.createFrom().nullItem());
 
-        var result = service.approve(999L, 200L).await().indefinitely();
+        var result = service.approve(999L, approveReq, 200L).await().indefinitely();
 
         assertTrue(result.isLeft());
         assertInstanceOf(NotFoundError.class, ((Either.Left<?, ?>) result).value());
@@ -124,10 +159,11 @@ class IntakeRequestServiceTest {
 
     @Test
     void approve_notPending_returnsLeft409() {
+        var approveReq = new IntakeApproveRequest("Female", "ES", null, null, null, null, null, true);
         pending.status = IntakeStatus.Approved;
         when(repository.findById(1L)).thenReturn(Uni.createFrom().item(pending));
 
-        var result = service.approve(1L, 200L).await().indefinitely();
+        var result = service.approve(1L, approveReq, 200L).await().indefinitely();
 
         assertTrue(result.isLeft());
         assertInstanceOf(ConflictError.class, ((Either.Left<?, ?>) result).value());

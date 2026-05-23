@@ -3,10 +3,12 @@ package es.kitti.cat.service;
 import es.kitti.cat.client.AdoptionClient;
 import es.kitti.cat.client.StorageClient;
 import es.kitti.cat.client.dto.StorageResponse;
+import es.kitti.cat.dto.CatCreateInternalRequest;
 import es.kitti.cat.dto.CatCreateRequest;
 import es.kitti.cat.dto.CatResponse;
 import es.kitti.cat.dto.CatSummaryResponse;
 import es.kitti.cat.dto.CatUpdateRequest;
+import es.kitti.cat.dto.OrgCatCountResponse;
 import es.kitti.cat.entity.Cat;
 import es.kitti.cat.entity.CatImage;
 import es.kitti.cat.entity.CatStatus;
@@ -97,6 +99,73 @@ class CatServiceTest {
 
         assertNotNull(result);
         assertEquals("Peluso", result.name());
+    }
+
+    // --- createForOrganization ---
+
+    @Test
+    void createForOrganization_success() {
+        var request = new CatCreateInternalRequest(
+                "Peluso", 2, "Male", null, true,
+                "La Orotava", "Tenerife", "España", null, null, 10L
+        );
+        when(catMapper.toEntity(request)).thenReturn(testCat);
+        when(catRepository.persist(any(Cat.class))).thenReturn(Uni.createFrom().item(testCat));
+        when(catMapper.toResponse(testCat, List.of())).thenReturn(testCatResponse);
+
+        var result = catService.createForOrganization(request).await().indefinitely();
+
+        assertNotNull(result);
+        assertEquals("Peluso", result.name());
+        assertEquals(10L, result.organizationId());
+    }
+
+    // --- countActiveByOrgIds ---
+
+    @Test
+    void countActiveByOrgIds_emptyInput_returnsEmptyList() {
+        var result = catService.countActiveByOrgIds(List.of()).await().indefinitely();
+
+        assertTrue(result.isEmpty());
+        verify(catRepository, never()).findAvailableByOrgIds(any());
+    }
+
+    @Test
+    void countActiveByOrgIds_nullInput_returnsEmptyList() {
+        var result = catService.countActiveByOrgIds(null).await().indefinitely();
+
+        assertTrue(result.isEmpty());
+        verify(catRepository, never()).findAvailableByOrgIds(any());
+    }
+
+    @Test
+    void countActiveByOrgIds_mixedCounts_returnsOneEntryPerOrg() {
+        Cat catA1 = new Cat(); catA1.organizationId = 10L;
+        Cat catA2 = new Cat(); catA2.organizationId = 10L;
+        Cat catB  = new Cat(); catB.organizationId  = 20L;
+        when(catRepository.findAvailableByOrgIds(List.of(10L, 20L, 30L)))
+                .thenReturn(Uni.createFrom().item(List.of(catA1, catA2, catB)));
+
+        var result = catService.countActiveByOrgIds(List.of(10L, 20L, 30L)).await().indefinitely();
+
+        assertEquals(3, result.size());
+        long countA = result.stream().filter(r -> r.orgId().equals(10L)).findFirst().map(OrgCatCountResponse::count).orElse(-1L);
+        long countB = result.stream().filter(r -> r.orgId().equals(20L)).findFirst().map(OrgCatCountResponse::count).orElse(-1L);
+        long countC = result.stream().filter(r -> r.orgId().equals(30L)).findFirst().map(OrgCatCountResponse::count).orElse(-1L);
+        assertEquals(2L, countA);
+        assertEquals(1L, countB);
+        assertEquals(0L, countC);
+    }
+
+    @Test
+    void countActiveByOrgIds_noCatsAtAll_returnsZerosForAllOrgs() {
+        when(catRepository.findAvailableByOrgIds(List.of(10L, 20L)))
+                .thenReturn(Uni.createFrom().item(List.of()));
+
+        var result = catService.countActiveByOrgIds(List.of(10L, 20L)).await().indefinitely();
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().allMatch(r -> r.count() == 0L));
     }
 
     // --- findById ---

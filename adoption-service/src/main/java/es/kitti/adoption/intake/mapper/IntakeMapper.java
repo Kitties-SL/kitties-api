@@ -1,5 +1,7 @@
 package es.kitti.adoption.intake.mapper;
 
+import es.kitti.adoption.client.dto.CatCreateInternalRequest;
+import es.kitti.adoption.intake.dto.IntakeApproveRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestCreateRequest;
 import es.kitti.adoption.intake.dto.IntakeRequestResponse;
 import es.kitti.adoption.intake.entity.IntakeRequest;
@@ -36,6 +38,22 @@ public class IntakeMapper {
                 entity.rejectionReason,
                 entity.createdAt,
                 entity.decidedAt
+        );
+    }
+
+    public CatCreateInternalRequest toCatCreateInternal(IntakeRequest intake, IntakeApproveRequest approve) {
+        return new CatCreateInternalRequest(
+                approve.name()        != null ? approve.name()        : intake.catName,
+                approve.age()         != null ? approve.age()         : intake.catAge,
+                approve.sex(),
+                approve.description() != null ? approve.description() : intake.description,
+                approve.neutered(),
+                approve.city()        != null ? approve.city()        : intake.city,
+                approve.region()      != null ? approve.region()      : intake.region,
+                approve.country(),
+                null,
+                null,
+                intake.targetOrganizationId
         );
     }
 }

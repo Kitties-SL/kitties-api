@@ -1,5 +1,7 @@
 package es.kitti.adoption.intake.service;
 
+import es.kitti.adoption.client.CatClient;
+import es.kitti.adoption.client.dto.CatResponse;
 import es.kitti.adoption.intake.client.OrganizationClient;
 import es.kitti.adoption.intake.client.OrganizationPublicMinimal;
 import es.kitti.adoption.intake.dto.*;
@@ -16,6 +18,8 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.Context;
+import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -33,6 +37,10 @@ public class IntakeRequestService {
     @Inject
     @RestClient
     OrganizationClient organizationClient;
+
+    @Inject
+    @RestClient
+    CatClient catClient;
 
     @ConfigProperty(name = "kitties.internal.secret")
     String internalSecret;
@@ -68,15 +76,31 @@ public class IntakeRequestService {
     }
 
     @WithTransaction
-    public Uni<Either<DomainError, IntakeRequestResponse>> approve(Long id, Long callerOrgId) {
+    public Uni<Either<DomainError, IntakeApprovedResponse>> approve(
+            Long id, IntakeApproveRequest request, Long callerOrgId) {
+        Context eventLoopCtx = Vertx.currentContext();
         return findPendingForOrg(id, callerOrgId)
                 .onItem().transformToUni(either -> either.fold(
-                        err    -> Uni.createFrom().item(Either.left(err)),
+                        err    -> Uni.createFrom().item(Either.<DomainError, IntakeApprovedResponse>left(err)),
                         entity -> {
-                            entity.status = IntakeStatus.Approved;
-                            entity.decidedAt = LocalDateTime.now();
-                            return repository.persist(entity)
-                                    .onItem().transform(saved -> Either.<DomainError, IntakeRequestResponse>right(mapper.toResponse(saved)));
+                            Uni<CatResponse> catCall = catClient.createInternal(
+                                    mapper.toCatCreateInternal(entity, request), internalSecret);
+                            if (eventLoopCtx != null) {
+                                catCall = catCall.emitOn(cmd -> eventLoopCtx.runOnContext(v -> cmd.run()));
+                            }
+                            return catCall
+                                    .onItem().transformToUni(catResp -> {
+                                        entity.status = IntakeStatus.Approved;
+                                        entity.decidedAt = LocalDateTime.now();
+                                        return repository.persist(entity)
+                                                .onItem().transform(saved -> Either.<DomainError, IntakeApprovedResponse>right(
+                                                        new IntakeApprovedResponse(mapper.toResponse(saved), catResp)));
+                                    })
+                                    .onFailure().recoverWithItem(t -> {
+                                        Log.errorf(t, "cat-service createInternal failed for intake %d", id);
+                                        return Either.<DomainError, IntakeApprovedResponse>left(
+                                                new ConflictError("CAT_SERVICE_UNAVAILABLE"));
+                                    });
                         }
                 ));
     }

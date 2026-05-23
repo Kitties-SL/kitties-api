@@ -1,5 +1,7 @@
 package es.kitti.adoption.config;
 
+import es.kitti.adoption.client.dto.CatCreateInternalRequest;
+import es.kitti.adoption.client.dto.CatResponse;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.ActivityLevel;
 import es.kitti.adoption.entity.AdoptionStatus;
@@ -28,6 +30,10 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         InterviewResponse.class,
         AdoptionFormAnalysedEvent.class,
         AdoptionFormSubmittedEvent.class,
+        CatCreateInternalRequest.class,
+        CatResponse.class,
+        IntakeApproveRequest.class,
+        IntakeApprovedResponse.class,
         IntakeDecisionRequest.class,
         IntakePipelineStatsResponse.class,
         IntakeRejectionResponse.class,

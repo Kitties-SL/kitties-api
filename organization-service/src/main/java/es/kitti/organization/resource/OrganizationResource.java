@@ -39,6 +39,29 @@ public class OrganizationResource {
         );
     }
 
+    @GET
+    @PermitAll
+    public Uni<Response> searchPublic(
+            @QueryParam("name") String name,
+            @QueryParam("region") String region,
+            @QueryParam("city") String city,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        return organizationService.search(name, region, city, page, size)
+                .onItem().transform(result -> Response.ok(result).build());
+    }
+
+    @GET
+    @Path("/{id}/public")
+    @PermitAll
+    public Uni<Response> findPublicById(@PathParam("id") Long id) {
+        return organizationService.findPublicById(id)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        org -> Response.ok(org).build()
+                ));
+    }
+
     @POST
     @RolesAllowed({"Organization", "Admin"})
     public Uni<Response> create(CreateOrganizationRequest request) {

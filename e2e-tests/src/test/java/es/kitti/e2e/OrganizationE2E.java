@@ -247,6 +247,62 @@ class OrganizationE2E {
             .statusCode(404);
     }
 
+    // ── Public endpoints (sin autenticación) ──────────────────────────────────
+
+    @Test @Order(16)
+    void searchPublic_noAuth_returnsPageWithOrg() {
+        given()
+        .when()
+            .get("/api/organizations")
+        .then()
+            .statusCode(200)
+            .body("content", not(empty()))
+            .body("total", greaterThanOrEqualTo(1))
+            .body("totalPages", greaterThanOrEqualTo(1))
+            .body("content.id", hasItem(orgId.intValue()))
+            .body("content.find { it.id == " + orgId + " }.activeCatsCount", notNullValue());
+    }
+
+    @Test @Order(17)
+    void searchPublic_nameFilter_noMatch_returnsEmpty() {
+        given()
+            .queryParam("name", "ESTA_ORG_NO_EXISTE_" + TS)
+        .when()
+            .get("/api/organizations")
+        .then()
+            .statusCode(200)
+            .body("content", empty())
+            .body("total", equalTo(0));
+    }
+
+    @Test @Order(18)
+    void findPublicById_noAuth_returnsPublicSubset() {
+        given()
+        .when()
+            .get("/api/organizations/" + orgId + "/public")
+        .then()
+            .statusCode(200)
+            .body("id", equalTo(orgId.intValue()))
+            .body("name", containsString("Protectora Test"))
+            .body("city", equalTo("Madrid"))
+            .body("plan", equalTo("Free"))
+            .body("activeCatsCount", greaterThanOrEqualTo(0))
+            // campos sensibles no deben venir en la ficha pública
+            .body("$", not(hasKey("email")))
+            .body("$", not(hasKey("phone")))
+            .body("$", not(hasKey("address")))
+            .body("$", not(hasKey("status")));
+    }
+
+    @Test @Order(19)
+    void findPublicById_unknownOrg_returns404() {
+        given()
+        .when()
+            .get("/api/organizations/9999999/public")
+        .then()
+            .statusCode(404);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static Long extractSubFromJwt(String jwt) throws Exception {
