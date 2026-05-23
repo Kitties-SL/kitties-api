@@ -16,7 +16,7 @@ public class FormAnalysis extends PanacheEntity {
     @Column(nullable = false)
     public AnalysisDecision decision;
 
-    @Column
+    @Column(columnDefinition = "TEXT")
     public String rejectionReason;
 
     @Column(nullable = false)
