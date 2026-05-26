@@ -17,6 +17,6 @@ public class FormFlag extends PanacheEntity {
     @Column(nullable = false)
     public String code;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     public String description;
 }

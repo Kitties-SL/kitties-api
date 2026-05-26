@@ -28,6 +28,11 @@ public class LlmPromptBuilder {
             }
         }
 
+        sb.append("\n---\n");
+        sb.append("Restricción de formato: el campo \"reasoning\" de cada assessment debe ser ");
+        sb.append("una frase concisa de máximo 200 caracteres. No incluyas saltos de línea, ");
+        sb.append("listas, ni recomendaciones al solicitante.\n");
+
         return sb.toString();
     }
 
