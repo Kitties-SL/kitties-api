@@ -487,6 +487,7 @@ services:
       ADOPTION_SERVICE_URL: http://adoption-service:8086
       ORGANIZATION_SERVICE_URL: http://organization-service:8088
       CHAT_SERVICE_URL: http://chat-service:8089
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -503,6 +504,8 @@ services:
       organization-service:
         condition: service_started
       chat-service:
+        condition: service_started
+      notification-service:
         condition: service_started
       alloy:
         condition: service_started
