@@ -3,7 +3,11 @@ package es.kitti.notification.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.kitti.notification.client.UserServiceClient;
 import es.kitti.notification.client.UserServiceClient.UserSummary;
+import es.kitti.notification.entity.NotificationType;
 import es.kitti.notification.event.AdoptionFormAnalysedEvent;
+import es.kitti.notification.mapper.NotificationMapper;
+import es.kitti.notification.service.NotificationWriteService;
+import es.kitti.notification.sse.SseSubscriptionManager;
 import io.quarkus.logging.Log;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
@@ -24,6 +28,15 @@ public class AdoptionFormAnalysedConsumer {
 
     @Inject
     ObjectMapper objectMapper;
+
+    @Inject
+    NotificationWriteService writeService;
+
+    @Inject
+    SseSubscriptionManager sseManager;
+
+    @Inject
+    NotificationMapper mapper;
 
     @RestClient
     UserServiceClient userServiceClient;
@@ -62,8 +75,9 @@ public class AdoptionFormAnalysedConsumer {
                             yield Uni.createFrom().voidItem();
                         }
                     })
+                    .onItem().transformToUni(v -> persistAndBroadcast(event))
                     .onFailure().invoke(e ->
-                            Log.errorf("Failed to send notification for request %d: %s",
+                            Log.errorf("Failed to process notification for request %d: %s",
                                     event.adoptionRequestId(), e.getMessage()));
 
         } catch (Exception e) {
@@ -108,5 +122,28 @@ public class AdoptionFormAnalysedConsumer {
                         html
                 )
         );
+    }
+
+    private Uni<Void> persistAndBroadcast(AdoptionFormAnalysedEvent event) {
+        String code = switch (event.decision()) {
+            case "Rejected" -> "ADOPTION_REJECTED";
+            case "ReviewRequired" -> "ADOPTION_REVIEW_REQUIRED";
+            case "Approved" -> "ADOPTION_APPROVED";
+            default -> "ADOPTION_UNKNOWN";
+        };
+        String title = switch (event.decision()) {
+            case "Rejected" -> "Tu solicitud de adopción ha sido rechazada";
+            case "ReviewRequired" -> "Tu solicitud está siendo revisada";
+            case "Approved" -> "¡Tu solicitud de adopción ha sido aprobada!";
+            default -> "Actualización sobre tu solicitud";
+        };
+        String metadata = "{\"adoptionRequestId\":" + event.adoptionRequestId() + "}";
+
+        return writeService.create(
+                        event.adopterId(),
+                        NotificationType.AdoptionDecision,
+                        code, title, event.rejectionReason(), metadata)
+                .onItem().invoke(n -> sseManager.broadcast(event.adopterId(), mapper.toResponse(n)))
+                .replaceWithVoid();
     }
 }
