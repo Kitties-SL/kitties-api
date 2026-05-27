@@ -1,12 +1,11 @@
 package es.kitti.notification.resource;
 
-import es.kitti.notification.entity.Notification;
-import es.kitti.notification.entity.NotificationType;
-import es.kitti.notification.service.NotificationWriteService;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.quarkus.test.security.jwt.Claim;
 import io.quarkus.test.security.jwt.JwtSecurity;
+import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
@@ -17,13 +16,17 @@ import static org.hamcrest.Matchers.*;
 class NotificationResourceTest {
 
     @Inject
-    NotificationWriteService writeService;
+    Pool pool;
 
-    private Notification createNotification(Long userId) {
-        return writeService.create(
-                userId, NotificationType.AdoptionDecision,
-                "ADOPTION_APPROVED", "Aprobada", null, "{\"adoptionRequestId\":1}"
-        ).await().indefinitely();
+    private long createNotification(Long userId) {
+        return pool.preparedQuery(
+                        "INSERT INTO notification.notifications " +
+                        "(id, user_id, type, code, title, read, created_at) " +
+                        "VALUES (nextval('notification.notifications_seq'), $1, 'AdoptionDecision', " +
+                        "'ADOPTION_APPROVED', 'Aprobada', false, now()) RETURNING id")
+                .execute(Tuple.of(userId))
+                .onItem().transform(rows -> rows.iterator().next().getLong("id"))
+                .await().indefinitely();
     }
 
     @Test
@@ -100,12 +103,12 @@ class NotificationResourceTest {
     @TestSecurity(user = "500", roles = "User")
     @JwtSecurity(claims = {@Claim(key = "sub", value = "500")})
     void markRead_ownNotification_returns200() {
-        var notification = createNotification(500L);
+        long id = createNotification(500L);
 
         given()
                 .contentType("application/json")
                 .when()
-                .patch("/notifications/" + notification.id + "/read")
+                .patch("/notifications/" + id + "/read")
                 .then()
                 .statusCode(200)
                 .body("read", equalTo(true))
@@ -116,12 +119,12 @@ class NotificationResourceTest {
     @TestSecurity(user = "501", roles = "User")
     @JwtSecurity(claims = {@Claim(key = "sub", value = "501")})
     void markRead_otherUsersNotification_returns403() {
-        var notification = createNotification(999L);
+        long id = createNotification(999L);
 
         given()
                 .contentType("application/json")
                 .when()
-                .patch("/notifications/" + notification.id + "/read")
+                .patch("/notifications/" + id + "/read")
                 .then()
                 .statusCode(403);
     }
@@ -130,12 +133,12 @@ class NotificationResourceTest {
     @TestSecurity(user = "502", roles = "User")
     @JwtSecurity(claims = {@Claim(key = "sub", value = "502")})
     void markRead_twice_isIdempotent() {
-        var notification = createNotification(502L);
+        long id = createNotification(502L);
 
         var readAt = given()
                 .contentType("application/json")
                 .when()
-                .patch("/notifications/" + notification.id + "/read")
+                .patch("/notifications/" + id + "/read")
                 .then()
                 .statusCode(200)
                 .body("read", equalTo(true))
@@ -144,7 +147,7 @@ class NotificationResourceTest {
         given()
                 .contentType("application/json")
                 .when()
-                .patch("/notifications/" + notification.id + "/read")
+                .patch("/notifications/" + id + "/read")
                 .then()
                 .statusCode(200)
                 .body("read", equalTo(true))
