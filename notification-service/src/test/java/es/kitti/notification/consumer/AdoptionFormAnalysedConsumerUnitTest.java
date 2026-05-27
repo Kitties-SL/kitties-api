@@ -61,7 +61,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
         n.id = 1L;
         n.userId = 42L;
         n.type = NotificationType.AdoptionDecision;
-        n.code = "ADOPTION_APPROVED";
+        n.code = "FORM_AI_APPROVED";
         n.title = "Test";
         n.createdAt = LocalDateTime.now();
         return n;
@@ -69,7 +69,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
 
     private NotificationResponse notificationResponse() {
         return new NotificationResponse(
-                1L, "AdoptionDecision", "ADOPTION_APPROVED", "Test",
+                1L, "AdoptionDecision", "FORM_AI_APPROVED", "Test",
                 null, null, false, null, LocalDateTime.now()
         );
     }
@@ -112,7 +112,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
 
         verify(mailer).send(any(Mail.class));
         verify(writeService).create(eq(42L), eq(NotificationType.AdoptionDecision),
-                eq("ADOPTION_APPROVED"), eq("¡Tu solicitud de adopción ha sido aprobada!"),
+                eq("FORM_AI_APPROVED"), eq("Nuestra IA ha revisado tu solicitud y todo tiene buena pinta"),
                 eq("Motivo"), contains("10"));
         verify(sseManager).broadcast(eq(42L), any(NotificationResponse.class));
     }
@@ -124,7 +124,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
         consumer.onFormAnalysed("json").await().indefinitely();
 
         verify(writeService).create(eq(42L), eq(NotificationType.AdoptionDecision),
-                eq("ADOPTION_REJECTED"), eq("Tu solicitud de adopción ha sido rechazada"),
+                eq("FORM_AI_REJECTED"), eq("Nuestra IA ha revisado tu solicitud y no cumple los requisitos"),
                 eq("Motivo"), contains("10"));
     }
 
@@ -135,7 +135,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
         consumer.onFormAnalysed("json").await().indefinitely();
 
         verify(writeService).create(eq(42L), eq(NotificationType.AdoptionDecision),
-                eq("ADOPTION_REVIEW_REQUIRED"), eq("Tu solicitud está siendo revisada"),
+                eq("FORM_AI_REVIEW_REQUIRED"), eq("Nuestra IA ha revisado tu solicitud y la protectora la evaluará en detalle"),
                 eq("Motivo"), contains("10"));
     }
 
@@ -148,7 +148,7 @@ class AdoptionFormAnalysedConsumerUnitTest {
 
         ArgumentCaptor<NotificationResponse> captor = ArgumentCaptor.forClass(NotificationResponse.class);
         verify(sseManager).broadcast(eq(42L), captor.capture());
-        assertEquals("ADOPTION_APPROVED", captor.getValue().code());
+        assertEquals("FORM_AI_APPROVED", captor.getValue().code());
     }
 
     @Test

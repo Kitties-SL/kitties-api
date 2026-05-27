@@ -126,15 +126,15 @@ public class AdoptionFormAnalysedConsumer {
 
     private Uni<Void> persistAndBroadcast(AdoptionFormAnalysedEvent event) {
         String code = switch (event.decision()) {
-            case "Rejected" -> "ADOPTION_REJECTED";
-            case "ReviewRequired" -> "ADOPTION_REVIEW_REQUIRED";
-            case "Approved" -> "ADOPTION_APPROVED";
-            default -> "ADOPTION_UNKNOWN";
+            case "Rejected" -> "FORM_AI_REJECTED";
+            case "ReviewRequired" -> "FORM_AI_REVIEW_REQUIRED";
+            case "Approved" -> "FORM_AI_APPROVED";
+            default -> "FORM_AI_UNKNOWN";
         };
         String title = switch (event.decision()) {
-            case "Rejected" -> "Tu solicitud de adopción ha sido rechazada";
-            case "ReviewRequired" -> "Tu solicitud está siendo revisada";
-            case "Approved" -> "¡Tu solicitud de adopción ha sido aprobada!";
+            case "Rejected" -> "Nuestra IA ha revisado tu solicitud y no cumple los requisitos";
+            case "ReviewRequired" -> "Nuestra IA ha revisado tu solicitud y la protectora la evaluará en detalle";
+            case "Approved" -> "Nuestra IA ha revisado tu solicitud y todo tiene buena pinta";
             default -> "Actualización sobre tu solicitud";
         };
         String metadata = "{\"adoptionRequestId\":" + event.adoptionRequestId() + "}";
