@@ -4,6 +4,7 @@ import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
 import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
 import es.kitti.adoption.event.AdoptionRequestAcceptedEvent;
+import es.kitti.adoption.event.AdoptionRequestRejectedEvent;
 import es.kitti.adoption.mapper.AdoptionMapper;
 import es.kitti.adoption.repository.AdoptionFormRepository;
 import es.kitti.adoption.repository.AdoptionRequestFormRepository;
@@ -38,6 +39,10 @@ public class AdoptionWriteService {
     @Channel("adoption-request-accepted")
     Emitter<AdoptionRequestAcceptedEvent> adoptionRequestAcceptedEmitter;
 
+    @Inject
+    @Channel("adoption-request-rejected")
+    Emitter<AdoptionRequestRejectedEvent> adoptionRequestRejectedEmitter;
+
     @WithTransaction
     public Uni<Either<DomainError, AdoptionRequestResponse>> createRequest(
             AdoptionRequestCreateRequest request, Long adopterId) {
@@ -67,6 +72,9 @@ public class AdoptionWriteService {
                                 if (status == AdoptionStatus.Accepted) {
                                     adoptionRequestAcceptedEmitter.send(new AdoptionRequestAcceptedEvent(
                                             saved.id, saved.catId, saved.adopterId, saved.organizationId));
+                                } else if (status == AdoptionStatus.Rejected) {
+                                    adoptionRequestRejectedEmitter.send(new AdoptionRequestRejectedEvent(
+                                            saved.id, saved.catId, saved.adopterId, saved.organizationId, saved.rejectionReason));
                                 }
                                 return Either.<DomainError, AdoptionRequestResponse>right(adoptionMapper.toResponse(saved));
                             });

@@ -3,6 +3,8 @@ package es.kitti.adoption.service;
 import es.kitti.adoption.dto.*;
 import es.kitti.adoption.entity.*;
 import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
+import es.kitti.adoption.event.AdoptionRequestAcceptedEvent;
+import es.kitti.adoption.event.AdoptionRequestRejectedEvent;
 import es.kitti.adoption.mapper.AdoptionMapper;
 import es.kitti.adoption.repository.AdoptionFormRepository;
 import es.kitti.adoption.repository.AdoptionRequestFormRepository;
@@ -24,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -36,6 +40,8 @@ class AdoptionWriteServiceTest {
     @Mock InterviewRepository interviewRepository;
     @Mock AdoptionMapper adoptionMapper;
     @Mock Emitter<AdoptionFormSubmittedEvent> adoptionFormSubmittedEmitter;
+    @Mock Emitter<AdoptionRequestAcceptedEvent> adoptionRequestAcceptedEmitter;
+    @Mock Emitter<AdoptionRequestRejectedEvent> adoptionRequestRejectedEmitter;
 
     @InjectMocks
     AdoptionWriteService adoptionWriteService;
@@ -122,6 +128,52 @@ class AdoptionWriteServiceTest {
 
         assertTrue(result.isLeft());
         assertInstanceOf(ForbiddenError.class, ((Either.Left<?, ?>) result).value());
+    }
+
+    @Test
+    void updateStatus_accepted_emitsAcceptedEvent() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(testResponse);
+
+        adoptionWriteService.updateStatus(1L, 200L, AdoptionStatus.Accepted, null).await().indefinitely();
+
+        ArgumentCaptor<AdoptionRequestAcceptedEvent> captor =
+                ArgumentCaptor.forClass(AdoptionRequestAcceptedEvent.class);
+        verify(adoptionRequestAcceptedEmitter).send(captor.capture());
+        assertEquals(1L, captor.getValue().adoptionRequestId());
+        assertEquals(100L, captor.getValue().adopterId());
+        verify(adoptionRequestRejectedEmitter, never()).send(any());
+    }
+
+    @Test
+    void updateStatus_rejected_emitsRejectedEventWithReason() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(testResponse);
+
+        adoptionWriteService.updateStatus(1L, 200L, AdoptionStatus.Rejected, "no cumple requisitos")
+                            .await().indefinitely();
+
+        ArgumentCaptor<AdoptionRequestRejectedEvent> captor =
+                ArgumentCaptor.forClass(AdoptionRequestRejectedEvent.class);
+        verify(adoptionRequestRejectedEmitter).send(captor.capture());
+        assertEquals(1L, captor.getValue().adoptionRequestId());
+        assertEquals(100L, captor.getValue().adopterId());
+        assertEquals("no cumple requisitos", captor.getValue().rejectionReason());
+        verify(adoptionRequestAcceptedEmitter, never()).send(any());
+    }
+
+    @Test
+    void updateStatus_reviewing_emitsNothing() {
+        when(adoptionRequestRepository.findById(1L)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionRequestRepository.persist(testAdoption)).thenReturn(Uni.createFrom().item(testAdoption));
+        when(adoptionMapper.toResponse(testAdoption)).thenReturn(testResponse);
+
+        adoptionWriteService.updateStatus(1L, 200L, AdoptionStatus.Reviewing, null).await().indefinitely();
+
+        verify(adoptionRequestAcceptedEmitter, never()).send(any());
+        verify(adoptionRequestRejectedEmitter, never()).send(any());
     }
 
     // --- submitRequestForm ---
