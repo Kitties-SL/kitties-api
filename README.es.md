@@ -133,11 +133,26 @@ Almacenamiento de ficheros compatible con S3. Backend MinIO en desarrollo y Clou
 
 ### notification-service — puerto 8085
 
-Consume eventos Kafka y envía emails transaccionales vía SMTP.
+Notificaciones dual-channel: emails transaccionales vía SMTP **y** notificaciones in-app persistentes expuestas por REST + Server-Sent Events (SSE). In-app es el canal primario del día a día; el email se reserva para eventos críticos de cuenta.
 
-**Topics consumidos:**
+**Topics consumidos (Kafka):**
 - `user-registered` → email de activación de cuenta (enlace a `FRONTEND_URL/activate?token=...`)
-- `adoption-form-analysed` → email de resultado de adopción (aceptado / rechazado) al email del adoptante del claim JWT
+- `password-changed` / `password-reset-requested` → emails de seguridad
+- `adoption-form-analysed` → resultado del cribado por IA + notificación in-app (`FORM_AI_APPROVED` / `FORM_AI_REJECTED` / `FORM_AI_REVIEW_REQUIRED`)
+- `adoption-request-accepted` → la org aceptó la solicitud: email + in-app `ADOPTION_ACCEPTED`
+- `adoption-request-rejected` → la org rechazó la solicitud (motivo en el body): email + in-app `ADOPTION_REJECTED`
+
+Los códigos `FORM_AI_*` reflejan el cribado **automático**; la decisión **real** de la org es un evento aparte (`ADOPTION_ACCEPTED` / `ADOPTION_REJECTED`). Un rechazo de la IA nunca emite `ADOPTION_REJECTED`.
+
+**Endpoints in-app** (`@RolesAllowed("User")`):
+
+| Método | Ruta | Notas |
+|--------|------|-------|
+| `GET` | `/notifications` | Notificaciones del llamante (proxy vía gateway) |
+| `GET` | `/notifications/unread-count` | Contador de no leídas |
+| `PATCH` | `/notifications/{id}/read` | Marcar una como leída |
+| `PATCH` | `/notifications/read-all` | Marcar todas como leídas |
+| `GET` | `/notifications/stream` | Stream SSE en vivo — servido directamente vía Nginx (`proxy_buffering off`), no a través del gateway |
 
 ---
 
@@ -170,7 +185,9 @@ Todos los endpoints de mutación verifican que el gato sigue activo (no `Deleted
 
 **Kafka topics:**
 - `adoption-form-submitted` (saliente) — datos del formulario de cribado para análisis
-- `adoption-form-analysed` (entrante) — decisión del análisis (ACCEPTED / REJECTED)
+- `adoption-form-analysed` (entrante) — decisión del cribado por IA
+- `adoption-request-accepted` (saliente) — emitido cuando la org pasa una solicitud a `Accepted` (consumido por `notification-service`)
+- `adoption-request-rejected` (saliente) — emitido cuando la org pasa una solicitud a `Rejected`, lleva el motivo (consumido por `notification-service`)
 
 **Flujo de ingreso** (añadido 2026-04-28, vive bajo el paquete `intake/` junto al agregado de adopción):
 

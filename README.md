@@ -133,11 +133,26 @@ S3-compatible file storage. Backend is MinIO in development and Cloudflare R2 in
 
 ### notification-service — port 8085
 
-Consumes Kafka events and sends transactional emails via SMTP.
+Dual-channel notifications: transactional emails via SMTP **and** persistent in-app notifications exposed over REST + Server-Sent Events (SSE). In-app is the primary day-to-day channel; email is kept for account-critical events.
 
-**Topics consumed:**
+**Topics consumed (Kafka):**
 - `user-registered` → account activation email (link points to `FRONTEND_URL/activate?token=...`)
-- `adoption-form-analysed` → adoption result email (accepted / rejected) to the adopter's email from the JWT claim
+- `password-changed` / `password-reset-requested` → security emails
+- `adoption-form-analysed` → AI screening result + in-app notification (`FORM_AI_APPROVED` / `FORM_AI_REJECTED` / `FORM_AI_REVIEW_REQUIRED`)
+- `adoption-request-accepted` → the org accepted the request: email + in-app `ADOPTION_ACCEPTED`
+- `adoption-request-rejected` → the org rejected the request (reason carried in the body): email + in-app `ADOPTION_REJECTED`
+
+The `FORM_AI_*` codes reflect the **automated** screening; the org's **real** decision is a separate event (`ADOPTION_ACCEPTED` / `ADOPTION_REJECTED`). An AI rejection never emits `ADOPTION_REJECTED`.
+
+**In-app endpoints** (`@RolesAllowed("User")`):
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/notifications` | Caller's notifications (proxied through the gateway) |
+| `GET` | `/notifications/unread-count` | Unread counter |
+| `PATCH` | `/notifications/{id}/read` | Mark one as read |
+| `PATCH` | `/notifications/read-all` | Mark all as read |
+| `GET` | `/notifications/stream` | SSE live stream — served directly via Nginx (`proxy_buffering off`), not buffered through the gateway |
 
 ---
 
@@ -170,7 +185,9 @@ All mutation endpoints verify the cat is still active (not `Deleted`) via `cat-s
 
 **Kafka topics:**
 - `adoption-form-submitted` (outgoing) — screening form data for analysis
-- `adoption-form-analysed` (incoming) — analysis decision (ACCEPTED / REJECTED)
+- `adoption-form-analysed` (incoming) — AI screening decision
+- `adoption-request-accepted` (outgoing) — emitted when the org moves a request to `Accepted` (consumed by `notification-service`)
+- `adoption-request-rejected` (outgoing) — emitted when the org moves a request to `Rejected`, carries the reason (consumed by `notification-service`)
 
 **Intake flow** (added 2026-04-28, lives under `intake/` package alongside the adoption aggregate):
 
