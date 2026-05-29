@@ -9,6 +9,8 @@ import es.kitti.adoption.entity.ExpenseRecipient;
 import es.kitti.adoption.entity.HousingType;
 import es.kitti.adoption.event.AdoptionFormAnalysedEvent;
 import es.kitti.adoption.event.AdoptionFormSubmittedEvent;
+import es.kitti.adoption.event.AdoptionRequestAcceptedEvent;
+import es.kitti.adoption.event.AdoptionRequestRejectedEvent;
 import es.kitti.adoption.intake.dto.*;
 import es.kitti.adoption.intake.entity.IntakeStatus;
 import es.kitti.mon.error.ErrorResponse;
@@ -30,6 +32,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         InterviewResponse.class,
         AdoptionFormAnalysedEvent.class,
         AdoptionFormSubmittedEvent.class,
+        AdoptionRequestAcceptedEvent.class,
+        AdoptionRequestRejectedEvent.class,
         CatCreateInternalRequest.class,
         CatResponse.class,
         IntakeApproveRequest.class,

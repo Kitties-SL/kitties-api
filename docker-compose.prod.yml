@@ -281,11 +281,17 @@ services:
     environment:
       QUARKUS_PROFILE: prod
       QUARKUS_HTTP_PORT: 8085
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       KAFKA_HOST: kafka
       KAFKA_PORT: 29092
       KITTIES_INTERNAL_SECRET: ${KITTIES_INTERNAL_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       USER_SERVICE_URL: http://user-service:8081
+      CORS_ORIGIN: ${CORS_ORIGIN}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT}
       MAIL_FROM: ${MAIL_FROM}
@@ -293,7 +299,12 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_TLS: ${MAIL_TLS:-REQUIRED}
       OTEL_ENDPOINT: http://alloy:4317
+    secrets:
+      - source: jwt_public_key
+        target: /run/secrets/publicKey.pem
     depends_on:
+      postgres:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       user-service:
@@ -476,6 +487,7 @@ services:
       ADOPTION_SERVICE_URL: http://adoption-service:8086
       ORGANIZATION_SERVICE_URL: http://organization-service:8088
       CHAT_SERVICE_URL: http://chat-service:8089
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
       OTEL_ENDPOINT: http://alloy:4317
     secrets:
       - source: jwt_public_key
@@ -492,6 +504,8 @@ services:
       organization-service:
         condition: service_started
       chat-service:
+        condition: service_started
+      notification-service:
         condition: service_started
       alloy:
         condition: service_started
@@ -556,6 +570,8 @@ services:
       - certbot_www:/var/www/certbot:ro
     depends_on:
       gateway-service:
+        condition: service_started
+      notification-service:
         condition: service_started
     restart: unless-stopped
     networks:
