@@ -143,7 +143,7 @@ class AdoptionWriteServiceTest {
         verify(adoptionRequestAcceptedEmitter).send(captor.capture());
         assertEquals(1L, captor.getValue().adoptionRequestId());
         assertEquals(100L, captor.getValue().adopterId());
-        verify(adoptionRequestRejectedEmitter, never()).send(any());
+        verify(adoptionRequestRejectedEmitter, never()).send(any(AdoptionRequestRejectedEvent.class));
     }
 
     @Test
@@ -161,7 +161,7 @@ class AdoptionWriteServiceTest {
         assertEquals(1L, captor.getValue().adoptionRequestId());
         assertEquals(100L, captor.getValue().adopterId());
         assertEquals("no cumple requisitos", captor.getValue().rejectionReason());
-        verify(adoptionRequestAcceptedEmitter, never()).send(any());
+        verify(adoptionRequestAcceptedEmitter, never()).send(any(AdoptionRequestAcceptedEvent.class));
     }
 
     @Test
@@ -172,8 +172,8 @@ class AdoptionWriteServiceTest {
 
         adoptionWriteService.updateStatus(1L, 200L, AdoptionStatus.Reviewing, null).await().indefinitely();
 
-        verify(adoptionRequestAcceptedEmitter, never()).send(any());
-        verify(adoptionRequestRejectedEmitter, never()).send(any());
+        verify(adoptionRequestAcceptedEmitter, never()).send(any(AdoptionRequestAcceptedEvent.class));
+        verify(adoptionRequestRejectedEmitter, never()).send(any(AdoptionRequestRejectedEvent.class));
     }
 
     // --- submitRequestForm ---
