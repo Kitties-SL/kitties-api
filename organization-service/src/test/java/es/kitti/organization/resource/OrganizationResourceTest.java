@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isA;
 
 @QuarkusTest
 class OrganizationResourceTest {
@@ -221,5 +222,51 @@ class OrganizationResourceTest {
                 .get("/organizations/99999")
                 .then()
                 .statusCode(401);
+    }
+
+    // --- /organizations/nearby (público): cableado HTTP, no la lógica (cubierta en unitarios) ---
+
+    @Test
+    void nearby_noOrigin_returns400() {
+        given()
+                .when()
+                .get("/organizations/nearby")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
+    void nearby_unknownCity_returns400() {
+        given()
+                .queryParam("city", "Madrid")
+                .when()
+                .get("/organizations/nearby")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
+    void nearby_withCoordinates_isPublicAndReturnsJsonArray() {
+        // 200 sin token prueba @PermitAll + precedencia de ruta frente a /{id} (que exigiría auth)
+        given()
+                .queryParam("lat", 28.39)
+                .queryParam("lng", -16.52)
+                .when()
+                .get("/organizations/nearby")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("$", isA(java.util.List.class));
+    }
+
+    @Test
+    void nearby_withKnownCity_isPublicAndReturns200() {
+        given()
+                .queryParam("city", "La Orotava")
+                .when()
+                .get("/organizations/nearby")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON);
     }
 }
