@@ -2,6 +2,7 @@ package es.kitti.organization.mapper;
 
 import es.kitti.organization.dto.CreateOrganizationRequest;
 import es.kitti.organization.dto.MemberResponse;
+import es.kitti.organization.dto.NearbyOrganizationResponse;
 import es.kitti.organization.dto.OrganizationPublicResponse;
 import es.kitti.organization.dto.OrganizationResponse;
 import es.kitti.organization.dto.OrganizationSummary;
@@ -73,6 +74,17 @@ public class OrganizationMapper {
                 org.logoUrl,
                 org.plan,
                 activeCatsCount
+        );
+    }
+
+    public NearbyOrganizationResponse toNearbyResponse(Organization org, double distanceKm) {
+        return new NearbyOrganizationResponse(
+                org.id,
+                org.name,
+                org.city,
+                org.region,
+                org.logoUrl,
+                Math.round(distanceKm * 10.0) / 10.0
         );
     }
 

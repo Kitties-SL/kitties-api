@@ -52,6 +52,21 @@ public class OrganizationResource {
     }
 
     @GET
+    @Path("/nearby")
+    @PermitAll
+    public Uni<Response> nearby(
+            @QueryParam("lat") Double lat,
+            @QueryParam("lng") Double lng,
+            @QueryParam("city") String city,
+            @QueryParam("limit") @DefaultValue("10") int limit) {
+        return organizationService.findNearby(lat, lng, city, limit)
+                .onItem().transform(either -> either.fold(
+                        err -> Response.status(err.httpStatus()).entity(ErrorResponse.of(err)).build(),
+                        list -> Response.ok(list).build()
+                ));
+    }
+
+    @GET
     @Path("/{id}/public")
     @PermitAll
     public Uni<Response> findPublicById(@PathParam("id") Long id) {

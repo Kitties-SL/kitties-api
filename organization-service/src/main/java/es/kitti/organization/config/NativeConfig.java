@@ -15,6 +15,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         CreateOrganizationRequest.class,
         InviteMemberRequest.class,
         MemberResponse.class,
+        NearbyOrganizationResponse.class,
         OrganizationPublicMinimalResponse.class,
         OrganizationPublicResponse.class,
         OrganizationResponse.class,
