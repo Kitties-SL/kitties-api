@@ -2,6 +2,7 @@ package es.kitti.organization.service;
 
 import es.kitti.mon.either.Either;
 import es.kitti.mon.either.Unit;
+import es.kitti.mon.error.BadRequestError;
 import es.kitti.mon.error.ConflictError;
 import es.kitti.mon.error.DomainError;
 import es.kitti.mon.error.NotFoundError;
@@ -11,6 +12,7 @@ import es.kitti.organization.client.dto.CountByOrgsRequest;
 import es.kitti.organization.client.dto.CreateUserRequest;
 import es.kitti.organization.client.dto.OrgCatCount;
 import es.kitti.organization.dto.CreateOrganizationRequest;
+import es.kitti.organization.dto.NearbyOrganizationResponse;
 import es.kitti.organization.dto.OrganizationPublicResponse;
 import es.kitti.organization.dto.OrganizationResponse;
 import es.kitti.organization.dto.OrganizationSummary;
@@ -19,7 +21,9 @@ import es.kitti.organization.dto.RegisterOrganizationRequest;
 import es.kitti.organization.dto.UpdateOrganizationRequest;
 import es.kitti.organization.entity.Organization;
 import es.kitti.organization.entity.OrganizationStatus;
+import es.kitti.organization.geo.Coordinates;
 import es.kitti.organization.mapper.OrganizationMapper;
+import es.kitti.organization.repository.CityCoordinatesRepository;
 import es.kitti.organization.repository.OrganizationRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
@@ -33,14 +37,17 @@ import jakarta.ws.rs.WebApplicationException;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class OrganizationService {
 
     @Inject OrganizationRepository organizationRepository;
+    @Inject CityCoordinatesRepository cityCoordinatesRepository;
     @Inject OrganizationMemberService memberService;
     @Inject OrganizationMapper mapper;
     @Inject OrganizationWriteService writeService;
@@ -174,6 +181,36 @@ public class OrganizationService {
                                             });
                                 })
                 );
+    }
+
+    @WithSession
+    public Uni<Either<DomainError, List<NearbyOrganizationResponse>>> findNearby(
+            Double lat, Double lng, String city, int limit) {
+        Coordinates origin;
+        if (lat != null && lng != null) {
+            origin = new Coordinates(lat, lng);
+        } else if (city != null && !city.isBlank()) {
+            var resolved = cityCoordinatesRepository.findByCity(city);
+            if (resolved.isEmpty())
+                return Uni.createFrom().item(Either.left(new BadRequestError("UNKNOWN_CITY")));
+            origin = resolved.get();
+        } else {
+            return Uni.createFrom().item(Either.left(new BadRequestError("ORIGIN_REQUIRED")));
+        }
+        final Coordinates from = origin;
+        final int effectiveLimit = limit <= 0 ? 10 : Math.min(limit, 50);
+        return organizationRepository.findAllActive()
+                .onItem().transform(orgs -> {
+                    List<NearbyOrganizationResponse> content = orgs.stream()
+                            .map(o -> cityCoordinatesRepository.findByCity(o.city)
+                                    .map(c -> mapper.toNearbyResponse(o, from.distanceKm(c)))
+                                    .orElse(null))
+                            .filter(Objects::nonNull)
+                            .sorted(Comparator.comparingDouble(NearbyOrganizationResponse::distanceKm))
+                            .limit(effectiveLimit)
+                            .toList();
+                    return Either.<DomainError, List<NearbyOrganizationResponse>>right(content);
+                });
     }
 
     @WithSession

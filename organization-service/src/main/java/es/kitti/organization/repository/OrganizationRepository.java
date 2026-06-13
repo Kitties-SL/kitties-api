@@ -21,6 +21,10 @@ public class OrganizationRepository implements PanacheRepository<Organization> {
                 region, OrganizationStatus.Active);
     }
 
+    public Uni<List<Organization>> findAllActive() {
+        return list("status", OrganizationStatus.Active);
+    }
+
     public Uni<List<Organization>> search(String name, String region, String city, int page, int size) {
         QueryFilter qf = buildActiveFilter(name, region, city);
         return find(qf.hql + " order by name asc", qf.params).page(page, size).list();
